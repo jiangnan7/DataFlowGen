@@ -30,3 +30,16 @@
 *.exe
 *.out
 *.app
+
+build/*
+thirdparty/*
+hardware/api-config-chipsalliance
+hardware/hardfloat
+hardware/.bsp/*
+hardware/project/project/*
+hardware/project/target/*
+hardware/target/*
+hardware/test_run_dir/*
+build1/*
+.vscode/*
+hardware/generated_dut/*
