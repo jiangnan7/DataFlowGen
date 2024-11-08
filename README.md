@@ -31,15 +31,19 @@ Follow the instructions in [`hardware/README.md`](hardware/README.md) to install
 
 To translate the C/C++ kernel, run the:
 ```
-$ ./thirdparty/Polygeist/build/bin/cgeist ./benchmark/HLS/doitgenTriple/doitgenTriple.cpp -function=doitgenTriple -S      -memref-fullrank -raise-scf-to-affine > doitgenTriple.mlir
+$ ./thirdparty/Polygeist/build/bin/cgeist ./benchmark/doitgenTriple/doitgenTriple.cpp \ 
+  -function=doitgenTriple -S  -memref-fullrank \
+  -raise-scf-to-affine > doitgenTriple.mlir
 ```
 ## DataFlowGen-OPT
 
 ### IR Transformation 
 To transform the initiation program, run the
 ```
- ./build/bin/heteacc-opt  ./benchmark/HLS/doitgenTriple/doitgenTriple.mlir   --generate-dataflow --analyze-memref-address  --optimize-dataflow  --generate-GEP \
-  --cse  --enhanced-cdfg  --hybird-branch-prediction  --graph-init="top-func=doitgenTriple" --debug-only="graph"
+ ./build/bin/heteacc-opt  ./benchmark/doitgenTriple/doitgenTriple.mlir   --generate-dataflow \
+ --analyze-memref-address  --optimize-dataflow  --generate-GEP \
+  --cse  --enhanced-cdfg  --hybird-branch-prediction \
+  --graph-init="top-func=doitgenTriple" --debug-only="graph"
 ```
 
 ### Hardware Generation
