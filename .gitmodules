@@ -1,6 +1,3 @@
-[submodule "thirdparty"]
-	path = thirdparty
-	url = https://github.com/jiangnan7/llvm-project
 [submodule "thirdparty/llvm-project"]
 	path = thirdparty/llvm-project
 	url = https://github.com/jiangnan7/llvm-project
