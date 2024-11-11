@@ -4,3 +4,6 @@
 [submodule "thirdparty/llvm-project"]
 	path = thirdparty/llvm-project
 	url = https://github.com/jiangnan7/llvm-project
+[submodule "hardware/api-config-chipsalliance"]
+	path = hardware/api-config-chipsalliance
+	url = https://github.com/jiangnan7/cde

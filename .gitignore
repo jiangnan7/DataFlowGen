@@ -32,8 +32,6 @@
 *.app
 
 build/*
-hardware/api-config-chipsalliance
-hardware/hardfloat
 hardware/.bsp/*
 hardware/project/project/*
 hardware/project/target/*

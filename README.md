@@ -40,10 +40,9 @@ $ ./thirdparty/Polygeist/build/bin/cgeist ./benchmark/doitgenTriple/doitgenTripl
 ### IR Transformation 
 To transform the initiation program, run the
 ```
- ./build/bin/heteacc-opt  ./benchmark/doitgenTriple/doitgenTriple.mlir   --generate-dataflow \
- --analyze-memref-address  --optimize-dataflow  --generate-GEP \
-  --cse  --enhanced-cdfg  --hybird-branch-prediction \
-  --graph-init="top-func=doitgenTriple" --debug-only="graph"
+$  ./build/bin/heteacc-opt  ./benchmark/doitgenTriple/doitgenTriple.mlir   --generate-dataflow \
+ --analyze-memref-address  --optimize-dataflow  --generate-GEP --cse  --enhanced-cdfg \ 
+ --hybird-branch-prediction --graph-init="top-func=doitgenTriple" --debug-only="graph"
 ```
 
 ### Hardware Generation
