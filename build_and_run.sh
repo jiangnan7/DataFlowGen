@@ -18,12 +18,6 @@ INSTALL_DIR=${MY_DIR}/thirdparty
 # ## INSTALL LLVM/MLIR
 LLVM_REPO=${MY_DIR}/thirdparty/llvm-project
 echo "$LLVM_REPO"
-# LLVM_REPO=${MY_DIR}/thirdparty/Polygeist
-cd "${INSTALL_DIR}"
-git clone https://github.com/jiangnan7/llvm-project
-# git clone https://github.com/llvm/llvm-project.git
-# cd "${LLVM_REPO}"
-# git checkout c11c2f5f6548a5303517c89ba6629bbfa7fae0d9
 
 LLVM_BUILD=${MY_DIR}/thirdparty/llvm-project/build
 
