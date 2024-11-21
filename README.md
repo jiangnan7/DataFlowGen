@@ -11,6 +11,11 @@ Leveraging these representations, we develop an automated optimizer that outline
 - ninja
 - clang and lld
 
+Optionally, the following packages are required for the Python binding.
+
+- pybind11
+- numpy
+
 ### Clone DataFlowGen
 ```sh
 $ git clone --recursive https://github.com/jiangnan7/DataFlowGen
@@ -21,6 +26,21 @@ $ cd DataFlowGen
 Run the following script to build DataFlowGen. Optionally, and `-j xx` to specify the number of parallel linking jobs.
 ```sh
 $ ./build_and_run.sh
+```
+
+Make sure you have installed Anaconda.
+```sh
+$ conda create -n dataflowgen
+```
+
+Packages will be installed there.
+```sh
+$ python -m pip install -r requirements.txt
+```
+
+After the build, we suggest to export the following paths.
+```sh
+$ export PYTHONPATH=$(cd build && pwd)/python_packages/heteacc_core
 ```
 
 ### Build Hardware

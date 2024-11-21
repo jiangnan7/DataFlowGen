@@ -31,6 +31,7 @@ cmake  -G Ninja "-H$LLVM_REPO/llvm" \
      -DCMAKE_BUILD_TYPE=DEBUG \
      -DLLVM_INCLUDE_TOOLS=ON \
      -DLLVM_BUILD_EXAMPLES=ON \
+     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
      -DLLVM_TARGETS_TO_BUILD="host" \
      -DCMAKE_C_COMPILER=clang \
      -DCMAKE_CXX_COMPILER=clang++ 
@@ -71,6 +72,8 @@ cmake -GNinja .. \
   -DCMAKE_BUILD_TYPE=RELEASE \
   -DLLVM_ENABLE_LLD=ON \
   -DCMAKE_C_COMPILER=clang \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+  -HETEACC_ENABLE_BINDINGS_PYTHON=ON \
   -DCMAKE_CXX_COMPILER=clang++ 
 
 # cmake --build . --target heteacc-opt  DEBUG

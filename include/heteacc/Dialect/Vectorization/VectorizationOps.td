@@ -9,7 +9,6 @@ include "mlir/IR/EnumAttr.td"
 
 include "Vectorization.td"
 
-// 第二个 Op，用以表明打印操作
 def Vec_PrintOp : Vec_Op<"print", [Pure]> {
     let summary = "print operation";
     let description = [{
@@ -19,7 +18,6 @@ def Vec_PrintOp : Vec_Op<"print", [Pure]> {
 
     // The print operation takes an input tensor to print.
     let arguments = (ins AnyTypeOf<[F64Tensor, F64MemRef]>:$input);
-    // 手动写明这个 Op 的输出
     let assemblyFormat = "$input attr-dict `:` type($input)";
 }
 
