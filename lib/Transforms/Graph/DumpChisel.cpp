@@ -11,6 +11,7 @@
 
 using namespace mlir;
 using namespace heteacc;
+#define DEBUG_TYPE "graph"
 
 /**
  * Node
@@ -1701,20 +1702,20 @@ void Graph::dumpGraph(PrintType _pt, std::string json_path) {
 
         //TODO: Function
 
-        llvm::outs() << "printOperations.\n";
+        LLVM_DEBUG(llvm::dbgs() << "\nprintOperations \n ";);
         printOperations(PrintType::Scala);    
-        llvm::outs() << "printControlEdge.\n";
+        LLVM_DEBUG(llvm::dbgs() << "\nprintControlEdge. \n ";);
         printControlEdge(PrintType::Scala);    
-        llvm::outs() << "printLoopConnection.\n";
+        LLVM_DEBUG(llvm::dbgs() << "\nprintLoopConnection. \n ";);
         printLoopConnection(PrintType::Scala);  
-        llvm::outs() << "printConnection.\n";
+        LLVM_DEBUG(llvm::dbgs() << "\nprintConnection. \n ";);
         printConnection(PrintType::Scala);  
 
         //Output
         this->outputHardware << "  io.out <> " << this->out_node->printOutputData(PrintType::Scala)
                         << "\n\n";
         this->outputHardware << "}\n\n"; 
-        llvm::outs() << "printScalaEnd.\n";
+        LLVM_DEBUG(llvm::dbgs() << "\nprintScalaEnd. \n ";);
         // printScalaEnd(PrintType::Scala);
 
         break;
@@ -2047,7 +2048,7 @@ void Graph::printConnection(PrintType _pt) {
               << "\n\n";
           }
           for(auto iter = exe.get()->operation_node_begin(); iter != exe.get()->operation_node_end(); iter++){
-            llvm::outs() << (*iter)->getName();
+            LLVM_DEBUG(llvm::dbgs() << (*iter)->getName(););
             auto operation_node = static_cast<Node *>(*iter);
             auto ff = std::find_if(
                 operation_node->inputControl_begin(),

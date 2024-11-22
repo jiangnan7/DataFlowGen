@@ -63,8 +63,10 @@ Follow these instructions to compile it from source.
     ```
 
 
-We depend on _Berkeley Hardware Floating-Point Units_ for floating nodes. Therefore, before building muIR you need to clone hardfloat project, build it and then publish it locally on your system. Hardfloat repository has all the necessary information about how to build the project, here we only briefly mention how to build it and then publish it.
+We depend on _Berkeley Hardware Floating-Point Units_ for floating nodes. Therefore, before building library you need to clone hardfloat project, build it and then publish it locally on your system. Hardfloat repository has all the necessary information about how to build the project, here we only briefly mention how to build it and then publish it.
 
 ```
 $ ./build.sh
 ```
+
+This hardware library references the design ideas and implementation methods from the [muIR GitHub repository](https://github.com/sfu-arch/muir-lib). We acknowledge the valuable insights provided by the muIR project, which inspired and guided the development of some hardware units in this repository. 

@@ -58,7 +58,7 @@ bool GraphGen::applyGraphInit(func::FuncOp func, bool isTopFunc) {
     // if(){
     //   this->dependency_graph->setOutputNode(this->map_op_node[returnop.getOperation()]);
     // }
-    llvm::outs() << "our print.\n";
+    LLVM_DEBUG(llvm::dbgs() << "dumpGraph\n";);
     this->dependency_graph->dumpGraph(PrintType::Scala);
 
     this->dependency_graph->dumpECDFG();

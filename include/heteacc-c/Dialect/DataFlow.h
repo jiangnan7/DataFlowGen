@@ -2,6 +2,8 @@
 #define HETEACC_C_DIALECT_HETEACC_H
 
 #include "mlir-c/IR.h"
+#include "mlir-c/RegisterEverything.h"
+
 
 #ifdef __cplusplus
 extern "C" {

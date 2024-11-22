@@ -10,6 +10,8 @@
 
 using namespace mlir;
 using namespace heteacc;
+#define DEBUG_TYPE "graph"
+
 #include <queue>
 
 namespace {
@@ -59,7 +61,6 @@ std::vector<unsigned> affineExprAnalysis(AffineExpr affineExpr, std::pair<std::m
       // llvm::errs() << "MUL\n";
       int64_t ConstVal;
       if(!isConstant(LHS) && !isConstant(RHS)){
-        llvm::errs() << "dim*dim!!!!how to do???\n";
         ConstVal = LHS.dyn_cast<mlir::AffineConstantExpr>().getValue();
         effectedPositions = affineExprAnalysis(LHS, factorTable);
         auto RightDims = affineExprAnalysis(LHS, factorTable);
@@ -102,7 +103,8 @@ std::vector<unsigned> affineExprAnalysis(AffineExpr affineExpr, std::pair<std::m
 
     unsigned symIndex = symExpr.getPosition();
 
-    llvm::errs() << "symIndex: " << symIndex << ", how to do???\n";
+    LLVM_DEBUG(llvm::dbgs() << "symIndex: " << symIndex << ", how to do???\n";);
+
     return effectedPositions;
   }
   return effectedPositions;
@@ -114,7 +116,6 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
   void runOnOperation(){
     auto FunctionOp = dyn_cast<FuncOp>(getOperation());
     mlir::OpBuilder builder(&getContext());
-    llvm::errs() << "running my Pass!\n"; 
     llvm::errs() << "---------analyzing the loop levels of the kernel--------\n"; 
     std::map<AffineForOp, int> LoopLevels;
     //outter most level is 0
@@ -177,11 +178,11 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
             AffineMap LSAffineMap;
             MemRefType memRef;
             if(auto load = dyn_cast<AffineLoadOp>(op)){
-              llvm::errs() << "Affine Load: "; load.dump();
+
               LSAffineMap = load.getAffineMap();
               memRef = load.getMemRefType();
               //test to get address claculation
-              llvm::errs() << "********test to get address claculation***************\n";
+
               for(auto idxop : load.getMapOperands()){
                 for(auto &elem : level2IdxVarMap){
                   if(elem.second == idxop){
@@ -191,14 +192,11 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
                   }
                 }
               }
-              llvm::errs() << "*****************************************************\n";
             }else{
               auto store = dyn_cast<AffineStoreOp>(op);
-              llvm::errs() << "Affine Store: "; store.dump();
               LSAffineMap = store.getAffineMap();
               memRef = store.getMemRefType();
               //test to get address claculation
-              llvm::errs() << "********test to get address claculation***************\n";
               for(auto idxop : store.getMapOperands()){
                 for(auto &elem : level2IdxVarMap){
                   if(elem.second == idxop){
@@ -208,10 +206,8 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
                   }
                 }
               }
-              llvm::errs() << "*****************************************************\n";
             }
 
-            llvm::errs() << "AffineMap: "; LSAffineMap.dump();
             auto memoryShape = memRef.getShape();
             
             std::map<unsigned, int64_t> subDimsSpaceMap;
@@ -255,11 +251,9 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
             std::set<int64_t> involvedLevels;
             mlir::ValueRange indices;
             if(auto load = dyn_cast<memref::LoadOp>(op)){
-              llvm::errs() << "memref Load: "; load.dump();
               indices = load.getIndices();
               // addrValues.insert(addrValues.end(), load.getIndices().begin(), load.getIndices().end());
             }else if(auto store = dyn_cast<memref::StoreOp>(op)){
-              llvm::errs() << "memref Store: "; store.dump();
               indices = store.getIndices();
               // addrValues.insert(addrValues.end(), store.getIndices().begin(), store.getIndices().end());
             }
@@ -320,7 +314,6 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
           llvm::errs() << "Affine Load: "; load.dump(); 
           auto affineMap = load.getAffineMap();
           auto memoryShape = load.getMemRefType().getShape();
-          // 遍历 AffineMap 中的每个结果维度
           int i = 0;
           std::vector<mlir::Attribute> affineAttrs;
           std::map<unsigned, int64_t> coeffMap;

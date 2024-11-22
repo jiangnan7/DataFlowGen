@@ -1,3 +1,7 @@
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
+get_property(translation_libs GLOBAL PROPERTY MLIR_TRANSLATION_LIBS)
+
 include(AddMLIRPython)
 
 
@@ -15,7 +19,7 @@ declare_mlir_dialect_python_bindings(
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
   TD_FILE heteacc/DataFlowOps.td
   SOURCES
-    heteacc/dataflow.py
+    heteacc/dataflow/dataflow.py
   DIALECT_NAME dataflow)
 
 declare_mlir_python_extension(HeteaccPythonSources.Extension
@@ -23,6 +27,11 @@ declare_mlir_python_extension(HeteaccPythonSources.Extension
   ADD_TO_PARENT HeteaccPythonSources
   SOURCES
     HeteaccExtension.cpp
+  PRIVATE_LINK_LIBS
+    ${dialect_libs}
+    ${conversion_libs}
+    ${translation_libs}
+    LLVMSupport
   EMBED_CAPI_LINK_LIBS
     HeteaccCAPIDataFlow
 )
@@ -47,11 +56,26 @@ add_mlir_python_common_capi_library(HeteaccPythonCAPI
 # Instantiation of all Python modules
 ################################################################################
 
+add_mlir_python_modules(HeteaccMLIRPythonModules
+  ROOT_PREFIX "${HETEACC_PYTHON_PACKAGES_DIR}/heteacc_core/mlir"
+  INSTALL_PREFIX "python_packages/heteacc_core/mlir"
+  DECLARED_SOURCES
+    MLIRPythonSources.Core
+    MLIRPythonSources.Dialects
+    MLIRPythonSources.ExecutionEngine
+
+    HeteaccPythonSources
+  COMMON_CAPI_LINK_LIBS
+  HeteaccPythonCAPI
+)
+
 add_mlir_python_modules(HeteaccPythonModules
   ROOT_PREFIX "${HETEACC_PYTHON_PACKAGES_DIR}/heteacc_core/"
   INSTALL_PREFIX "python_packages/heteacc_core/"
   DECLARED_SOURCES
     HeteaccPythonSources
+    MLIRPythonExtension.RegisterEverything
+    MLIRPythonSources
   COMMON_CAPI_LINK_LIBS
     HeteaccPythonCAPI
   )

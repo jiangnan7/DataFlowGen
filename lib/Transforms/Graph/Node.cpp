@@ -19,7 +19,7 @@ DataType heteacc::isDataType(Value arg){
     Type type = arg.getType();
     if(type.isa<mlir::IntegerType>()){
       return DataType::IntegerType;
-//
+
     } else if(type.isa<mlir::MemRefType>()){
       return  DataType::MemrefType;
 
