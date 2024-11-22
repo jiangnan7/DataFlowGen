@@ -48,7 +48,7 @@ struct SelectPrediction : public OpRewritePattern<dataflow::IfOp> {
       auto ifSel = rewriter.create<dataflow::SelectOp>(rewriter.getUnknownLoc(), 
             ifop.getResults().getType(), condop->getResult(0), //lowerBound, lowerBound);
             ifop.getThenRegion().front().getTerminator()->getOperand(0), 
-            ifop.getElseRegion().front().getTerminator()->getOperand(0));//如果有多个，就循环复制
+            ifop.getElseRegion().front().getTerminator()->getOperand(0));
             
 
       rewriter.replaceOp(ifop, ifSel.getResult());

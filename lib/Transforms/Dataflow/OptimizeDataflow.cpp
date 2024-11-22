@@ -50,7 +50,7 @@ public:
     // auto iv = conditionBlock->getArgument(0);
     // auto *lastBodyBlock  = &op.getRegion().back();
 
-    // auto stepped = rewriter.create<arith::AddIOp>(loc, iv, step).getResult();//这个可以给线性内存使用
+    // auto stepped = rewriter.create<arith::AddIOp>(loc, iv, step).getResult();
     // if (!stepped)
     //   return failure();
     // auto comparison = rewriter.create<arith::CmpIOp>(

@@ -812,14 +812,16 @@ std::string LoopNode::printOutputEnable(PrintType _pt, uint32_t _id) {
 
   switch (_pt) {
     case PrintType::Scala:
-      if (node_t->second == PortType::LoopFinish)
-        _text = "$name.io.loopfinish";
-      else if (node_t->second == PortType::Active_Loop_Start)
-        _text = "$name.io.activate_loop_start";
+      if (node_t->second == PortType::Active_Loop_Start){
+        if(this->activate_num == 0){
+          _text = "$name.io.activate_loop_start";
+          this->activate_num += 1;
+        }
+        else
+          _text = "$name.io.activate_loop_back";
+      }
       else if (node_t->second == PortType::Active_Loop_Back)
         _text = "$name.io.activate_loop_back";
-      else if (node_t->second == PortType::Enable)
-        _text = "$name.io.???";
 
       strReplace(_text, "$name", _name.c_str());
       break;
@@ -842,15 +844,13 @@ std::string LoopNode::printOutputEnable(PrintType _pt, PortEntry _port) {
   switch (_pt) {
     case PrintType::Scala:
       if (port_equal(this->activate_loop_start, _port)){
-        if(!this->getSignal())
+        if(this->activate_num == 0){
           _text = "$name.io.activate_loop_start";
+          this->activate_num += 1;
+        } 
         else 
           _text = "$name.io.activate_loop_back";
-        this->setSignal();
       }
-      //   _text = "$name.io.activate_loop_start";
-      // else if (port_equal(this->activate_loop_back, _port))
-      //   _text = "$name.io.activate_loop_back";
       else {
         auto out_port = find_if(this->loop_exits.begin(),
                                 this->loop_exits.end(),

@@ -688,7 +688,7 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
         if(find_const){
           auto to = this->map_op_node.find(operation);
           const_node->addDataOutputPort(to->second);
-          to->second->addDataInputPort(const_node); 
+          to->second->addDataInputPort(const_node, i); //FIX the port issues.
         }
       }
      return WalkResult::advance();
@@ -763,7 +763,7 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
               _edge->second->dump();
 
               _node_src->addDataOutputPort(_node_tar);
-              _node_tar->addDataInputPort(_node_src);
+              _node_tar->addDataInputPort(_node_src, i); //FIX the port issues.
             }
 
           }
@@ -805,7 +805,7 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
               auto _node_tar = this->map_op_node[_edge->second];
               if(_node_src == nullptr) continue;
               _node_src->addDataOutputPort(_node_tar);
-              _node_tar->addDataInputPort(_node_src);
+              _node_tar->addDataInputPort(_node_src, i);//FIX the port issues.
             }
           }
 
@@ -834,13 +834,13 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
           _carry->addDataInputPort(from->second);
 
           _carry->addDataOutputPort(to->second);
-          to->second->addDataInputPort(_carry);
+          to->second->addDataInputPort(_carry, i); //FIX the port issues.
 
           continue;
         }
 
         from->second->addDataOutputPort(to->second);
-        to->second->addDataInputPort(from->second);
+        to->second->addDataInputPort(from->second, i);//FIX the port issues.
       }
 
 

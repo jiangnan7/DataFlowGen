@@ -1129,7 +1129,7 @@ public:
     // resizeControlOutputPort(LOOPCONTROL);
   }
 
-
+  int activate_num = 0;
   /**
    * Print functions
    */
