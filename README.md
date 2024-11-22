@@ -60,9 +60,9 @@ $ ./thirdparty/Polygeist/build/bin/cgeist ./benchmark/doitgenTriple/doitgenTripl
 ### IR Transformation 
 To transform the initiation program, run the
 ```
-$  ./build/bin/heteacc-opt  ./benchmark/doitgenTriple/doitgenTriple.mlir   --generate-dataflow \
+$  ./build/bin/heteacc-opt  ./benchmark/if_loop_1/if_loop_1.mlir   --generate-dataflow \
  --analyze-memref-address  --optimize-dataflow  --generate-GEP --cse  --enhanced-cdfg \ 
- --hybird-branch-prediction --graph-init="top-func=doitgenTriple" --debug-only="graph"
+ --hybird-branch-prediction --graph-init="top-func=if_loop_1" --debug-only="graph"
 ```
 
 ### Hardware Generation
@@ -70,6 +70,6 @@ This is a hardware library written in [Chisel](https://www.chisel-lang.org/). Th
 
 ```
 $ cd hardware
-$ sbt "testOnly   heteacc.generator.doitgenTripleDF_test"
+$ sbt "testOnly   heteacc.generator.if_loop_1DF_test"
 ```
 

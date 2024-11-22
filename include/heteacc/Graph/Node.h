@@ -1021,7 +1021,7 @@ public:
   };
 
   AllocaNode* alloca_node;
-  uint32_t size;
+  int64_t size;
   uint32_t num_byte;
 
 private:
@@ -1050,6 +1050,9 @@ public:
 
   uint32_t getMemSize() {
     return this->size;
+  }
+  void setMemSize(int64_t num) {
+    this->size = num;
   }
   uint32_t getMemByte() {
     return this->num_byte;

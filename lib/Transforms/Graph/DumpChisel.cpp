@@ -1186,10 +1186,7 @@ std::string AddressGenNode::printDefinition(PrintType _pt) {
       strReplace(_text, "$num_ins", std::to_string(this->numDataInputPort() - 1));
 
       std::stringstream _array;
-
-      // strReplace(_text, "$size",
-      //*std::prev(this->gep_info.element_size.end()));
-      strReplace(_text, "$size", 32);
+      strReplace(_text, "$size", 1);
 
       // strReplace(_text, "$array", "List(" + _array.str() + ")");
 
@@ -1288,15 +1285,9 @@ std::string LSNode::printDefinition(PrintType _pt) {
     case PrintType::Scala: {
       
       if(this->isStore){
-        // _text = "  val $name = Module(new UnTypStoreCache(NumPredOps = $npo, "
-        //       "NumSuccOps = $nso, "
-        //       "ID = $id, RouteID = $rid))\n\n";
         _text = "  val $name = Module(new Store(NumOuts = 1, "
               "ID = $id, RouteID = $rid))\n\n";
       } else  {
-        // _text = "  val $name = Module(new UnTypLoadCache(NumPredOps = $npo, "
-        //       "NumSuccOps = $nso, "
-        //       "NumOuts = $num_out, ID = $id, RouteID = $rid))\n\n";
         _text = "  val $name = Module(new Load("
               "NumOuts = $num_out, ID = $id, RouteID = $rid))\n\n";
       }    
@@ -1394,7 +1385,7 @@ std::string LSNode::printMemReadInput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      _text = "$name.io.MemResp";
+      _text = "$name.io.data_in";
 
       strReplace(_text, "$name", _name.c_str());
       break;
@@ -1409,7 +1400,7 @@ std::string LSNode::printMemReadOutput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      _text = "$name.io.MemReq";
+      _text = "$name.io.address_out";
       strReplace(_text, "$name", _name.c_str());
       break;
     default: break;
@@ -1457,7 +1448,7 @@ std::string LSNode::printMemWriteInput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      _text = "$name.io.MemResp";
+      _text = "$name.io.Out(0)";
 
       strReplace(_text, "$name", _name.c_str());
       break;
@@ -1473,7 +1464,7 @@ std::string LSNode::printMemWriteOutput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      _text = "$name.io.MemReq";
+      _text = "$name.io.address_out";
       strReplace(_text, "$name", _name.c_str());
       break;
     default: break;
@@ -1505,33 +1496,15 @@ std::string MemoryNode::printDefinition(PrintType pt) {
     case PrintType::Scala: {
 
       _text = "  //Cache\n"
-              "  val $name = Module(new $module_type(ID = $id, NumRead = "
-              "$num_rd, NumWrite = $num_wr))\n"
-              "\n"
-              "  io.MemReq <> $name.io.cache.MemReq\n"
-              "  $name.io.cache.MemResp <> io.MemResp\n\n";
+              "  val $name = Module(new $module_type(Size=$size, ID = $id, NumRead = "
+              "$num_rd, NumWrite = $num_wr))\n";
       ;
       strReplace(_text, "$name", _name.c_str());
-      strReplace(_text, "$module_type", "CacheMemoryEngine");
+      strReplace(_text, "$size", this->getMemSize());
+      strReplace(_text, "$module_type", "MemoryEngine");
       strReplace(_text, "$id", std::to_string(this->getID()));
       strReplace(_text, "$num_rd", this->numReadDataInputPort());
       strReplace(_text, "$num_wr", this->numWriteDataInputPort());
-
-      // case PrintType::Scala: {
-      // _text = "  val $name = Module(new $module_type(ID = $id, Size = 32, "
-      //         "NReads = $num_rd, NWrites = $num_wr)\n"
-      //         "(WControl = new WriteMemController(NumOps = $num_wr, BaseSize = 2, NumEntries = 2))\n"
-      //         "(RControl = new ReadMemController(NumOps = $num_rd, BaseSize = 2, NumEntries = 2))\n"
-      //         "(RWArbiter = new ReadWriteArbiter()))"
-      // _text = "  //Cache\n"
-
-      // strReplace(_text, "$name", _name.c_str());
-      // strReplace(_text, "$module_type", "UnifiedController");
-      // strReplace(_text, "$id", std::to_string(this->getID()));
-      // strReplace(_text, "$num_rd", this->numReadDataInputPort());
-      // strReplace(_text, "$num_wr", this->numWriteDataInputPort());
-
-    // } break;
 
     } break;
     default: assert(!"Uknown print type!");
@@ -1544,9 +1517,7 @@ std::string MemoryNode::printMemReadInput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      // _text = "$name.io.rd.mem($mid).MemReq";
       _text = "$name.io.load_address($mid)";
-      // _text = "$name.io.ReadIn($mid)";
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$mid", _id);
       // TODO add mid
@@ -1562,9 +1533,7 @@ std::string MemoryNode::printMemReadOutput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      // _text = "$name.io.rd.mem($mid).MemResp";
       _text = "$name.address_out";
-      // _text = "$name.io.ReadOut($mid)";
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$mid", _id);
       // TODO add mid
@@ -1580,9 +1549,7 @@ std::string MemoryNode::printMemWriteInput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      // _text = "$name.io.wr.mem($mid).MemReq";
       _text = "$name.io.store_address($mid)";
-      // _text = "$name.io.WriteIn($mid)";
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$mid", _id);
       break;
@@ -1597,9 +1564,7 @@ std::string MemoryNode::printMemWriteOutput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      // _text = "$name.io.wr.mem($mid).MemResp";
       _text = "$name.io.store_data($mid)";
-      // _text = "$name.io.WriteOut($mid)";
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$mid", _id);
       break;
@@ -1761,8 +1726,6 @@ import utility._
     std::string function_file = "\nabstract class $module_nameDFIO(implicit val p: Parameters) extends Module with HasAccelParams {\n"
       "\tval io = IO(new Bundle {\n"
       "\t  val in = Flipped(Decoupled(new Call(List($<input_vector_vals> $<input_vector_ptrs>))))\n"
-      // "\t  val MemResp = Flipped(Valid(new MemResp))\n"
-      // "\t  val MemReq = Decoupled(new MemReq)\n"
       "\t  val out = Decoupled(new Call(List($<output_vector>)))\n"
       "\t})\n}\n\nclass $module_nameDF(implicit p: Parameters) extends $module_nameDFIO()(p){\n";
 

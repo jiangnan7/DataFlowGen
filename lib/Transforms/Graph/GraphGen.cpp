@@ -17,21 +17,29 @@ using namespace mlir;
 using namespace heteacc;
 #define DEBUG_TYPE "graph"
 
-void GraphGen::buildEnhancedControlDataFlowGraph(func::FuncOp func){
-  uint32_t c_id = 0;
-}
 
 bool GraphGen::applyGraphInit(func::FuncOp func, bool isTopFunc) {
     
     
     if(isTopFunc){
         this->dependency_graph->top_function = func;
+        int64_t size = 0;
         for(Value operand : func.front().getArguments()){ 
           // auto node = this->dependency_graph->getArgCall()->insertLiveInArgument(operand, ArgumentNode::LiveIn);
+          
           this->dependency_graph->funArgValue.push_back(operand);
+          if(MemRefType memRefType = operand.getType().dyn_cast<MemRefType>()){
+            Type elementType = memRefType.getElementType();
+            ArrayRef<int64_t> shape = operand.getType().cast<MemRefType>().getShape();
+            int64_t totalElements = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int64_t>());
+            size += totalElements;
+            // LLVM_DEBUG(llvm::dbgs() << operand << " " << totalElements << " " << size); 
+          }
+          
           this->map_value_node[operand] =  this->dependency_graph->getArgCall()->insertLiveInArgument(operand, ArgumentNode::ArgumentType::LiveIn);
           //arg_mem0
         }
+        this->dependency_graph->getMemoryUnit()->setMemSize(size);
         //TODO Global Value.
     }
 
