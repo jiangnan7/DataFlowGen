@@ -731,7 +731,7 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
         auto from_node = from->second;
         auto to_node   = to->second;
         // Live in
-        LLVM_DEBUG(llvm::dbgs() << "live_in!\n " ;);
+        LLVM_DEBUG(llvm::dbgs() << "live_in check!\n " ;);
         bool find_live_in = false;
         for (auto &data_scc : this->blacklist_loop_live_in_data_edge) {
           for (auto _data_edge : data_scc.getSecond()) {
@@ -771,7 +771,7 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
         }
 
         bool find_live_out = false;
-        LLVM_DEBUG(llvm::dbgs() << "\nliveout begin"<<"\n";);
+        LLVM_DEBUG(llvm::dbgs() << "liveout check!\n";);
 
         for (auto _data_src : this->blacklist_loop_live_out_data_edge) {
           
@@ -813,11 +813,11 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
         }
 
         bool find_carry = false;
-        LLVM_DEBUG(llvm::dbgs() << "find_carry!\n " ;);
+        LLVM_DEBUG(llvm::dbgs() << "caryy check!\n";);
 
         for (auto &data_scr : this->blacklist_carry_dependency_data_edge) {
           if ((data_scr.getFirst() == operand)){
-            LLVM_DEBUG(llvm::dbgs() << "okok\n \n \n \n \n " ;);
+
             for (auto data_edge : data_scr.getSecond()) {
               data_edge->dump();
               operation->dump();
@@ -933,7 +933,6 @@ void GraphGen::connectingBranch(mlir::func::FuncOp func){
 
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "saas\n " ;);
 
   // state_branch_24.io.PredOp(0) <> store_10.io.SuccOp(0)
   // llvm::DenseMap<dataflow::StoreOp, dataflow::ExecutionBlockOp> storeInblock;

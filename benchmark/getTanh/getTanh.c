@@ -1,12 +1,12 @@
 #include <stdlib.h>
-#include <iostream>
+// #include <iostream>
 
 
-int getTanhint(int A[100]){
+int getTanh(int A[100]){
 
   int i,beta;
   int result ;
-    int d = 0;
+  int d = 0;
   for (i = 0; i < 100; i++){
        beta = A[i];
 
@@ -32,11 +32,9 @@ int main(){
 
   for (int i = 0; i < 100; i++){
        A[i] = i;
-       std::cout << i << ", ";
-       if(i%20 == 0) std::cout << std::endl;
+      //  std::cout << i << ", ";
+      //  if(i%20 == 0) std::cout << std::endl;
   }
 
-  std::cout << std::endl;
-  std::cout << std::endl;
-  std::cout<<  getTanhint(A);
+  getTanh(A);
 }

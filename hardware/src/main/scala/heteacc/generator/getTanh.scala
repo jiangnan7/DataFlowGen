@@ -25,7 +25,7 @@ import heteacc.loop._
 import heteacc.execution._
 import utility._
 
-abstract class getTanhDoubleDFIO(implicit val p: Parameters) extends Module with HasAccelParams {
+abstract class getTanhDFIO(implicit val p: Parameters) extends Module with HasAccelParams {
 	val io = IO(new Bundle {
 	  val in = Flipped(Decoupled(new Call(List( 32))))
 	  // val MemResp = Flipped(Valid(new MemResp))
@@ -34,7 +34,7 @@ abstract class getTanhDoubleDFIO(implicit val p: Parameters) extends Module with
 	})
 }
 
-class getTanhDoubleDF(implicit p: Parameters) extends getTanhDoubleDFIO()(p){
+class getTanhDF(implicit p: Parameters) extends getTanhDFIO()(p){
 
   val FineGrainedArgCall = Module(new SplitCallDCR(argTypes = List(1)))
   FineGrainedArgCall.io.In <> io.in
@@ -394,10 +394,10 @@ m1.io.In(0) <>int_const_6.io.Out
 
 // import java.io.{File, FileWriter}
 
-// object getTanhDoubleTop extends App {
+// object getTanhTop extends App {
 //   implicit val p = new WithAccelConfig ++ new WithTestConfig
-//   val verilogString = getVerilogString(new getTanhDouble())
-//   val filePath = "RTL/getTanhDouble.v"
+//   val verilogString = getVerilogString(new getTanh())
+//   val filePath = "RTL/getTanh.v"
 //   val writer = new PrintWriter(filePath)
 //   try { 
 //       writer.write(verilogString)

@@ -14,7 +14,7 @@ import heteacc.memory._
 
 
 // 测试模块
-class getTanhDoubleDF_main(implicit p: Parameters) extends AccelIO(List(32), List(32))(p) {
+class getTanhDF_main(implicit p: Parameters) extends AccelIO(List(32), List(32))(p) {
 
   val cache = Module(new Cache) // Simple Nasti Cache
   val memModel = Module(new NastiMemSlave) // Model of DRAM to connect to Cache
@@ -33,7 +33,7 @@ class getTanhDoubleDF_main(implicit p: Parameters) extends AccelIO(List(32), Lis
 
   // Wire up the cache and modules under test.
   //  val test04 = Module(new test04DF())
-  val test13 = Module(new getTanhDoubleDF())
+  val test13 = Module(new getTanhDF())
 
   //Put an arbiter infront of cache
   val CacheArbiter = Module(new MemArbiter(1))
@@ -65,7 +65,7 @@ class getTanhDoubleDF_main(implicit p: Parameters) extends AccelIO(List(32), Lis
 }
 
 
-class getTanhDoubleDF01[T <: AccelIO](c: T)
+class getTanhDF01[T <: AccelIO](c: T)
                                       (inAddrVec: List[Int], inDataVec: List[Int],
                                        outAddrVec: List[Int], outDataVec: List[Int])
   extends AccelTesterLocal(c)(inAddrVec, inDataVec, outAddrVec, outDataVec) {
@@ -150,7 +150,7 @@ class getTanhDoubleDF01[T <: AccelIO](c: T)
   }
 }
 
-class getTanhDoubleDF_test extends FlatSpec with Matchers {
+class getTanhDF_test extends FlatSpec with Matchers {
 
   val inDataVec = List(0, 
 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 
@@ -227,14 +227,14 @@ class getTanhDoubleDF_test extends FlatSpec with Matchers {
     chisel3.iotesters.Driver.execute(
       Array(
         // "-ll", "Info",
-        "-tn", "getTanhDoubleDF",
+        "-tn", "getTanhDF",
         "-tbn", "verilator",
-        "-td", s"test_run_dir/getTanhDoubleDF",
+        "-td", s"test_run_dir/getTanhDF",
         "-tts", "0001",
         "--generate-vcd-output", "on"),
         
-      () => new getTanhDoubleDF_main()(p)) {
-      c => new getTanhDoubleDF01(c)(inAddrVec, inDataVec, outAddrVec, outDataVec)
+      () => new getTanhDF_main()(p)) {
+      c => new getTanhDF01(c)(inAddrVec, inDataVec, outAddrVec, outDataVec)
     } should be(true)
   }
 }

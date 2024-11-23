@@ -183,6 +183,9 @@ public:
   NodeType getType() const {
     return this->node_type;
   }
+  
+  std::vector<uint32_t> conflict_output_index;
+  std::vector<uint32_t> conflict_input_index;
 
   PortID returnDataInputPortIndex(Node*);
   PortID returnControlInputPortIndex(Node*);
@@ -409,6 +412,13 @@ public:
   void
   addControlOutputPortIndex(Node* _n, uint32_t _id) {
     port_control.control_output_port.push_back(std::make_pair(_n, _id));
+  }
+
+  bool checkOutputConfict(uint32_t _port_id) {
+    return std::find(conflict_output_index.begin(), conflict_output_index.end(), _port_id) != conflict_output_index.end();
+  }
+  bool checkInputConfict(uint32_t _port_id) {
+    return std::find(conflict_input_index.begin(), conflict_input_index.end(), _port_id) != conflict_input_index.end();
   }
 };
 

@@ -195,7 +195,7 @@ std::string ComputeOperationNode::printOutputData(PrintType _pt, uint32_t _port_
   std::string _name(this->getName());
   switch (_pt) {
     case PrintType::Scala:
-
+      if(this->checkOutputConfict(_port_id)) _port_id += 1;
       _text = "$name.io.Out($_port_id)";
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$_port_id", _port_id);
@@ -203,6 +203,7 @@ std::string ComputeOperationNode::printOutputData(PrintType _pt, uint32_t _port_
       break;
     default: assert(!"Uknown print type!");
   }
+  this->conflict_output_index.push_back(_port_id);
   return _text;
 }
 
@@ -211,6 +212,7 @@ std::string ComputeOperationNode::printInputData(PrintType _pt, uint32_t _idx) {
   std::string _name(this->getName());
   switch (_pt) {
     case PrintType::Scala:
+    if(this->checkInputConfict(_idx)) _idx += 1;
       if (_idx == 0)
         _text = "$name.io.LeftIO";
       else
@@ -220,6 +222,7 @@ std::string ComputeOperationNode::printInputData(PrintType _pt, uint32_t _idx) {
       break;
     default: assert(!"Uknown print type!");
   }
+  this->conflict_input_index.push_back(_idx);
   return _text;
 }
 
@@ -1342,7 +1345,7 @@ std::string LSNode::printOutputData(PrintType _pt, uint32_t _idx) {
   std::string _name(this->getName());
   switch (_pt) {
     case PrintType::Scala:
-
+      if(this->checkOutputConfict(_idx)) _idx += 1;
       _text = "$name.io.Out($id)";
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$id", _idx);
@@ -1350,6 +1353,7 @@ std::string LSNode::printOutputData(PrintType _pt, uint32_t _idx) {
       break;
     default: assert(!"Uknown print type!");
   }
+  this->conflict_output_index.push_back(_idx);
   return _text;
 }
 
