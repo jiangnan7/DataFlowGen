@@ -150,8 +150,7 @@ struct EnhancedCDFG
           }
           
           builder.setInsertionPoint(exeop.getBody().front().getTerminator());
-          auto ivnew =  builder.create<arith::AddIOp>( builder.getUnknownLoc(), ivSel, 
-          builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(), 1));
+          auto ivnew =  builder.create<arith::AddIOp>( builder.getUnknownLoc(), ivSel, forop.getStep());
           
           Value loopSignal = builder.create<arith::CmpIOp>( 
                 builder.getUnknownLoc(), arith::CmpIPredicate::eq, ivnew, forop.getUpperBound());

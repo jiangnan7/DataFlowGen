@@ -243,6 +243,25 @@ public:
   }
 };
 
+//
+/// Convert an "affine.apply" operation into a sequence of arithmetic
+/// operations using the StandardOps dialect.
+class AffineApplyLowering : public OpRewritePattern<AffineApplyOp> {
+public:
+  using OpRewritePattern<AffineApplyOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineApplyOp op,
+                                PatternRewriter &rewriter) const override {
+    auto maybeExpandedMap =
+        expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(),
+                        llvm::to_vector<8>(op.getOperands()));
+    if (!maybeExpandedMap)
+      return failure();
+    rewriter.replaceOp(op, *maybeExpandedMap);
+    return success();
+  }
+};
+
 /// Apply the affine map from an 'affine.store' operation to its operands, and
 /// feed the results to a newly created 'memref.store' operation (which replaces
 /// the original 'affine.store').
@@ -289,6 +308,7 @@ struct OptimizeDataflow
 
     mlir::RewritePatternSet patterns(context);
     
+    patterns.add<AffineApplyLowering>(context, /*benefit=*/1);
     patterns.add<AffineLoadLowering>(context, /*benefit=*/1);
     
     patterns.add<AffineStoreLowering>(context, /*benefit=*/1);
