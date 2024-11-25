@@ -12,7 +12,7 @@ using namespace mlir;
 using namespace heteacc;
 using namespace dataflow;
 
-
+// Reference to mlir/lib/Conversion/AffineToStandard/AffineToStandard.cpp
 class LowerAffineFor : public OpRewritePattern<AffineForOp> {
 public:
   using OpRewritePattern<AffineForOp>::OpRewritePattern;
@@ -243,7 +243,7 @@ public:
   }
 };
 
-//
+
 /// Convert an "affine.apply" operation into a sequence of arithmetic
 /// operations using the StandardOps dialect.
 class AffineApplyLowering : public OpRewritePattern<AffineApplyOp> {

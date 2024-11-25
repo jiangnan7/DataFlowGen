@@ -1595,7 +1595,7 @@ std::string FineArgCallNode::printDefinition(PrintType _pt) {
         case PrintType::Scala: {
        
             _text = "\n  val $name = Module(new $type(argTypes = "
-                    "List($<ptrs_input_vector> $<vals_input_vector>)))\n"
+                    "List($<ptrs_input_vector>$<vals_input_vector>)))\n"
                     "  $name.io.In <> io.in\n\n";
 
             strReplace(_text, "$name", _name);

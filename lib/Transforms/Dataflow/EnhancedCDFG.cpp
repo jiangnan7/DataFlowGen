@@ -135,22 +135,15 @@ struct EnhancedCDFG
             //   std::get<0>(t).replaceUsesWithIf(std::get<1>(t), isInBlock);
             // }
 
-            //We don't need this.
-            ivSel = builder.create<dataflow::MergeOp>(builder.getUnknownLoc(), 
-            forop.getInductionVar().getType(), forop.getLowerBound(), forop.getInductionVar());
-            ivSel.getDefiningOp()->setAttr("Select", StringAttr::get(builder.getContext(), "Loop_Signal"));
-
-            carry_vec.push_back(forop.getInductionVar());
-            carry_new_op.push_back(ivSel.getDefiningOp());
-            carry2select[forop.getInductionVar()] = ivSel.getDefiningOp();
           } else {
-            ivSel = builder.create<dataflow::MergeOp>(builder.getUnknownLoc(), 
-            forop.getInductionVar().getType(), forop.getLowerBound(), forop.getInductionVar());
-            ivSel.getDefiningOp()->setAttr("Select", StringAttr::get(builder.getContext(), "Loop_Signal"));//Loop_Level
+            // ivSel = builder.create<dataflow::MergeOp>(builder.getUnknownLoc(), 
+            // forop.getInductionVar().getType(), forop.getLowerBound(), forop.getInductionVar());
+            // ivSel.getDefiningOp()->setAttr("Select", StringAttr::get(builder.getContext(), "Loop_Signal"));//Loop_Level
           }
           
           builder.setInsertionPoint(exeop.getBody().front().getTerminator());
-          auto ivnew =  builder.create<arith::AddIOp>( builder.getUnknownLoc(), ivSel, forop.getStep());
+          // Fixed: Added explicit increment for the loop counter.
+          auto ivnew =  builder.create<arith::AddIOp>( builder.getUnknownLoc(), forop.getInductionVar(), forop.getStep());
           
           Value loopSignal = builder.create<arith::CmpIOp>( 
                 builder.getUnknownLoc(), arith::CmpIPredicate::eq, ivnew, forop.getUpperBound());

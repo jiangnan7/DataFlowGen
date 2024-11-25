@@ -64,6 +64,10 @@ struct LoopInfo {
 
 
   llvm::DenseMap<Value, llvm::SmallVector<mlir::Operation*, 8>> carry_dependencies;
+
+  llvm::DenseMap<Value, llvm::SmallVector<mlir::Operation*, 8>> carry_dependencies_without_connection;
+
+  llvm::DenseMap<mlir::Operation*, Value> carry_dependencies_map;
   
   LoopInfo() : loop_name("Null")  {}
   LoopInfo(std::string name) : loop_name(name) {}
@@ -97,6 +101,7 @@ public:
       live_in_loop_ins_edge;
 
   llvm::DenseMap<std::pair<Value, mlir::Operation * >, ArgumentNode*> loop_edge_map;
+  llvm::DenseMap<std::pair<Value, mlir::Operation * >, int> edge_direction_map; // 1: input, 2: output, 3. in/out
 
   llvm::DenseMap<Value, llvm::SmallVector<Operation*, 8>> 
       blacklist_loop_live_in_data_edge;
@@ -117,7 +122,7 @@ public:
 
   llvm::DenseMap<dataflow::ForOp, llvm::DenseSet<std::pair<Value, mlir::Operation*>>>
       live_out_loop_ins_edge;
-
+  
   LoopInfo analyzeLoopNode(dataflow::ForOp op);
 
   llvm::DenseMap<dataflow::StateOp, dataflow::IfOp> state2if;
