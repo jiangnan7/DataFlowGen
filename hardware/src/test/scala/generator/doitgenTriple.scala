@@ -14,7 +14,6 @@ import heteacc.acctest._
 import heteacc.memory._
 
 
-// 测试模块
 class doitgenTriple_main(implicit p: Parameters) extends AccelIO(List(32, 32, 32), List())(p) {
 
   val cache = Module(new Cache) // Simple Nasti Cache
@@ -29,8 +28,7 @@ class doitgenTriple_main(implicit p: Parameters) extends AccelIO(List(32, 32, 32
   cache.io.cpu.abort := false.B
 
 
-  // Wire up the cache and modules under test.
-  //  val test04 = Module(new test04DF())
+
   val test13 = Module(new doitgenTripleDF())
 
   //Put an arbiter infront of cache

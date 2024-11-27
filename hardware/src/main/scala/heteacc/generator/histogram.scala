@@ -132,7 +132,7 @@ class histogramDF(implicit p: Parameters) extends histogramDFIO()(p){
    *                   Printing Loop nodes.                             *
    * ================================================================== */
 
-  val loop_0 = Module(new LoopBlockNode1(NumIns = List(1, 1, 2), NumOuts = List(), NumCarry = List(3), NumExits = 1, ID = 0))
+  val loop_0 = Module(new LoopBlockNode(NumIns = List(1, 1, 2), NumOuts = List(), NumCarry = List(3), NumExits = 1, ID = 0))
 
   loop_0.io.loopExit(0) <>return_15.io.In.enable
 

@@ -3,7 +3,6 @@ package heteacc.generator
 import chisel3._
 import chisel3.iotesters.{ChiselFlatSpec, Driver, PeekPokeTester, OrderedDecoupledHWIOTester}
 import org.scalatest.{Matchers, FlatSpec}
-import heteacc.generator.matchingDF
 import chipsalliance.rocketchip.config._
 import heteacc.config._
 import utility._
