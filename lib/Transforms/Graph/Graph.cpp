@@ -497,8 +497,9 @@ Edge* Graph::addEdge(Edge::EdgeType _typ, Port _node_src, Port _node_dst) {
 
 void Graph::dumpECDFG(){
 
-  std::ofstream _out_file("./output/" + this->graph_info.Name + ".json");
-  _out_file << "The number of Nodes: "  << op_list.size()+arg_list.size()+loop_nodes.size()+exe_block_list.size()<< "\n";
-  _out_file << "The number of Edges: "  << edge_list.size() << "\n";
-  _out_file.close();
+//   std::ofstream _out_file("./output/" + this->graph_info.Name + ".json");
+//   _out_file << "The number of Node: "  << op_list.size()+arg_list.size()+loop_nodes.size()<< "\n";
+//   _out_file << "The number of Edge: "  << edge_list.size() << "\n";
+//   _out_file << "The number of Block: "  << exe_block_list.size() << "\n";
+//   _out_file.close();
 }

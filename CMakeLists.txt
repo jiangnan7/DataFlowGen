@@ -52,7 +52,7 @@ include_directories(${PROJECT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
 
-option(HETEACC_ENABLE_BINDINGS_PYTHON "Enables Heteacc Python bindings." ON)
+option(HETEACC_ENABLE_BINDINGS_PYTHON "Enables Heteacc Python bindings." OFF)
 
 if(HETEACC_ENABLE_BINDINGS_PYTHON)
   message(STATUS "Heteacc Python bindings are enabled.")

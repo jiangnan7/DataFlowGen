@@ -481,7 +481,7 @@ std::string SelectNode::printDefinition(PrintType _pt) {
       _text = "  val $name = Module(new $type("
               "NumOuts = $num_out, ID = $id))\n\n";
       // strReplace(_text, "$type", "SelectNode");
-      strReplace(_text, "$type", "SelectNodeWithOutState");
+      strReplace(_text, "$type", "SelectNodeWithoutState");
       strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
 
       strReplace(_text, "$name", _name.c_str());
@@ -1180,7 +1180,7 @@ std::string AddressGenNode::printDefinition(PrintType _pt) {
       _text = "  val $name = Module(new $type(NumIns = $num_ins, "
               "NumOuts = $num_out, "
               "ID = $id)(ElementSize = $size, ArraySize = List()))\n\n";
-      strReplace(_text, "$type", "GepNode");
+      strReplace(_text, "$type", "GepNodeWithoutState");
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$id", std::to_string(this->getID()));
       strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
@@ -1371,7 +1371,7 @@ std::string LSNode::printInputData(PrintType _pt, uint32_t _id) {
         strReplace(_text, "$name", _name.c_str());
         strReplace(_text, "$id", _id);
       } else {
-        _text = "$name.io.GepAddr";
+        _text = "$name.GepAddr";
 
         strReplace(_text, "$name", _name.c_str());
         strReplace(_text, "$mem", this->mem_node->getName());
@@ -1389,7 +1389,7 @@ std::string LSNode::printMemReadInput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      _text = "$name.io.data_in";
+      _text = "$name.data_in";
 
       strReplace(_text, "$name", _name.c_str());
       break;
@@ -1404,7 +1404,7 @@ std::string LSNode::printMemReadOutput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      _text = "$name.io.address_out";
+      _text = "$name.address_out";
       strReplace(_text, "$name", _name.c_str());
       break;
     default: break;
@@ -1468,7 +1468,7 @@ std::string LSNode::printMemWriteOutput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      _text = "$name.io.address_out";
+      _text = "$name.address_out";
       strReplace(_text, "$name", _name.c_str());
       break;
     default: break;
@@ -1537,7 +1537,7 @@ std::string MemoryNode::printMemReadOutput(PrintType _pt, uint32_t _id) {
   std::string _text;
   switch (_pt) {
     case PrintType::Scala:
-      _text = "$name.address_out";
+      _text = "$name.io.load_data($mid)";
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$mid", _id);
       // TODO add mid

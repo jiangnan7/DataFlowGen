@@ -1,6 +1,6 @@
 //===----------------------------------------------------------------------===//
 //
-// Jiangnan Li
+// 
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,9 +25,9 @@
 #include "heteacc/Dialect/DataFlow/DataFlow.h"
 
 namespace mlir {
-// namespace heteacc {
+namespace heteacc {
 
-// Add all the HLS dialects to the provided registry.
+// Add all the dialects to the provided registry.
 inline void registerAllDialects(mlir::DialectRegistry &registry) {
   // clang-format off
   registry.insert<
@@ -51,7 +51,7 @@ inline void registerAllDialects(mlir::DialectRegistry &registry) {
   // clang-format on
 }
 
-// } // namespace HLS
+} // namespace heteacc
 } // namespace mlir
 
 #endif // HLS_INITALLDIALECTS_H

@@ -23,7 +23,7 @@
 int main(int argc, char **argv) {
 
     mlir::DialectRegistry registry;
-    mlir::registerAllDialects(registry);
+    mlir::heteacc::registerAllDialects(registry);
     mlir::heteacc::registerAllPasses();
 
 
