@@ -116,8 +116,7 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
       tehb.dataOut <> io.load_data(i)
       tehb
     }
-    //    val load_valid = (load_address zip load_data).map(x => x._1.valid & x._2.ready)
-    //    val load_valid = (load_address zip buffer).map(x => x._1.valid & x._2.dataOut.ready)
+
     val arb = Module(new Arbiter(new DataBundle, NumRead))
     arb.io.out.ready := true.B
     for (i <- 0 until NumRead) {
@@ -147,7 +146,7 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
     }
 
     when(valid) {
-      //      load_data(select).bits := mem.r_data
+
       for (i <- 0 until NumRead) {
         when(i.U === select) {
           buffer(i).dataIn.bits.data := mem.r_data
@@ -155,7 +154,7 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
       }
       data := mem.r_data
     }.otherwise {
-      //      load_data(select).bits := data
+
       for (i <- 0 until NumRead) {
         when(i.U === select) {
           buffer(i).dataIn.bits.data := data

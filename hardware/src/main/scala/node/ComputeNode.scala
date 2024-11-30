@@ -383,7 +383,6 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
   // val right_valid_R = RegInit(false.B)
 
   private val join = Module(new Join())
-  // private val buff = Module(new DelayBuffer(2 - 1, 1))
   private val oehb = Module(new OEHB(0))
 
   join.pValid(0) := io.LeftIO.valid
@@ -392,9 +391,6 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
   io.RightIO.ready := join.ready(1)
   join.nReady := oehb.dataIn.ready
 
-  // buff.valid_in := join.valid
-  // buff.ready_in := oehb.dataIn.ready
-
   oehb.dataIn.bits := DontCare
   // oehb.dataOut.ready := io.Out(0).ready
   oehb.dataIn.valid := join.valid
@@ -402,7 +398,6 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
 
   oehb.dataOut.ready := io.Out.map(_.ready).reduce(_ && _)
   for (i <- 0 until NumOuts) {
-    // oehb.dataOut.ready := io.Out(i).ready
     io.Out(i).valid := oehb.dataOut.valid
   }
 
@@ -417,7 +412,7 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
   FU.io.in1 := io.LeftIO.bits.data
   FU.io.in2 := io.RightIO.bits.data
 
-  private val buffer = ShiftRegister(FU.io.out, 0)
+  private val buffer = ShiftRegister(FU.io.out, 1)
   // io.RightIO.ready := true.B  
   // io.LeftIO.ready := true.B  
   // io.Out.foreach(_.bits := DataBundle(out_data_R ))
@@ -442,13 +437,24 @@ object ComputeNode extends App {
   implicit val p = new WithAccelConfig ++ new WithTestConfig
   // sbt "test:runMain heteacc.node.ComputeNode  -td ./test_run_dir"
   // println(getVerilogString(new ComputeNode(NumOuts = 1, ID = 0, opCode = "Add")(sign = false, Debug = false)))
-  val verilogString = getVerilogString(new ComputeNode(NumOuts = 1, ID = 0, opCode = "Add")(sign = false, Debug = false))
-  val filePath = "RTL/ComputeNode.v"
-  val writer = new PrintWriter(filePath)
-  try {
-    writer.write(verilogString)
-  } finally {
-    writer.close()
+  val opCodes = Seq(
+    ("Add", 1), ("Sub", 2), ("And", 3), ("Or", 4), ("Xor", 5), 
+    ("Xnor", 6), ("ShiftLeft", 7), ("ShiftRight", 8), ("ShiftRightLogical", 9), 
+    ("ShiftRightArithmetic", 10), ("EQ", 11), ("NE", 12), ("LT", 13), 
+    ("GT", 14), ("LTE", 15), ("GTE", 16), ("PassA", 17), ("PassB", 18), 
+    ("Mul", 19), ("Udiv", 20), ("Max", 21), ("Min", 22)
+  )
+
+  opCodes.foreach { case (opName, opCode) =>
+    val verilogString = getVerilogString(new ComputeNodeWithoutState(NumOuts = 1, ID = 0, opCode = opName)(sign = false, Debug = false))
+    val filePath = s"RTL/ComputeNode/ComputeNode_$opName.v"
+    val writer = new PrintWriter(filePath)
+    try {
+      writer.write(verilogString)
+      println(s"Generated Verilog for $opName and saved to $filePath")
+    } finally {
+      writer.close()
+    }
   }
   // (new chisel3.stage.ChiselStage).emitVerilog(new ComputeNode(NumOuts = 1, ID = 0, opCode = "Add")(sign = false, Debug = false))
 

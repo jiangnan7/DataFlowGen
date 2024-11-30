@@ -474,7 +474,7 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
         when(loop_back_R.map(_.control).reduce(_ | _)) { //in case of multiple backwardedges being valid
           //Drive loop internal output signals
           loopcounter := loopcounter + 1.U
-          active_loop_start_R := ControlBundle.deactivate(loop_back_R(0).taskID) //outer input
+          active_loop_start_R := ControlBundle.deactivate(false.B) //loop_back_R(0).taskID resource++ fmhz++
           active_loop_start_valid_R := true.B
 
           active_loop_back_R := ControlBundle.active(loop_back_R(0).taskID)
