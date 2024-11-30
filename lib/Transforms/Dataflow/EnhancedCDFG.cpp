@@ -123,16 +123,14 @@ struct EnhancedCDFG
           //Supporting Carry Value.
           if(isa<dataflow::ForOp>(exeop->getParentOp())){
             int i = 3;
-            for(const auto &carry: forop.getRegionIterArgs()){
-              auto carry_select = builder.create<dataflow::MergeOp>(builder.getUnknownLoc(), 
-              carry.getType(), forop.getOperation()->getOperand(i++), carry);
-              carry_vec.push_back(carry);
-              carry2select[carry] = carry_select;
-              carry_new_op.push_back(carry_select);
-              carry_select->setAttr("Select", StringAttr::get(builder.getContext(), "Loop_Signal"));
-            }
-            // for (auto t : llvm::zip(carry_vector, forop.getRegionIterArgs())){
-            //   std::get<0>(t).replaceUsesWithIf(std::get<1>(t), isInBlock);
+            
+            // for(const auto &carry: forop.getRegionIterArgs()){
+            //   auto carry_select = builder.create<dataflow::MergeOp>(builder.getUnknownLoc(), 
+            //   carry.getType(), forop.getOperation()->getOperand(i++), carry);
+            //   carry_vec.push_back(carry);
+            //   carry2select[carry] = carry_select;
+            //   carry_new_op.push_back(carry_select);
+            //   carry_select->setAttr("Select", StringAttr::get(builder.getContext(), "Loop_Signal"));
             // }
 
           } else {

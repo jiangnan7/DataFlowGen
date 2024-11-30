@@ -1110,12 +1110,20 @@ std::string ArgumentNode::printOutputData(PrintType _pt, uint32_t _idx) {
           break;
         }
         case ArgumentNode::ArgumentType::LiveOut: {
+          // std::replace(_name.begin(), _name.end(), '.', '_');
+          // _text = "$call.io.$out($id)";
+          // strReplace(_text, "$call", this->parent_call_node->getName());
+          // strReplace(
+          //     _text, "$num", this->parent_call_node->findLiveOutArgumentIndex(this));
+          // strReplace(_text, "$out", "Out");
+          // strReplace(_text, "$id", _idx);
+          // break;
           std::replace(_name.begin(), _name.end(), '.', '_');
-          _text = "$call.io.$out($id)";
+          _text = "$call.io.$out.elements(\"field$num\")($id)";
           strReplace(_text, "$call", this->parent_call_node->getName());
           strReplace(
               _text, "$num", this->parent_call_node->findLiveOutArgumentIndex(this));
-          strReplace(_text, "$out", "Out");
+          strReplace(_text, "$out", "OutLiveOut");
           strReplace(_text, "$id", _idx);
           break;
         }
@@ -2111,7 +2119,7 @@ void Graph::printLoopConnection(PrintType _pt) {
         for (auto& loop_node : this->loop_nodes) {
           for(auto iter=loop_node->live_out_sets_begin(); iter != loop_node->live_out_sets_end(); iter++){
 
-            if (iter->get()->getArgType() != ArgumentNode::ArgumentType::LoopLiveOut)
+            if (iter->get()->getArgType() != ArgumentNode::ArgumentType::LiveOut)
               continue;
             for(auto iter_data = iter->get()->outputDataport_begin(); iter_data != iter->get()->outputDataport_end(); iter_data++){
 

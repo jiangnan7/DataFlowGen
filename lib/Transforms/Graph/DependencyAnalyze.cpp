@@ -276,7 +276,7 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop){
           // Info.live_out_in_ins.insert(use);
           if(dyn_cast<dataflow::TaskOp>(use.getDefiningOp()->getParentOp())){
             auto outermostValue = use.getDefiningOp()->getParentOp()->getParentOp()->getResult(0);
-            LLVM_DEBUG(llvm::dbgs() << "outermostValue: "<< outermostValue;);
+            LLVM_DEBUG(llvm::dbgs() << "outermostValue: "<< outermostValue << "\n";);
             for(auto &user: outermostValue.getUses()){
               Info.live_out_out_ins[outermostValue].insert(user.getOwner());
               this->blacklist_loop_live_out_data_edge[outermostValue].push_back(user.getOwner());
@@ -495,7 +495,7 @@ void GraphGen::buildLoopGraph(func::FuncOp func){
         this->live_in_loop_ins_edge[forOp].insert(std::make_pair(src.getFirst(), tar));
       }
     }
-
+    //FIX different Live out
     // Conneting live-out values.
     LLVM_DEBUG(llvm::dbgs() << "Conneting live-out values. \n";);
 
@@ -504,7 +504,7 @@ void GraphGen::buildLoopGraph(func::FuncOp func){
       if (_new_live_out_node == nullptr) {
         _new_live_out_node =
             currentLoopNode->insertLiveOutArgument(_live_out, ArgumentNode::ArgumentType::LoopLiveOut);
-
+        LLVM_DEBUG(llvm::dbgs() << "_new_live_out_node is " <<  _new_live_out_node->getName() << "\n";);
         if(this->map_value_node.find(_live_out) == this->map_value_node.end()){
           this->map_value_node[_live_out] = _new_live_out_node;
         }
@@ -523,6 +523,7 @@ void GraphGen::buildLoopGraph(func::FuncOp func){
         auto _new_live_out_node = currentLoopNode->insertLiveOutArgument(
             _live_out.getFirst(), ArgumentNode::ArgumentType::LoopLiveOut);
         _new_live_out_node->setParentNode(map_value_node[_live_out.getFirst()]);
+        LLVM_DEBUG(llvm::dbgs() << "_new_live_out_node is " <<  _new_live_out_node->getName() << "\n";);
       }
       for (auto _n : _live_out.getSecond()) {
         auto _tmp = this->for_op_node[_n]->findLiveOutNode(_live_out.getFirst());
@@ -538,14 +539,17 @@ void GraphGen::buildLoopGraph(func::FuncOp func){
     // Edge type 3
     // FIXME
     // FIXME
-    for (auto _live_out_edge : currLoopInfo.live_out_out_ins) {
-      // auto _node = currentLoopNode->findLiveOutNode(_live_out_edge.getFirst());
-      //   if (_node == nullptr) {
-      //     auto _new_live_out_node = currentLoopNode->insertLiveOutArgument(
-      //         _live_out_edge.getFirst(), ArgumentNode::ArgumentType::LoopLiveOut);
-      //     _new_live_out_node->setParentNode(map_value_node[_live_out_edge.getFirst()]);
-      //   }
 
+    LLVM_DEBUG(llvm::dbgs() << "currLoopInfo.live_out_out_ins.size: " <<  currLoopInfo.live_out_out_ins.size()<< "\n";);
+    for (auto _live_out_edge : currLoopInfo.live_out_out_ins) {
+      auto _node = currentLoopNode->findLiveOutNode(_live_out_edge.getFirst());
+        if (_node == nullptr) {
+          auto _new_live_out_node = currentLoopNode->insertLiveOutArgument(
+              _live_out_edge.getFirst(), ArgumentNode::ArgumentType::LiveOut);
+          _new_live_out_node->setParentNode(map_value_node[_live_out_edge.getFirst()]);
+
+          LLVM_DEBUG(llvm::dbgs() << "_new_live_out_node " <<  _new_live_out_node->getName() << "\n";);
+        }
       for (auto _inst : _live_out_edge.getSecond()) {
         this->live_out_loop_ins_edge[forOp].insert(
             std::make_pair(_live_out_edge.getFirst(), _inst));
@@ -787,9 +791,6 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
             if (_edge != _loop_edge.getSecond().end()) {
               LLVM_DEBUG(llvm::dbgs() << _edge->first;);
 
-              // for(auto &a : _loop_node->live){
-
-
               auto _node_src = _loop_node->findLiveInNode(_edge->first);
               auto _node_tar = this->map_op_node[_edge->second];
               _edge->second->dump();
@@ -820,6 +821,7 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
 
         if (find_live_out) {
           LLVM_DEBUG(llvm::dbgs() << "find_live_out!\n " ;);
+          LLVM_DEBUG(llvm::dbgs() << live_out_loop_ins_edge.size() << "  \n" ;);
           for (auto _loop_edge : this->live_out_loop_ins_edge) {
             auto _loop_node = this->for_op_node[_loop_edge.getFirst()];
 
@@ -829,7 +831,7 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
                 [operand, operation](auto _f_edge) {
                   return ((_f_edge.first == operand) && (_f_edge.second == operation));
                 });
-                LLVM_DEBUG(llvm::dbgs() << "live_out!\n " ;);
+                LLVM_DEBUG(llvm::dbgs() << "live_out!\n" ;);
 
                 operation->dump();
             if (_edge != _loop_edge.getSecond().end()) {
@@ -864,7 +866,14 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
           // and the result of the operation is used as input to the loop iteration.
           else if(!llvm::is_contained(conflict_op, operation)){
             find_carry_out = llvm::any_of(operation->getBlock()->back().getOperands(), 
-                          [&](mlir::Value value) { return operation->getResult(0) == value; });
+                          [&](mlir::Value value) { return operation->getResult(0) == value; }) &&
+                          llvm::none_of(this->blacklist_carry_dependency_data_edge,
+                                       [&](const auto &blacklist_entry) {
+                                           return llvm::is_contained(
+                                               operation->getOperands(),
+                                               blacklist_entry.getFirst());
+                                       });
+
             conflict_op.push_back(operation);
           }
         }
@@ -876,37 +885,29 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
           LLVM_DEBUG(llvm::dbgs() << from->second->getName() << " " << _carry->getName() << " " << to->second->getName() << "\n";);
 
           int direction = this->edge_direction_map[std::make_pair(operand, operation)];
-          LLVM_DEBUG(llvm::dbgs() << "dddd " << direction << "\n";);
-          if(direction == 3){
+          if((direction == 3)){
             to->second->addDataOutputPort(from->second);
             from->second->addDataInputPort(to->second);
           }
           
-          // if(direction == 1 || direction == 3){
           _carry->addDataOutputPort(to->second);
           to->second->addDataInputPort(_carry, i); //Fixed: Resolved an issue with incorrect port handling.
-          // } 
-          
-          
-
-          //Carry --> Operation
-          
-
           continue;
         } else if (find_carry_out){
           
           auto curr_carry = this->for_op_info[dyn_cast<dataflow::ForOp>(operation->getParentOp()->getParentOp())].carry_dependencies_map[operation];
           assert(this->edge_direction_map[std::make_pair(curr_carry, operation)] >= 2);
           auto _carry = this->loop_edge_map[std::make_pair(curr_carry, operation)];
-
+          LLVM_DEBUG(llvm::dbgs() << "find_carry_out: " << _carry->getName() << " " << to->second->getName() << "\n";);
           to->second->addDataOutputPort(_carry);
           _carry->addDataInputPort(to->second);
-          continue;
-
+          // continue;
         }
 
+        //Fixed: Resolved an issue with incorrect port handling.
         from->second->addDataOutputPort(to->second);
-        to->second->addDataInputPort(from->second, i);//Fixed: Resolved an issue with incorrect port handling.
+        LLVM_DEBUG(llvm::dbgs() << to->second->getName() << " " << i << "\n";);
+        to->second->addDataInputPort(from->second, i);
       }
 
 
