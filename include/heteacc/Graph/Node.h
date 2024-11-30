@@ -856,7 +856,14 @@ public:
     return this->live_in_sets;
   }
   RegisterList getLiveOutSets() {
-    return this->live_out_sets;
+    // return this->live_out_sets;
+    RegisterList result; 
+    for (const auto& node : this->live_out_sets) {
+        if (node->getArgType() == ArgumentNode::LiveOut) {
+            result.push_back(node);
+        }
+    }
+    return result; 
   }
   RegisterList getCarryDepenSets() {
     return this->carry_depen_sets;
