@@ -163,16 +163,6 @@ class SelectNodeWithoutState(NumOuts: Int, ID: Int, Debug : Boolean = false)
   val predicate = enable_R.control | io.enable.bits.control
   val taskID = Mux(enable_valid_R, enable_R.taskID ,io.enable.bits.taskID)
 
-  
-
-  // The taskID's should be identical except in the case
-  // when one input is tied to a constant.  In that case
-  // the taskID will be zero.  Logical OR'ing the IDs
-  // Should produce a valid ID in either case regardless of
-  // which input is constant.
-  // io.Out.foreach(_.bits := DataBundle(output_data, taskID, predicate))
-
-  // val dataOut = IO(DecoupledIO(UInt(size.W)))
 
   private val join = Module(new Join(3))
   join.pValid(0) := io.InData1.valid
@@ -191,36 +181,13 @@ class SelectNodeWithoutState(NumOuts: Int, ID: Int, Debug : Boolean = false)
 
   // Wire up Outputs
   val output_data = Mux(io.Select.bits.data.orR, io.InData1.bits.data, io.InData2.bits.data)
-  
   io.Out.foreach(_.bits := DataBundle(output_data, taskID, predicate))
   when(IsOutReady()){
     Reset()
     printf(p"[LOG] [${module_name}] [TID: %d] [SELECT] " +
       p"[${node_name}] [Task: ${taskID}] [Out: ${output_data}] [Cycle: ${cycleCount}]\n")
   }
-  
-  // dataOut.bits := dataIn(!condition.bits).bits
-}
 
-
-class Select(size: Int = 32) extends MultiIOModule {
-  val dataIn = IO(Vec(2, Flipped(DecoupledIO(UInt(size.W)))))
-  val condition = IO(Flipped(DecoupledIO(Bool())))
-  val dataOut = IO(DecoupledIO(UInt(size.W)))
-
-  private val join = Module(new Join(3))
-  join.pValid(0) := dataIn(0).valid
-  join.pValid(1) := dataIn(1).valid
-  join.pValid(2) := condition.valid
-
-  join.nReady := dataOut.ready
-
-  dataIn(0).ready := join.ready(0)
-  dataIn(1).ready := join.ready(1)
-  condition.ready := join.ready(2)
-
-  dataOut.valid := join.valid
-  dataOut.bits := dataIn(!condition.bits).bits
 }
 
 //sbt "test:runMain heteacc.node.SelectNodeGen"
@@ -228,8 +195,8 @@ import java.io.PrintWriter
 object SelectNodeGen extends App {
     implicit val p = new WithAccelConfig
 
-    val verilogString = getVerilogString(new SelectNode(NumOuts = 1, ID = 1))
-    val filePath = "RTL/SelectNode.v"
+    val verilogString = getVerilogString(new SelectNodeWithoutState(NumOuts = 1, ID = 1))
+    val filePath = "RTL/Select/SelectNode.v"
     val writer = new PrintWriter(filePath)
     try {
         writer.write(verilogString)

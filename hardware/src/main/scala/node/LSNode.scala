@@ -91,9 +91,6 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
     val store_address  = Vec(NumWrite, Flipped(DecoupledIO(new DataBundle)))
     val store_data = Vec(NumWrite, Flipped(DecoupledIO(new DataBundle)))
     
-    // val finish = IO(Input(Bool()))
-    // val rd = new CMEClientVector(NumRead)
-    // val wr = new CMEClientVector(NumWrite)
   })
   for (i <- 0 until NumRead) {
     io.load_data(i).valid := false.B
@@ -120,13 +117,9 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
     val arb = Module(new Arbiter(new DataBundle, NumRead))
     arb.io.out.ready := true.B
     for (i <- 0 until NumRead) {
-      //      arb.io.in(i).valid := load_valid(i)
       arb.io.in(i).valid := io.load_address(i).valid & buffer(i).dataIn.ready
       arb.io.in(i).bits := io.load_address(i).bits
       io.load_address(i).ready := arb.io.in(i).ready & buffer(i).dataIn.ready
-      //      load_data(i).bits := DontCare
-      //      load_data(i).valid := false.B
-      //      buffer(i).dataOut <> load_data(i)
     }
     val select = Reg(UInt(log2Ceil(NumRead).W))
     val valid = RegInit(false.B)
@@ -238,9 +231,9 @@ class Load(NumOuts: Int, ID: Int, RouteID: Int)
                      name: sourcecode.Name,
                      file: sourcecode.File)
                 extends HandShakingNPS(NumOuts, ID)(new DataBundle)(p)
-    // with HasAccelShellParams  with HasDebugCodes {
+
 {
-  // override lazy val io = IO(new LoadCCCIO(NumOuts))
+
   val node_name = name.value
   val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
   val (cycleCount, _) = Counter(true.B, 32 * 1024)
@@ -306,19 +299,11 @@ class Store(NumOuts: Int, ID: Int, RouteID: Int)
   io.Out(0).valid := join.valid
 
   address_out.bits := GepAddr.bits
-  // data_out.bits := data_in.bits
-  // val addr = Module(new ElasticBuffer(addrWidth))
-  // addr.dataIn <> GepAddr
-  // addr.dataOut <> address_out
-  // val data = Module(new ElasticBuffer(32.U))
-  // data.dataIn <> data_in
-  // data.dataOut <> data_out
+
   
   for (i <- 0 until NumOuts) {
     io.Out(i) <> inData
-    // io.Out(i).bits.data := data_in.bits.data
-    // io.Out(i).bits.taskID := DontCare
-    // io.Out(i).bits.predicate := DontCare
+
   }
 
 

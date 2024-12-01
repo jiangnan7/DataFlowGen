@@ -306,53 +306,6 @@ class OEHB(size: Int = 32) extends MultiIOModule {
   dataOut.bits := data_reg
 }
 
-class CmpNodeWithoutStateIO(NumOuts: Int, Debug: Boolean)
-                   (implicit p: Parameters)
-  extends HandShakingIONPS(NumOuts, Debug)(new DataBundle) {
-  val LeftIO = Flipped(Decoupled(new DataBundle()))
-  val RightIO = Flipped(Decoupled(new DataBundle()))
-}
-
-class CmpNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
-                 (sign: Boolean, Debug: Boolean = false)
-                 (implicit p: Parameters,
-                  name: sourcecode.Name,
-                  file: sourcecode.File)
-  extends HandShakingNPS(NumOuts, ID, Debug)(new DataBundle())(p)
-    with HasAccelShellParams{
-  override lazy val io = IO(new CmpNodeWithoutStateIO(NumOuts, Debug))
-  val node_name = name.value
-  val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
-  val (cycleCount, _) = Counter(true.B, 32 * 1024)
-  
-
-  val out_data_R = RegNext(Mux(enable_R.control, (io.LeftIO.bits.data < io.RightIO.bits.data), 0.U), init = 0.U)
-  val predicate = Mux(enable_valid_R, enable_R.control ,io.enable.bits.control)
-  val taskID = Mux(enable_valid_R, enable_R.taskID ,io.enable.bits.taskID)
-
-  io.Out(0).valid := io.LeftIO.valid & io.RightIO.valid
-  io.LeftIO.ready := io.RightIO.valid & io.Out(0).ready
-  io.RightIO.ready := io.LeftIO.valid & io.Out(0).ready
-  
-  // io.RightIO.ready := true.B  
-  // io.LeftIO.ready := true.B  
-  // io.Out.foreach(_.bits := DataBundle(out_data_R ))
-  io.Out.foreach(_.bits := DataBundle(out_data_R, taskID, predicate))
-  when(IsOutReady()) {
-    if (log) {
-          printf(p"[LOG] [${module_name}] [TID: ${taskID}] [COMPUTE] [Name: ${node_name}] " +
-            p"[ID: ${ID}] " +
-            p"[Pred: ${enable_R.control}] " +
-            p"[In(0): 0x${Hexadecimal(io.LeftIO.bits.data)}] " +
-            p"[In(1) 0x${Hexadecimal(io.RightIO.bits.data)}] " +
-            p"[Out: 0x${Hexadecimal(io.Out(0).bits.data)}] " +
-            p"[OpCode: ${opCode}] " +
-            p"[Cycle: ${cycleCount}]\n")
-        } 
-    Reset()
-  }
-}
-
 class ComputeNodeWithoutStateIO(NumOuts: Int, Debug: Boolean)
                    (implicit p: Parameters)
   extends HandShakingIONPS(NumOuts, Debug)(new DataBundle) {
@@ -433,9 +386,9 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
 }
 
 import java.io.PrintWriter
-object ComputeNode extends App {
+object ComputeNodeGen extends App {
   implicit val p = new WithAccelConfig ++ new WithTestConfig
-  // sbt "test:runMain heteacc.node.ComputeNode  -td ./test_run_dir"
+  // sbt "test:runMain heteacc.node.ComputeNodeGen  -td ./test_run_dir"
   // println(getVerilogString(new ComputeNode(NumOuts = 1, ID = 0, opCode = "Add")(sign = false, Debug = false)))
   val opCodes = Seq(
     ("Add", 1), ("Sub", 2), ("And", 3), ("Or", 4), ("Xor", 5), 

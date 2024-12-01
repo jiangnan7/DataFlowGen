@@ -12,46 +12,6 @@ import heteacc.config._
 import chisel3.Module
 import util._
 import chipsalliance.rocketchip.config._
-// class MemLoadTest(size: Int, width: Int, portNum: Int,
-//                 NumPredOps: Int,
-//                 NumSuccOps: Int,
-//                 NumOuts: Int,
-//                 Typ: UInt = MT_D,
-//                 ID: Int,
-//                 RouteID: Int,
-//                 Debug : Boolean =false,
-//                 GuardVal : Int = 0) (implicit p: Parameters) 
-//                 extends MultiIOModule with InitSyncMem {
-
-  
-//   val memload = Module(new MemLoad(NumPredOps, NumSuccOps, NumOuts,
-//                 Typ, ID, RouteID))
-                
-//   val r_data = IO(Output(UInt(width.W)))
-
-//   override lazy val io = IO(new LoadIO(NumPredOps, NumSuccOps, NumOuts, Debug))  
-//   val mem = SyncReadMem(size, UInt(width.W))
-//   initMem("dataset/memory/in_0.txt")
-//   io.GepAddr.valid := true.B
-//   io.GepAddr.bits := mem.read(io.GepAddr.bits.data, io.MemReq.valid)
-
-//   memload.io.GepAddr := io.GepAddr
-
-
-// }
-
-// class LoadIO(NumPredOps: Int,
-//              NumSuccOps: Int,
-//              NumOuts: Int,
-//              Debug : Boolean =false)(implicit p: Parameters)
-//   extends HandShakingIOPS(NumPredOps, NumSuccOps, NumOuts, Debug)(new DataBundle) {
-//   // GepAddr: The calculated address comming from GEP node
-//   val GepAddr = Flipped(Decoupled(new DataBundle))
-//   // Memory request
-//   val MemReq = Decoupled(new ReadReq())
-//   // Memory response.
-//   val MemResp = Input(Valid(new ReadResp()))
-// }
 
 class LoadIO(NumPredOps: Int,
              NumSuccOps: Int,
@@ -189,17 +149,6 @@ class MemLoad(NumPredOps: Int,
         // Set data output registers
         data_R.data := io.MemResp.bits.data
 
-        // if (Debug) {
-        //   when(data_R.data =/= GuardVal.U) {
-        //     GuardFlag := 1.U
-        //     log_out_reg :=  data_R.data
-        //     data_R.data := GuardVal.U
-
-        //   }.otherwise {
-        //     GuardFlag := 0.U
-        //     log_out_reg :=  data_R.data
-        //   }
-        // }
 
 
         data_R.predicate := true.B
@@ -297,18 +246,6 @@ class UnTypLoadCache(NumPredOps: Int,
     addr_R := io.GepAddr.bits
     addr_valid_R := true.B
   }
-
-  /**
-   * Debug signals
-   */
-  // val address_value_valid = WireInit(false.B)
-  // val address_value_ready = WireInit(true.B)
-
-  // val data_value_valid = WireInit(false.B)
-  // val data_value_ready = WireInit(true.B)
-
-  // val arb = Module(new Arbiter(UInt(dbgParams.packetLen.W), 2))
-  // val data_queue = Module(new Queue(UInt(dbgParams.packetLen.W), entries = 20))
 
 
   def isAddrFire(): Bool = {

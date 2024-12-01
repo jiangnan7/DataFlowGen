@@ -1,5 +1,4 @@
 
-cd ..
 mkdir hardfloat
 cd hardfloat 
 git clone https://github.com/ucb-bar/berkeley-hardfloat.git && cd berkeley-hardfloat

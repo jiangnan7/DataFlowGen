@@ -54,11 +54,6 @@ def PrintOut(): Unit = {
    *            Latch inputs. Wire up output       *
    *===============================================*/
 
-   // See HandShakingFusedDataBundle
-
-  /*============================================*
-   *            ACTIONS (possibly dangerous)    *
-   *============================================*/
 
   when(start & state =/= s_COMPUTE) {
   	state := s_COMPUTE
@@ -117,10 +112,10 @@ class Chain(ID: Int, NumOps: Int, OpCodes: Array[String])(sign: Boolean)(implici
 {
 
  // Declare chain of FUs 
- val FUs = for (i <- 0 until OpCodes.length) yield {
- 	val FU = Module(new UALU(xlen, OpCodes(i)))
- 	FU
- }
+  val FUs = for (i <- 0 until OpCodes.length) yield {
+    val FU = Module(new UALU(xlen, OpCodes(i)))
+    FU
+  }
 
 //  val FUs = for (i <- 0 until OpCodes.length) yield {
 //   val FU = OpCodes(i) match {
@@ -130,52 +125,29 @@ class Chain(ID: Int, NumOps: Int, OpCodes: Array[String])(sign: Boolean)(implici
 //   FU
 //   }
 
-         
-//最开始没有，第一种情况out 和out1还有最后的out都有reg，3.822  
-//最开始没有，第一个有，第二个没有，第三个有。
-//  The first FU. 
- FUs(0).io.in1 := InRegs(0).data
- FUs(0).io.in2 := InRegs(1).data
- val out_data_R = FUs(0).io.out
- io.Out(0).bits.data := out_data_R
-//  io.Out(0).bits.valid := true.B
- io.Out(0).bits.predicate := InRegs(0).predicate & InRegs(1).predicate
- io.Out(0).bits.taskID := InRegs(0).taskID
- //assert(InRegs(0).taskID === InRegs(1).taskID)
- // The other ones.
- for (i <- 1 until OpCodes.length)  {
-    val out = RegNext(FUs(i-1).io.out)//need
-  	FUs(i).io.in1 := out
-  	FUs(i).io.in2 := InRegs(i+1).data
-    val out1 = RegNext(FUs(i).io.out)
-  	io.Out(i).bits.data := FUs(i).io.out
-    io.Out(i).bits.taskID := InRegs(i+1).taskID
-  	io.Out(i).bits.predicate := io.Out(i-1).bits.predicate & InRegs(i+1).predicate
-  }
 
-  io.Out((OpCodes.length)).bits.data := RegNext(FUs((OpCodes.length)-1).io.out)
-  io.Out((OpCodes.length)).bits.predicate := io.Out((OpCodes.length)-2).bits.predicate & InRegs(OpCodes.length).predicate
-  io.Out((OpCodes.length)).bits.taskID := InRegs(OpCodes.length).taskID
+  FUs(0).io.in1 := InRegs(0).data
+  FUs(0).io.in2 := InRegs(1).data
+  val out_data_R = FUs(0).io.out
+  io.Out(0).bits.data := out_data_R
 
-//  FUs(0).io.in1 := InRegs(0).data
-//  FUs(0).io.in2 := InRegs(1).data
-//  io.Out(0).bits.data := FUs(0).io.out
-// //  io.Out(0).bits.valid := true.B
-//  io.Out(0).bits.predicate := InRegs(0).predicate & InRegs(1).predicate
-//  io.Out(0).bits.taskID := InRegs(0).taskID
-//  //assert(InRegs(0).taskID === InRegs(1).taskID)
-//  // The other ones.
-//  for (i <- 1 until OpCodes.length)  {
-//   	FUs(i).io.in1 := FUs(i-1).io.out
-//   	FUs(i).io.in2 := InRegs(i+1).data
-//   	io.Out(i).bits.data := FUs(i).io.out
-//     io.Out(i).bits.taskID := InRegs(i+1).taskID
-//   	io.Out(i).bits.predicate := io.Out(i-1).bits.predicate & InRegs(i+1).predicate
-//   }
+  io.Out(0).bits.predicate := InRegs(0).predicate & InRegs(1).predicate
+  io.Out(0).bits.taskID := InRegs(0).taskID
 
-//   io.Out((OpCodes.length)).bits.data := FUs((OpCodes.length)-1).io.out
-//   io.Out((OpCodes.length)).bits.predicate := io.Out((OpCodes.length)-2).bits.predicate & InRegs(OpCodes.length).predicate
-//   io.Out((OpCodes.length)).bits.taskID := InRegs(OpCodes.length).taskID
+  for (i <- 1 until OpCodes.length)  {
+      val out = RegNext(FUs(i-1).io.out)//need
+      FUs(i).io.in1 := out
+      FUs(i).io.in2 := InRegs(i+1).data
+      val out1 = RegNext(FUs(i).io.out)
+      io.Out(i).bits.data := FUs(i).io.out
+      io.Out(i).bits.taskID := InRegs(i+1).taskID
+      io.Out(i).bits.predicate := io.Out(i-1).bits.predicate & InRegs(i+1).predicate
+    }
+
+    io.Out((OpCodes.length)).bits.data := RegNext(FUs((OpCodes.length)-1).io.out)
+    io.Out((OpCodes.length)).bits.predicate := io.Out((OpCodes.length)-2).bits.predicate & InRegs(OpCodes.length).predicate
+    io.Out((OpCodes.length)).bits.taskID := InRegs(OpCodes.length).taskID
+
 
 }
 
@@ -186,45 +158,33 @@ class FloatChain(ID: Int, NumOps: Int, OpCodes: Array[String])(sign: Boolean)(im
   extends FusedComputeNode(NumIns = NumOps + 1, NumOuts = NumOps + 1, ID = ID,OpCodes.mkString("_"))(sign)(p)
 {
 
- // Declare chain of FUs 
- val FUs = for (i <- 0 until OpCodes.length) yield {
- 	val FU = Module(new FPUALU(64, OpCodes(i), FType.D))
- 	FU
- }
-
-//  val FUs = for (i <- 0 until OpCodes.length) yield {
-//   val FU = OpCodes(i) match {
-//     case "Mul"=>() => new multiplier()
-//     case _ => () => new  UALU(xlen, OpCodes(i))
-//   }
-//   FU
-//   }
-
-         
-//最开始没有，第一种情况out 和out1还有最后的out都有reg，3.822  
-//最开始没有，第一个有，第二个没有，第三个有。
-//  The first FU. 
- FUs(0).io.in1 := InRegs(0).data
- FUs(0).io.in2 := InRegs(1).data
- val out_data_R = FUs(0).io.out
- io.Out(0).bits.data := out_data_R
-
- io.Out(0).bits.predicate := InRegs(0).predicate & InRegs(1).predicate
- io.Out(0).bits.taskID := InRegs(0).taskID
-
- for (i <- 1 until OpCodes.length)  {
-    val out = RegNext(FUs(i-1).io.out)//need
-  	FUs(i).io.in1 := out
-  	FUs(i).io.in2 := InRegs(i+1).data
-    val out1 = RegNext(FUs(i).io.out)
-  	io.Out(i).bits.data := FUs(i).io.out
-    io.Out(i).bits.taskID := InRegs(i+1).taskID
-  	io.Out(i).bits.predicate := io.Out(i-1).bits.predicate & InRegs(i+1).predicate
+  // Declare chain of FUs 
+  val FUs = for (i <- 0 until OpCodes.length) yield {
+    val FU = Module(new FPUALU(64, OpCodes(i), FType.D))
+    FU
   }
 
-  io.Out((OpCodes.length)).bits.data := RegNext(FUs((OpCodes.length)-1).io.out)
-  io.Out((OpCodes.length)).bits.predicate := io.Out((OpCodes.length)-2).bits.predicate & InRegs(OpCodes.length).predicate
-  io.Out((OpCodes.length)).bits.taskID := InRegs(OpCodes.length).taskID
+  FUs(0).io.in1 := InRegs(0).data
+  FUs(0).io.in2 := InRegs(1).data
+  val out_data_R = FUs(0).io.out
+  io.Out(0).bits.data := out_data_R
+
+  io.Out(0).bits.predicate := InRegs(0).predicate & InRegs(1).predicate
+  io.Out(0).bits.taskID := InRegs(0).taskID
+
+  for (i <- 1 until OpCodes.length)  {
+      val out = RegNext(FUs(i-1).io.out)//need
+      FUs(i).io.in1 := out
+      FUs(i).io.in2 := InRegs(i+1).data
+      val out1 = RegNext(FUs(i).io.out)
+      io.Out(i).bits.data := FUs(i).io.out
+      io.Out(i).bits.taskID := InRegs(i+1).taskID
+      io.Out(i).bits.predicate := io.Out(i-1).bits.predicate & InRegs(i+1).predicate
+    }
+
+    io.Out((OpCodes.length)).bits.data := RegNext(FUs((OpCodes.length)-1).io.out)
+    io.Out((OpCodes.length)).bits.predicate := io.Out((OpCodes.length)-2).bits.predicate & InRegs(OpCodes.length).predicate
+    io.Out((OpCodes.length)).bits.taskID := InRegs(OpCodes.length).taskID
 
 
 }

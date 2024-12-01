@@ -272,11 +272,10 @@ class MergeNodeWithMask(NumInputs: Int = 2,
 
   join.nReady := oehb.dataIn.ready
 
-  // 使用 Mask 选择输入数据，并传递数据部分给 OEHB
   val selectedInputIndex = OHToUInt(mask_R)
   val selectedInput = io.InData(selectedInputIndex).bits.data
 
-  oehb.dataIn.bits := selectedInput  // 仅传递数据部分
+  oehb.dataIn.bits := selectedInput  
   oehb.dataIn.valid := join.valid
 
   oehb.dataOut.ready := io.Out.map(_.ready).reduce(_ && _)

@@ -79,9 +79,7 @@ class MemStore(NumPredOps: Int,
 
   var log_data_reg = RegInit(0.U((xlen-26).W))
   var log_addr_reg = RegInit(0.U(15.W))
-  val writeFinish = RegInit(false.B)
-  //log_id := ID.U
-  //test_value := Cat(GuardFlag,log_id, log_out)
+
   val log_value = WireInit(0.U(xlen.W))
   log_value := Cat(GuardFlag, log_id, log_data_reg, log_addr_reg)
 
