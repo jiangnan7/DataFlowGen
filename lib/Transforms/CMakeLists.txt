@@ -11,7 +11,6 @@ add_mlir_dialect_library(MLIRHLSTransforms
   Graph/DumpChisel.cpp
   Graph/DependencyAnalyze.cpp
 
-  EvaluationModel.cpp
   Loop/AffineLoopPermutation.cpp
   Loop/AffineLoopPerfection.cpp
   Vectorization/OperationFusion.cpp
@@ -20,8 +19,9 @@ add_mlir_dialect_library(MLIRHLSTransforms
   Memory/AnalyzeMemrefAddress.cpp
   Memory/GenerateGEP.cpp
   Misc/Utils.cpp
+  Misc/HybridAnalysis.cpp
+  Misc/EvaluationModel.cpp
   # Memory/ConvertMemrefStructure.cpp
-  # OptimizeStoreForward.cpp
 
   # ADDITIONAL_HEADER_DIRS
   # ${PROJECT_SOURCE_DIR}/include/hls/Recursion

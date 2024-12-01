@@ -906,7 +906,6 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func){
 
         //Fixed: Resolved an issue with incorrect port handling.
         from->second->addDataOutputPort(to->second);
-        LLVM_DEBUG(llvm::dbgs() << to->second->getName() << " " << i << "\n";);
         to->second->addDataInputPort(from->second, i);
       }
 
@@ -1058,7 +1057,6 @@ void GraphGen::connectingBranch(mlir::func::FuncOp func){
     to->addDataInputPort(from_else);
 
   }
-  // exit(0);
 }
 
 void Graph::connectingGraph(mlir::func::FuncOp func){

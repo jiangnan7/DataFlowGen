@@ -18,11 +18,8 @@ void heteacc::getLatencyMap(llvm::json::Object *config,
   auto Latency =
       config->getObject(config->getString("Latency").value_or("Latency"));
 
-  latencyMap["fadd"] = Latency->getInteger("fadd").value_or(2);
-  latencyMap["fmadd"] = Latency->getInteger("fmul").value_or(3);
-  latencyMap["fdiv"] = Latency->getInteger("fdiv").value_or(15);
-  latencyMap["fcmp"] = Latency->getInteger("fcmp").value_or(1);
-  latencyMap["fexp"] = Latency->getInteger("fexp").value_or(8);
+  latencyMap["add"] = Latency->getInteger("add").value_or(1);
+
 }
 
 
@@ -54,13 +51,7 @@ struct EvaluationModel : public EvaluationModelBase<EvaluationModel> {
       return signalPassFailure();
     }
 
-    // Collect profiling latency and DSP usage data, where default values are
-    // based on ARA.
-    // llvm::StringMap<int64_t> latencyMap;
-    // getLatencyMap(configObj, latencyMap);
-    // llvm::StringMap<int64_t> dspUsageMap;
-    // getDspUsageMap(configObj, dspUsageMap);
-    // ScaleHLSEstimator(latencyMap, dspUsageMap, true).estimateFunc(func);
+
   }
 };
 } // namespace

@@ -117,4 +117,17 @@ def GenerateGEP :
   let constructor = "mlir::heteacc::createGenerateGEPPass()";
 }
 
+
+// Reference the official pass example.
+def HybridAnalysis : Pass<"hybrid-analysis", "func::FuncOp"> {
+  let summary = "Perform hybrid analysis including loop, vectorization, and data flow information.";
+  let dependentDialects = ["vector::VectorDialect", "dataflow::DataFlowDialect"];
+  let constructor = "mlir::heteacc::createHybridAnalysisPass()";
+  let options = [
+    Option<"outputPath", "path", "std::string",
+          /*default=*/"\"./config.json\"",
+          "File path.">
+  ];
+}
+
 #endif // TRANSORMS_PASSES_TD

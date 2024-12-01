@@ -26,6 +26,7 @@ std::unique_ptr<Pass> createHybridBranchPredictionPass();
 //Vector
 std::unique_ptr<Pass> createOperationFusionPass();
 std::unique_ptr<Pass> createSimplifyVectorMemrefAccessPass();
+std::unique_ptr<Pass> createHybridAnalysisPass(std::string output = "");
 
 std::unique_ptr<Pass> createGenerateGEPPass();
 std::unique_ptr<Pass> createAnalyzeMemrefAddressPass();
