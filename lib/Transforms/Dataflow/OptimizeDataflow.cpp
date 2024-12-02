@@ -285,6 +285,29 @@ public:
   }
 };
 
+class RemsiToAndPattern : public OpRewritePattern<arith::RemSIOp> {
+public:
+  using OpRewritePattern<arith::RemSIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(arith::RemSIOp remOp, PatternRewriter &rewriter) const override {
+      auto rhs = remOp.getRhs();
+      if (auto constant = rhs.getDefiningOp<arith::ConstantOp>()) {
+
+        APInt rhsValue = constant.getValue().cast<IntegerAttr>().getValue();
+        if (rhsValue.isPowerOf2()) {
+          auto constantValue = rewriter.create<arith::ConstantOp>(
+              remOp.getLoc(), rewriter.getI32Type(), 
+              rewriter.getIntegerAttr(rewriter.getI32Type(), rhsValue.getSExtValue() - 1));
+
+          auto andOp = rewriter.create<arith::AndIOp>(remOp.getLoc(), remOp.getLhs(),constantValue);
+          rewriter.replaceOp(remOp, andOp.getResult());
+          return success();
+        }
+      }
+      return failure();
+    }
+};
+
 // class ArithSelectConversion : public OpConversionPattern<arith::SelectOp> {
 // public:
 //   using OpConversionPattern<arith::SelectOp>::OpConversionPattern;
@@ -319,7 +342,7 @@ struct OptimizeDataflow
     patterns.add<SCFIfOpConversion>(context, /*benefit=*/1);
     patterns.add<SCFYieldOpConversion>(context, /*benefit=*/1);
     // patterns.add<ArithSelectConversion>(context, /*benefit=*/1);
-
+    patterns.insert<RemsiToAndPattern>(context);
     ConversionTarget target(*context);
     target.addIllegalDialect<mlir::AffineDialect,scf::SCFDialect>();
     target.addLegalDialect<arith::ArithDialect, memref::MemRefDialect, heteacc::dataflow::DataFlowDialect,
