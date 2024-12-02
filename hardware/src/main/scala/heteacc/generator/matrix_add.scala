@@ -28,8 +28,6 @@ import utility._
 abstract class matrix_addDFIO(implicit val p: Parameters) extends Module with HasAccelParams {
 	val io = IO(new Bundle {
 	  val in = Flipped(Decoupled(new Call(List( 32, 32, 32, 32))))
-	  // val MemResp = Flipped(Valid(new MemResp))
-	  // val MemReq = Decoupled(new MemReq)
 	  val out = Decoupled(new Call(List(32)))
 	})
 }
@@ -39,16 +37,9 @@ class matrix_addDF(implicit p: Parameters) extends matrix_addDFIO()(p){
   val FineGrainedArgCall = Module(new SplitCallDCR(argTypes = List(1, 1, 1, 1 )))
   FineGrainedArgCall.io.In <> io.in
 
-  //Cache
   val mem_ctrl_cache = Module(new MemoryEngine(Size=200, ID = 0, NumRead = 4, NumWrite = 0))
-  
-  // val mem_ctrl_cache = Module(new CacheMemoryEngine(ID = 0, NumRead = 4, NumWrite = 0))
 
   mem_ctrl_cache.initMem("dataset/matirx_add/in.txt")
-  // io <> mem_ctrl_cache.io.cache
-  // mem_ctrl_cache.io.cache.MemResp <> io.MemResp
-
-
 
   /* ================================================================== *
    *                   Printing Const nodes.                            *

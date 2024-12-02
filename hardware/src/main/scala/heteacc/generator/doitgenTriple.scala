@@ -28,8 +28,6 @@ import utility._
 abstract class doitgenTripleDFIO(implicit val p: Parameters) extends Module with HasAccelParams {
 	val io = IO(new Bundle {
 	  val in = Flipped(Decoupled(new Call(List( 32, 32, 32))))
-	  // val MemResp = Flipped(Valid(new MemResp))
-	  // val MemReq = Decoupled(new MemReq)
 	  val out = Decoupled(new Call(List()))
 	})
 }
@@ -39,27 +37,18 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
   val FineGrainedArgCall = Module(new SplitCallDCR(argTypes = List(1, 1, 1 )))
   FineGrainedArgCall.io.In <> io.in
 
-  //Cache
-  // val mem_ctrl_cache = Module(new CacheMemoryEngine(ID = 0, NumRead = 2, NumWrite = 1))
-
-  // io.MemReq <> mem_ctrl_cache.io.cache.MemReq
-  // mem_ctrl_cache.io.cache.MemResp <> io.MemResp
-  
   val mem_ctrl_cache = Module(new MemoryEngine(Size=272, ID = 0, NumRead = 2, NumWrite = 0))
-  mem_ctrl_cache.initMem("dataset/doitgen/in.txt")
+  mem_ctrl_cache.initMem("dataset/doitgenTriple/in.txt")
   
   val mem_ctrl_cache_store = Module(new MemoryEngine(Size=16, ID = 0, NumRead = 0, NumWrite = 1))
-  mem_ctrl_cache_store.initMem("dataset/doitgen/sum.txt")
+  mem_ctrl_cache_store.initMem("dataset/doitgenTriple/sum.txt")
 
   /* ================================================================== *
    *                   Printing Const nodes.                            *
    * ================================================================== */
 
   //%c0 = arith.constant 0 : index
-  // val int_const_0 = Module(new ConstFastNode(value = 0, ID = 0))
-
-  //%c0_i32 = arith.constant 0 : i32
-  val int_const_1 = Module(new ConstFastNode(value = 0, ID = 1))
+  val int_const_1 = Module(new ConstFastNode(value = 0, ID = 2))
 
   //%c0 = arith.constant 0 : index
   val int_const_2 = Module(new ConstFastNode(value = 0, ID = 2))
@@ -100,9 +89,6 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
 
   //dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
   val state_branch_0 = Module(new UBranchNode(ID = 0))
-
-  //%0 = dataflow.merge %c0 or %arg3 {Select = "Loop_Signal"} : index
-  // val merge_1 = Module(new MergeNode(NumInputs = 2, NumOutputs = 3, ID = 1, Res = false))
 
   //%6 = dataflow.merge %c0_i32 or %arg5 {Select = "Loop_Signal"} : i32
   val merge_2 = Module(new MergeNode(NumInputs = 2, NumOutputs = 2, ID = 2, Res = false))
@@ -183,7 +169,6 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
 
   val loop_1 = Module(new LoopBlockNode(NumIns = List(1, 1, 1), NumOuts = List(), NumCarry = List(3), NumExits = 1, ID = 1))
 
-//   loop_0.io.loopExit(0) <>  DontCare
   loop_1.io.loopExit(0) <>  return_24.io.In.enable
 
   /* ================================================================== *
@@ -233,24 +218,12 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
    *                   Input Data dependencies.                         *
    * ================================================================== */
 
-//   loop_0.io.InLiveIn(0) <> FineGrainedArgCall.io.Out.data.elements("field0")(0)
 
-//   loop_0.io.InLiveIn(1) <> merge_1.io.Out(0)
+  loop_0.io.InLiveIn(0) <> loop_1.io.OutLiveIn.elements("field1")(0)
 
-//   loop_0.io.InLiveIn(2) <> FineGrainedArgCall.io.Out.data.elements("field2")(0)
-
-//   loop_1.io.InLiveIn(0) <> FineGrainedArgCall.io.Out.data.elements("field1")(0)
-
-//   loop_1.io.InLiveIn(0) <> FineGrainedArgCall.io.Out.data.elements("field1")(0)
-
-
-
-  loop_0.io.InLiveIn(0) <> loop_1.io.OutLiveIn.elements("field1")(0)//FineGrainedArgCall.io.Out.data.elements("field0")(0)
-
-  // loop_0.io.InLiveIn(1) <> merge_1.io.Out(0)
   loop_0.io.InLiveIn(1) <> loop_1.io.CarryDepenOut.elements("field0")(0)
 
-  loop_0.io.InLiveIn(2) <> loop_1.io.OutLiveIn.elements("field2")(0)//FineGrainedArgCall.io.Out.data.elements("field2")(0)
+  loop_0.io.InLiveIn(2) <> loop_1.io.OutLiveIn.elements("field2")(0)
 
 
 
@@ -296,19 +269,15 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
    *                   Carry dependencies                               *
    * ================================================================== */
 
-  loop_0.io.CarryDepenIn(0) <> int_add_16.io.Out(1) //loop_0.io.CarryDepenOut.elements("field0")(0)
+  loop_0.io.CarryDepenIn(0) <> int_add_16.io.Out(1) 
 
   merge_3.io.InData(1) <> loop_0.io.CarryDepenOut.elements("field0")(0)
 
-  loop_0.io.CarryDepenIn(1) <> select_15.io.Out(1)//loop_0.io.CarryDepenOut.elements("field1")(0)
+  loop_0.io.CarryDepenIn(1) <> select_15.io.Out(1)
 
   merge_2.io.InData(1) <> loop_0.io.CarryDepenOut.elements("field1")(0)
 
-  loop_1.io.CarryDepenIn(0) <> int_add_21.io.Out(1)//loop_1.io.CarryDepenOut.elements("field0")(0)
-
-  // merge_1.io.InData(1) <> loop_1.io.CarryDepenOut.elements("field0")(0)
-
-
+  loop_1.io.CarryDepenIn(0) <> int_add_21.io.Out(1)
 
   /* ================================================================== *
    *                   Printing Connection.                             *
@@ -317,10 +286,6 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
   merge_2.io.Mask <> exe_block_0.io.MaskBB(0)
 
   merge_3.io.Mask <> exe_block_0.io.MaskBB(1)
-
-  // merge_1.io.Mask <> exe_block_1.io.MaskBB(0)
-
-  // merge_1.io.InData(0) <> int_const_0.io.Out
 
   merge_2.io.InData(0) <> int_const_1.io.Out
 
@@ -338,9 +303,9 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
 
   int_cmp_22.io.LeftIO <> int_const_8.io.Out
 
-  address_19.io.idx(0) <> loop_1.io.CarryDepenOut.elements("field0")(1)//merge_1.io.Out(1)
+  address_19.io.idx(0) <> loop_1.io.CarryDepenOut.elements("field0")(1)
 
-  int_add_21.io.RightIO <> loop_1.io.CarryDepenOut.elements("field0")(2)//merge_1.io.Out(2)
+  int_add_21.io.RightIO <> loop_1.io.CarryDepenOut.elements("field0")(2)
 
   int_add_14.io.LeftIO <> merge_2.io.Out(0)
 
@@ -469,17 +434,6 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
   int_add_21.io.enable <> exe_block_1.io.Out(0)
 
   int_cmp_22.io.enable <> exe_block_1.io.Out(1)
-
-
-
-  // address_19.io.enable <> exe_block_1.io.Out(8)
-
-  // store_20.io.enable <> exe_block_1.io.Out(9)
-
-  // int_add_21.io.enable <> exe_block_1.io.Out(10)
-
-  // int_cmp_22.io.enable <> exe_block_1.io.Out(4)
-
 
   state_branch_23.io.enable <> loop_0.io.loopExit(0)
 
