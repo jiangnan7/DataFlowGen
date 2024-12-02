@@ -1118,12 +1118,14 @@ std::string ArgumentNode::printOutputData(PrintType _pt, uint32_t _idx) {
           // strReplace(_text, "$out", "Out");
           // strReplace(_text, "$id", _idx);
           // break;
+
           std::replace(_name.begin(), _name.end(), '.', '_');
           _text = "$call.io.$out.elements(\"field$num\")($id)";
           strReplace(_text, "$call", this->parent_call_node->getName());
           strReplace(
               _text, "$num", this->parent_call_node->findLiveOutArgumentIndex(this));
           strReplace(_text, "$out", "OutLiveOut");
+
           strReplace(_text, "$id", _idx);
           break;
         }
@@ -1373,9 +1375,9 @@ std::string LSNode::printInputData(PrintType _pt, uint32_t _id) {
     case PrintType::Scala:
       if(this->isStore){
         if (_id == 0)
-          _text = "$name.io.inData";
+          _text = "$name.inData";
         else
-          _text = "$name.io.GepAddr";
+          _text = "$name.GepAddr";
         strReplace(_text, "$name", _name.c_str());
         strReplace(_text, "$id", _id);
       } else {

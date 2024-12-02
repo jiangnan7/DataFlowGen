@@ -295,11 +295,20 @@ public:
 
         APInt rhsValue = constant.getValue().cast<IntegerAttr>().getValue();
         if (rhsValue.isPowerOf2()) {
-          auto constantValue = rewriter.create<arith::ConstantOp>(
-              remOp.getLoc(), rewriter.getI32Type(), 
-              rewriter.getIntegerAttr(rewriter.getI32Type(), rhsValue.getSExtValue() - 1));
-
-          auto andOp = rewriter.create<arith::AndIOp>(remOp.getLoc(), remOp.getLhs(),constantValue);
+          auto inputType = remOp.getType();
+          Value constantValue;
+          if (inputType.isa<mlir::IndexType>()) {
+            constantValue = rewriter.create<arith::ConstantOp>(
+                remOp.getLoc(), rewriter.getIndexAttr(rhsValue.getSExtValue() - 1));
+          } else if (auto intType = inputType.dyn_cast<mlir::IntegerType>()) {
+            constantValue = rewriter.create<arith::ConstantOp>(
+                remOp.getLoc(), inputType,
+                rewriter.getIntegerAttr(intType, rhsValue - 1));
+          } else {
+            return failure();
+          }
+          auto andOp = rewriter.create<arith::AndIOp>(
+              remOp.getLoc(), remOp.getLhs(), constantValue);
           rewriter.replaceOp(remOp, andOp.getResult());
           return success();
         }
@@ -342,13 +351,18 @@ struct OptimizeDataflow
     patterns.add<SCFIfOpConversion>(context, /*benefit=*/1);
     patterns.add<SCFYieldOpConversion>(context, /*benefit=*/1);
     // patterns.add<ArithSelectConversion>(context, /*benefit=*/1);
-    patterns.insert<RemsiToAndPattern>(context);
+
     ConversionTarget target(*context);
     target.addIllegalDialect<mlir::AffineDialect,scf::SCFDialect>();
     target.addLegalDialect<arith::ArithDialect, memref::MemRefDialect, heteacc::dataflow::DataFlowDialect,
                           vector::VectorDialect>();
     if (failed(applyPartialConversion(func, target, std::move(patterns))))
       return signalPassFailure();
+
+
+    mlir::RewritePatternSet operator_patterns(context);
+    operator_patterns.insert<RemsiToAndPattern>(context);
+    (void)applyPatternsAndFoldGreedily(func, std::move(operator_patterns));
   }
 };
 

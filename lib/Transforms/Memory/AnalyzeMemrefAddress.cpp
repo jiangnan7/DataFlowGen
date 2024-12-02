@@ -229,9 +229,16 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
               llvm::errs() << "coeff: ";
               TotalOffset += factorTable.second * subDimsSpaceMap[i];
               for(auto &elem : factorTable.first){
-                unsigned level = effectedLevels[elem.first];
-                llvm::errs() << "d" << level << " " << elem.second << " ";
-                coeffMap[level] += (elem.second * subDimsSpaceMap[i]);
+                // unsigned level = effectedLevels[elem.first];
+                // llvm::errs() << "d" << level << " " << elem.second << " ";
+                // coeffMap[level] += (elem.second * subDimsSpaceMap[i]);
+                if (elem.first < effectedLevels.size()) {
+                  unsigned level = effectedLevels[elem.first];
+                  llvm::errs() << "d" << level << " " << elem.second << " ";
+                  coeffMap[level] += (elem.second * subDimsSpaceMap[i]);
+                } else {
+                  llvm::errs() << "Out of bounds access attempt for level " << elem.first << "\n";
+                }
               }
               llvm::errs() << "\n";
               i++;

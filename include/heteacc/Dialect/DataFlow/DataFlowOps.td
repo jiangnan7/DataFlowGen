@@ -231,12 +231,12 @@ def IfOp : DataFlowOp<"if", [DeclareOpInterfaceMethods<RegionBranchOpInterface, 
 
 }
 
-def YieldOp : DataFlowOp<"yield", [NoMemoryEffect, ReturnLike, Terminator,
+def YieldOp : DataFlowOp<"yield", [Pure, ReturnLike, Terminator,
       ParentOneOf<["LaunchOp", "TaskOp", "ForOp", "ExecutionBlockOp", "IfOp"]>]> {
   let summary = "Terminate and yield results of a dispatch or task op";
 
   let arguments = (ins Variadic<AnyType>:$results);
-  let assemblyFormat = "$results attr-dict `:` type($results)";
+  let assemblyFormat = [{  attr-dict ($results^ `:` type($results))? }];
 
   let builders = [OpBuilder<(ins), "build($_builder, $_state, llvm::None);">];
 }
