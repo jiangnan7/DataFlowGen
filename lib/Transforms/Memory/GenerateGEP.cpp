@@ -21,6 +21,7 @@ using namespace mlir;
 using namespace heteacc;
 using namespace dataflow;
 
+bool support_linear_memory = false;
 
 namespace {
 
@@ -43,7 +44,7 @@ public:
     auto memRefShape = op.getMemRefType().getShape();
     auto resultType = op.getResult().getType();
 
-    if(affineCoeff){
+    if(affineCoeff && support_linear_memory){
       auto newOp = rewriter.replaceOpWithNewOp<dataflow::InputOp>(op, resultType, op.getMemRef(), 
                   affineCoeff.dyn_cast<ArrayAttr>(), affineOffset.dyn_cast<IntegerAttr>());
     }else{
@@ -52,7 +53,10 @@ public:
         dims.push_back(a);
       }
       auto addrOp = rewriter.create<AddressOp>(op.getLoc(), rewriter.getI32Type(), op.getMemRef(), ValueRange{dims}, rewriter.getI64ArrayAttr(memRefShape));
-      auto newOp = rewriter.replaceOpWithNewOp<dataflow::LoadOp>(op, resultType, addrOp.getResult());//op.getMemRef(),
+      auto newOp = rewriter.replaceOpWithNewOp<dataflow::LoadOp>(op, resultType, addrOp.getResult(), op->getAttrs());//op.getMemRef(),
+      // auto newOp = rewriter.create<memref::LoadOp>(op.getLoc(), resultType, addrOp.getResult(), op->getAttrs());
+      // newOp->setAttrs(op->getAttrs());
+      // rewriter.replaceOp(op, newOp->getResults());
     }
     
     return success();
@@ -72,7 +76,7 @@ public:
     auto Indices = op.getIndices();
     auto memRefShape = op.getMemRefType().getShape();
 
-    if(affineCoeff){
+    if(affineCoeff && support_linear_memory){
       auto newOp = rewriter.replaceOpWithNewOp<dataflow::OutputOp>(op, op.getValue(), op.getMemRef(), 
                   affineCoeff.dyn_cast<ArrayAttr>(), affineOffset.dyn_cast<IntegerAttr>());
     }else{
@@ -81,7 +85,9 @@ public:
         dims.push_back(a);
       }
       auto addrOp = rewriter.create<AddressOp>(op.getLoc(), rewriter.getI32Type(), op.getMemRef(), ValueRange{dims}, rewriter.getI64ArrayAttr(memRefShape));
-      auto newOp = rewriter.replaceOpWithNewOp<dataflow::StoreOp>(op, op.getValue(), addrOp.getResult());//op.getMemRef(), 
+      auto newOp = rewriter.create<dataflow::StoreOp>(op.getLoc(), op.getValue(), addrOp.getResult());//op.getMemRef(), 
+      newOp->setAttrs(op->getAttrs());
+      rewriter.eraseOp(op);
     }
     
     return success();

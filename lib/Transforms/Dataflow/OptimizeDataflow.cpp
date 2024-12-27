@@ -178,10 +178,11 @@ public:
         expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
     if (!resultOperands)
       return failure();
+    
+    auto newLoadOp = rewriter.create<memref::LoadOp>(op.getLoc(), op.getMemRef(), *resultOperands);
+    newLoadOp->setAttrs(op->getAttrs());
+    rewriter.replaceOp(op, newLoadOp->getResults());
 
-    // Build vector.load memref[expandedMap.results].
-    rewriter.replaceOpWithNewOp<memref::LoadOp>(op, op.getMemRef(),
-                                                *resultOperands);
     return success();
   }
 };
@@ -279,8 +280,11 @@ public:
       return failure();
 
     // Build memref.store valueToStore, memref[expandedMap.results].
-    rewriter.replaceOpWithNewOp<memref::StoreOp>(
-        op, op.getValueToStore(), op.getMemRef(), *maybeExpandedMap);
+    auto newStoreOp = rewriter.create<memref::StoreOp>(
+        op.getLoc(), op.getValueToStore(), op.getMemRef(), *maybeExpandedMap);
+    newStoreOp->setAttrs(op->getAttrs());
+    rewriter.eraseOp(op);
+
     return success();
   }
 };
@@ -316,7 +320,6 @@ public:
       return failure();
     }
 };
-
 // class ArithSelectConversion : public OpConversionPattern<arith::SelectOp> {
 // public:
 //   using OpConversionPattern<arith::SelectOp>::OpConversionPattern;

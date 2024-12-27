@@ -1,7 +1,5 @@
 #include "mlir/IR/IntegerSet.h"
-
 #include "mlir/Dialect/SCF/IR/SCF.h"
-
 #include "heteacc/Transforms/Passes.h"
 #include "heteacc/Misc/VecUtils.h"
 #include "heteacc/Misc/Utils.h"
@@ -52,26 +50,26 @@ struct HybridAnalysis : public HybridAnalysisBase<HybridAnalysis>  {
         int loopBand = -1;
         func.walk([&](dataflow::ForOp forOp) {
             
-        int loopLevel = -1;
-        if (auto loopBandAttr = forOp->getAttr("Loop_Band")) {
-            loopBand = loopBandAttr.cast<IntegerAttr>().getInt();
-        }
-        if (auto loopLevelAttr = forOp->getAttr("Loop_Level")) {
-            loopLevel = loopLevelAttr.cast<IntegerAttr>().getInt();
-        } 
+            int loopLevel = -1;
+            if (auto loopBandAttr = forOp->getAttr("Loop_Band")) {
+                loopBand = loopBandAttr.cast<IntegerAttr>().getInt();
+            }
+            if (auto loopLevelAttr = forOp->getAttr("Loop_Level")) {
+                loopLevel = loopLevelAttr.cast<IntegerAttr>().getInt();
+            } 
 
-        if (loopBand != -1) {
-            if (bandMap.count(loopBand) == 0) {
-                bandMap[loopBand] = forOp;
-            } else {
-                mlir::heteacc::dataflow::ForOp existingOp = bandMap[loopBand];
-                int existingLevel = existingOp->getAttrOfType<mlir::IntegerAttr>("Loop_Level").getInt();
-
-                if (loopLevel > existingLevel) {
+            if (loopBand != -1) {
+                if (bandMap.count(loopBand) == 0) {
                     bandMap[loopBand] = forOp;
+                } else {
+                    mlir::heteacc::dataflow::ForOp existingOp = bandMap[loopBand];
+                    int existingLevel = existingOp->getAttrOfType<mlir::IntegerAttr>("Loop_Level").getInt();
+
+                    if (loopLevel > existingLevel) {
+                        bandMap[loopBand] = forOp;
+                    }
                 }
             }
-        }
         });
 
         nlohmann::json loopsJson = nlohmann::json::object();    
