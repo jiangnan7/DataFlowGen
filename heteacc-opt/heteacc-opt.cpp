@@ -22,9 +22,9 @@
 
 int main(int argc, char **argv) {
 
-    mlir::DialectRegistry registry;
-    mlir::heteacc::registerAllDialects(registry);
-    mlir::heteacc::registerAllPasses();
+  mlir::DialectRegistry registry;
+  mlir::heteacc::registerAllDialects(registry);
+  mlir::heteacc::registerAllPasses();
 
 
   return mlir::failed(mlir::MlirOptMain(

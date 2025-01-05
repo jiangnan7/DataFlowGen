@@ -1,18 +1,12 @@
-///@xcgao
 #include "mlir/Pass/Pass.h"
-
 #include "mlir/IR/Operation.h"
-
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
-
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-
 #include "heteacc/Transforms/Passes.h"
 
 #include <queue>
@@ -94,6 +88,76 @@ public:
   }
 };
 
+struct vectorTransferReadLowering 
+    : public OpRewritePattern<vector::TransferReadOp> {
+
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(vector::TransferReadOp op,
+                                PatternRewriter &rewriter) const override {
+    
+    auto vecTy = op.getType().dyn_cast<VectorType>();
+    if (!vecTy) {
+      return failure(); 
+    }
+
+    auto memRefShape = op.getSource().getType().getShape();
+    unsigned laneCount = vecTy.getNumElements();
+
+    llvm::SmallVector<Value, 8> dims;
+    for(auto a : op.getIndices()){
+      dims.push_back(a);
+    }
+    auto addrOp = rewriter.create<AddressOp>(
+          op.getLoc(), rewriter.getI32Type(), op.getSource(), ValueRange{dims}, rewriter.getI64ArrayAttr(memRefShape));
+
+    
+    auto loadOp = rewriter.replaceOpWithNewOp<dataflow::LoadOp>(
+          op, op.getVectorType(), addrOp.getResult(), op->getAttrs());
+      loadOp->setAttr("bankNums", rewriter.getI32IntegerAttr(laneCount)); 
+
+    return success();
+  }
+};
+
+
+struct vectorTransferWriteLowering 
+    : public OpRewritePattern<vector::TransferWriteOp> {
+
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(vector::TransferWriteOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto vecTy = op.getVector().getType().dyn_cast<VectorType>();
+    if (!vecTy) {
+      return failure(); 
+    }
+
+    unsigned laneCount = vecTy.getNumElements();
+
+    auto memRefShape = op.getSource().getType().getShape();
+
+
+    llvm::SmallVector<Value, 8> dims;
+    for(auto a : op.getIndices()){
+      dims.push_back(a);
+    }
+
+    Value vecValue = op.getVector();
+
+    auto addrOp = rewriter.create<AddressOp>(
+    op.getLoc(), rewriter.getI32Type(), op.getSource(), ValueRange{dims}, rewriter.getI64ArrayAttr(memRefShape));
+
+    auto newOp = rewriter.create<dataflow::StoreOp>(op.getLoc(), op.getVector(), addrOp.getResult());
+    newOp->setAttrs(op->getAttrs());
+    newOp->setAttr("bankNums", rewriter.getI32IntegerAttr(laneCount)); 
+    rewriter.eraseOp(op);
+
+    return success();
+  }
+};
+
 // A pass that manually walks the IR
 struct GenerateGEP : GenerateGEPBase<GenerateGEP> {
 
@@ -105,10 +169,13 @@ struct GenerateGEP : GenerateGEPBase<GenerateGEP> {
     
     patterns.add<memrefLoadLowering>(context, /*benefit=*/1);
     patterns.add<memrefStoreLowering>(context, /*benefit=*/1);
+    patterns.add<vectorTransferReadLowering>(context, /*benefit=*/1);
+    patterns.add<vectorTransferWriteLowering>(context, /*benefit=*/1);
 
     ConversionTarget target(*context);
     target.addIllegalDialect<mlir::AffineDialect, scf::SCFDialect>();
     target.addIllegalOp<memref::LoadOp, memref::StoreOp>();
+    target.addIllegalOp<vector::TransferReadOp, vector::TransferWriteOp>();
     target.addLegalDialect<arith::ArithDialect, heteacc::dataflow::DataFlowDialect,
                           vector::VectorDialect>();
     if (failed(applyPartialConversion(func, target, std::move(patterns))))
