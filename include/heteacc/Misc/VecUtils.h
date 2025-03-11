@@ -1,3 +1,5 @@
+#ifndef MISC_VECTORIZATION_UTILS_H
+#define MISC_VECTORIZATION_UTILS_H
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
@@ -10,7 +12,7 @@ namespace heteacc{
 
 // Return the number of lanes along the vectorized dimension for the vector
 // type. For a multidimensional vector, return the innermost dimension size
-inline unsigned getVectorLaneSize(VectorType type) {
+inline unsigned getVectorLaneSize(mlir::VectorType type) {
   assert(type.getRank() > 0 && "Cannot handle rank-0 vectors");
   auto dimSize = type.getDimSize(type.getRank() - 1);
   assert(dimSize >= 0 && "Vector dimension cannot be negative");
@@ -25,3 +27,6 @@ inline unsigned getVectorLaneSize(VectorType type) {
 
 }
 }
+
+#endif // MISC_VECTORIZATION_UTILS_H
+

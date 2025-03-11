@@ -8,7 +8,7 @@
 #include "heteacc/InitAllDialects.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
-
+#include "heteacc/Misc/VecUtils.h"
 #include <queue>
 #include <set>
 #include <string>
@@ -177,81 +177,215 @@ public:
   }
 
   void visitOp(arith::ShRUIOp op) {
-    auto shr_node = this->dependency_graph->insertShrUINode(op.getResult(), DataType::IntegerType);
-    this->map_value_node[op.getResult()] = shr_node;
-    this->map_op_node[op.getOperation()] = shr_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto shr_node = this->dependency_graph->insertShrUINode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      shr_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = shr_node;
+      this->map_op_node[op.getOperation()] = shr_node;
+    } else {
+      auto shr_node = this->dependency_graph->insertShrUINode(op.getResult(), DataType::IntegerType);
+      this->map_value_node[op.getResult()] = shr_node;
+      this->map_op_node[op.getOperation()] = shr_node;
+    }
   }
 
   void visitOp(arith::ShRSIOp op) {
-    auto shr_node = this->dependency_graph->insertShrNode(op.getResult(), DataType::IntegerType);
-    this->map_value_node[op.getResult()] = shr_node;
-    this->map_op_node[op.getOperation()] = shr_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto shr_node = this->dependency_graph->insertShrNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      shr_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = shr_node;
+      this->map_op_node[op.getOperation()] = shr_node;
+    } else {
+      auto shr_node = this->dependency_graph->insertShrNode(op.getResult(), DataType::IntegerType);
+      this->map_value_node[op.getResult()] = shr_node;
+      this->map_op_node[op.getOperation()] = shr_node;
+    }
   }
 
   void visitOp(arith::ShLIOp op) {
-    auto shl_node = this->dependency_graph->insertShlNode(op.getResult(), DataType::IntegerType);
-    this->map_value_node[op.getResult()] = shl_node;
-    this->map_op_node[op.getOperation()] = shl_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto shl_node = this->dependency_graph->insertShlNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      shl_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = shl_node;
+      this->map_op_node[op.getOperation()] = shl_node;
+    } else {
+      auto shl_node = this->dependency_graph->insertShlNode(op.getResult(), DataType::IntegerType);
+      this->map_value_node[op.getResult()] = shl_node;
+      this->map_op_node[op.getOperation()] = shl_node;
+    }
   }
 
   void visitOp(arith::AddIOp op) {
-    auto add_node = this->dependency_graph->insertAddNode(op.getResult(), DataType::IntegerType);
-    this->map_value_node[op.getResult()] = add_node;
-    this->map_op_node[op.getOperation()] = add_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto add_node = this->dependency_graph->insertAddNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      add_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = add_node;
+      this->map_op_node[op.getOperation()] = add_node;
+    } else {
+      auto add_node = this->dependency_graph->insertAddNode(op.getResult(), DataType::IntegerType);
+      this->map_value_node[op.getResult()] = add_node;
+      this->map_op_node[op.getOperation()] = add_node;
+    }
   }
+
   void visitOp(arith::AddFOp op) {
-    auto add_node = this->dependency_graph->insertAddNode(op.getResult(), DataType::FloatType);
-    this->map_value_node[op.getResult()] = add_node;
-    this->map_op_node[op.getOperation()] = add_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto add_node = this->dependency_graph->insertAddNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      add_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = add_node;
+      this->map_op_node[op.getOperation()] = add_node;
+    } else {
+      auto add_node = this->dependency_graph->insertAddNode(op.getResult(), DataType::FloatType);
+      this->map_value_node[op.getResult()] = add_node;
+      this->map_op_node[op.getOperation()] = add_node;
+    } 
   }
+  
   void visitOp(arith::SubIOp op) {
-    auto sub_node = this->dependency_graph->insertSubNode(op.getResult(), DataType::IntegerType);
-    this->map_value_node[op.getResult()] = sub_node;
-    this->map_op_node[op.getOperation()] = sub_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto sub_node = this->dependency_graph->insertSubNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      sub_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = sub_node;
+      this->map_op_node[op.getOperation()] = sub_node;
+    } else {
+      auto sub_node = this->dependency_graph->insertSubNode(op.getResult(), DataType::IntegerType);
+      this->map_value_node[op.getResult()] = sub_node;
+      this->map_op_node[op.getOperation()] = sub_node;
+    }  
   }
+
   void visitOp(arith::SubFOp op) {
-    auto sub_node = this->dependency_graph->insertSubNode(op.getResult(), DataType::FloatType);
-    this->map_value_node[op.getResult()] = sub_node;
-    this->map_op_node[op.getOperation()] = sub_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto sub_node = this->dependency_graph->insertSubNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      sub_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = sub_node;
+      this->map_op_node[op.getOperation()] = sub_node;
+    } else {
+      auto sub_node = this->dependency_graph->insertSubNode(op.getResult(), DataType::FloatType);
+      this->map_value_node[op.getResult()] = sub_node;
+      this->map_op_node[op.getOperation()] = sub_node;
+    }
   }
+
   void visitOp(arith::AndIOp op) {
-    auto and_node = this->dependency_graph->insertAndiNode(op.getResult(), DataType::IntegerType);
-    this->map_value_node[op.getResult()] = and_node;
-    this->map_op_node[op.getOperation()] = and_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto and_node = this->dependency_graph->insertAndiNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      and_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = and_node;
+      this->map_op_node[op.getOperation()] = and_node;
+    } else {
+      auto and_node = this->dependency_graph->insertAndiNode(op.getResult(), DataType::IntegerType);
+      this->map_value_node[op.getResult()] = and_node;
+      this->map_op_node[op.getOperation()] = and_node;
+    }
   }
+
   void visitOp(arith::OrIOp op) {
-    auto or_node = this->dependency_graph->insertOriNode(op.getResult(), DataType::IntegerType);
-    this->map_value_node[op.getResult()] = or_node;
-    this->map_op_node[op.getOperation()] = or_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto or_node = this->dependency_graph->insertOriNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      or_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = or_node;
+      this->map_op_node[op.getOperation()] = or_node;
+    } else {
+      auto or_node = this->dependency_graph->insertOriNode(op.getResult(), DataType::IntegerType);
+      this->map_value_node[op.getResult()] = or_node;
+      this->map_op_node[op.getOperation()] = or_node;
+    }
   }
+
   void visitOp(arith::DivSIOp op) {
-    auto add_node = this->dependency_graph->insertDivsiNode(op.getResult(), DataType::IntegerType);
-    this->map_value_node[op.getResult()] = add_node;
-    this->map_op_node[op.getOperation()] = add_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto div_node = this->dependency_graph->insertDivsiNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      div_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = div_node;
+      this->map_op_node[op.getOperation()] = div_node;
+    } else {
+      auto div_node = this->dependency_graph->insertDivsiNode(op.getResult(), DataType::IntegerType);
+      this->map_value_node[op.getResult()] = div_node;
+      this->map_op_node[op.getOperation()] = div_node;
+    }
   }
 
 
   void visitOp(arith::MulIOp op) {
-    auto mul_node = this->dependency_graph->insertMulNode(op.getResult(), DataType::IntegerType);
-    this->map_value_node[op.getResult()] = mul_node;
-    this->map_op_node[op.getOperation()] = mul_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto mul_node = this->dependency_graph->insertMulNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      mul_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = mul_node;
+      this->map_op_node[op.getOperation()] = mul_node;
+    } else {
+      auto mul_node = this->dependency_graph->insertMulNode(op.getResult(), DataType::IntegerType);
+      this->map_value_node[op.getResult()] = mul_node;
+      this->map_op_node[op.getOperation()] = mul_node;
+    }
   }
+
   void visitOp(arith::MulFOp op) {
-    auto mul_node = this->dependency_graph->insertMulNode(op.getResult(), DataType::FloatType);
-    this->map_value_node[op.getResult()] = mul_node;
-    this->map_op_node[op.getOperation()] = mul_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto mul_node = this->dependency_graph->insertMulNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      mul_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = mul_node;
+      this->map_op_node[op.getOperation()] = mul_node;
+    } else {
+      auto mul_node = this->dependency_graph->insertMulNode(op.getResult(), DataType::FloatType);
+      this->map_value_node[op.getResult()] = mul_node;
+      this->map_op_node[op.getOperation()] = mul_node;
+    }
   }
 
 
   void visitOp(arith::CmpIOp op) {
-    auto cmp_node = this->dependency_graph->insertCmpNode(op.getResult(), DataType::IntegerType);
-    this->map_value_node[op.getResult()] = cmp_node;
-    this->map_op_node[op.getOperation()] = cmp_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto cmp_node = this->dependency_graph->insertCmpNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      cmp_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = cmp_node;
+      this->map_op_node[op.getOperation()] = cmp_node;
+    } else {
+      auto cmp_node = this->dependency_graph->insertCmpNode(op.getResult(), DataType::IntegerType);
+      this->map_value_node[op.getResult()] = cmp_node;
+      this->map_op_node[op.getOperation()] = cmp_node;
+    }
   }
+
   void visitOp(arith::CmpFOp op) {
-    auto cmp_node = this->dependency_graph->insertCmpNode(op.getResult(), DataType::FloatType);
-    this->map_value_node[op.getResult()] = cmp_node;
-    this->map_op_node[op.getOperation()] = cmp_node;
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      auto cmp_node = this->dependency_graph->insertCmpNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      cmp_node->setLaneNums(laneSize);
+      this->map_value_node[op.getResult()] = cmp_node;
+      this->map_op_node[op.getOperation()] = cmp_node;
+    } else {
+      auto cmp_node = this->dependency_graph->insertCmpNode(op.getResult(), DataType::FloatType);
+      this->map_value_node[op.getResult()] = cmp_node;
+      this->map_op_node[op.getOperation()] = cmp_node;
+    }
   }
 
   void visitOp(arith::IndexCastOp op) {
@@ -316,6 +450,10 @@ public:
       auto load_node = this->dependency_graph->insertLoadNode(op.getResult(), DataType::FloatType);
       this->map_value_node[op.getResult()] = load_node;
       this->map_op_node[op.getOperation()] = load_node;
+    } else if(valueType.isa<mlir::VectorType>()){
+      auto load_node = this->dependency_graph->insertLoadNode(op.getResult(), DataType::VectorType);
+      this->map_value_node[op.getResult()] = load_node;
+      this->map_op_node[op.getOperation()] = load_node;
     }
     else {
       op.dump();
@@ -333,6 +471,10 @@ public:
       this->map_op_node[op.getOperation()] = store_node;
     } else if(valueType.isa<mlir::FloatType>()){
       auto store_node = this->dependency_graph->insertStoreNode(op.getAddress(), DataType::FloatType, op.getOperation());
+      // this->map_value_node[op.getMemRef()] = store_node;
+      this->map_op_node[op.getOperation()] = store_node;
+    } else if(valueType.isa<mlir::VectorType>()){
+      auto store_node = this->dependency_graph->insertStoreNode(op.getAddress(), DataType::VectorType, op.getOperation());
       // this->map_value_node[op.getMemRef()] = store_node;
       this->map_op_node[op.getOperation()] = store_node;
     }
@@ -367,11 +509,21 @@ public:
 
   void visitOp(dataflow::SelectOp op) {
     auto select_node = this->dependency_graph->insertSelectNode(op);
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      select_node->setLaneNums(laneSize);
+    }
     this->map_op_node[op.getOperation()] = select_node;
     this->map_value_node[op.getResult()] = select_node;
   }
   void visitOp(arith::SelectOp op) {
     auto select_node = this->dependency_graph->insertSelectNode(op);
+    auto valueType = op.getResult().getType();
+    if(valueType.isa<mlir::VectorType>()){
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      select_node->setLaneNums(laneSize);
+    }
     this->map_op_node[op.getOperation()] = select_node;
     this->map_value_node[op.getResult()] = select_node;
   }
@@ -382,11 +534,33 @@ public:
   }
   void visitOp(dataflow::AddressOp op) {
     auto address_node = this->dependency_graph->insertAddressGenNode(op);
+    if (auto lane = op->getAttr("laneNums")) {
+        address_node->setLaneNums(lane.cast<IntegerAttr>().getInt());
+    }
     this->map_op_node[op.getOperation()] = address_node;
     this->map_value_node[op.getResult()] = address_node;
   }
 
+  void visitOp(vector::ReductionOp op) {
+    auto valueType = op.getVector().getType();
+    auto reduction_op = this->dependency_graph->insertReductionNode(op.getResult(), DataType::VectorType);
+    unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+    reduction_op->setLaneNums(laneSize);
+    this->map_value_node[op.getResult()] = reduction_op;
+    this->map_op_node[op.getOperation()] = reduction_op;
   
+  }
+
+  void visitOp(vector::BroadcastOp op) {
+    auto valueType = op.getVector().getType();
+    auto broadcast_op = this->dependency_graph->insertBitCastNode(op);
+    unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+    broadcast_op->setLaneNums(laneSize);
+    this->map_value_node[op.getResult()] = broadcast_op;
+    this->map_op_node[op.getOperation()] = broadcast_op;
+  
+  }
+
 };
 
 

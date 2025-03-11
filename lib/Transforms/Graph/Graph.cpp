@@ -18,12 +18,23 @@ using namespace heteacc;
 
 ConstNode* Graph::insertConstNode(Value result, DataType type){
         
-    std::string data = type == DataType::IntegerType ? "int" : "float";
-    bool isInt = type == DataType::IntegerType ? true : false;
+    std::string data;// = type == DataType::IntegerType ? "int" : "float";
+    bool isInt;// = type == DataType::IntegerType ? true : false;
+
+    if (type == DataType::VectorType) {
+        auto vectorType = dyn_cast<mlir::VectorType>(result.getType());
+        data = "vector_" + std::to_string(vectorType.getRank()) + "D_" +
+            (vectorType.getElementType().isInteger(32) ? "int" : "float");
+        isInt = vectorType.getElementType().isInteger(32);
+    } else {
+        data = type == DataType::IntegerType ? "int" : "float";
+        isInt = (type == DataType::IntegerType);
+    }
+
     int num = this->const_list.size();
     std::string name = data + "_const_" + std::to_string(this->const_list.size());
     this->const_list.push_back(
-        std::make_unique<ConstNode>(NodeInfo(this->const_list.size(),name), result.getDefiningOp(), isInt, this->const_list.size())
+        std::make_unique<ConstNode>(NodeInfo(this->const_list.size(),name), result.getDefiningOp(), isInt, type, this->const_list.size())
         
     );
     auto ff = std::find_if(const_list.begin(), const_list.end(), [&result, &num](auto& arg) -> bool {
@@ -112,6 +123,9 @@ CmpNode* Graph::insertCmpNode(Value result, DataType type){
     
 
     std::string data = type == DataType::IntegerType ? "int" : "float";
+    if(type == DataType::VectorType){
+        data = "vector";
+    }
     std::string name = data + "_cmp_" + std::to_string(this->op_list.size());
     this->op_list.push_back(
         std::make_unique<CmpNode>(NodeInfo(op_list.size(), name), 
@@ -173,6 +187,9 @@ ComputeOperationNode* Graph::insertShlNode(Value result, DataType type){
 ComputeOperationNode* Graph::insertAddNode(Value result, DataType type){
         
     std::string data = type == DataType::IntegerType ? "int" : "float";
+    if(type == DataType::VectorType){
+        data = "vector";
+    }
     std::string name = data + "_add_" + std::to_string(this->op_list.size());
     this->op_list.push_back(
         std::make_unique<ComputeOperationNode>(NodeInfo(op_list.size(), name), 
@@ -190,6 +207,9 @@ ComputeOperationNode* Graph::insertAddNode(Value result, DataType type){
 ComputeOperationNode* Graph::insertSubNode(Value result, DataType type){
         
     std::string data = type == DataType::IntegerType ? "int" : "float";
+    if(type == DataType::VectorType){
+        data = "vector";
+    }
     std::string name = data + "_sub_" + std::to_string(this->op_list.size());
     this->op_list.push_back(
         std::make_unique<ComputeOperationNode>(NodeInfo(op_list.size(), name), 
@@ -207,6 +227,9 @@ ComputeOperationNode* Graph::insertSubNode(Value result, DataType type){
 ComputeOperationNode* Graph::insertAndiNode(Value result, DataType type){
         
     std::string data = type == DataType::IntegerType ? "int" : "float";
+    if(type == DataType::VectorType){
+        data = "vector";
+    }
     std::string name = data + "_andi_" + std::to_string(this->op_list.size());
     this->op_list.push_back(
         std::make_unique<ComputeOperationNode>(NodeInfo(op_list.size(), name), 
@@ -224,6 +247,9 @@ ComputeOperationNode* Graph::insertAndiNode(Value result, DataType type){
 ComputeOperationNode* Graph::insertOriNode(Value result, DataType type){
         
     std::string data = type == DataType::IntegerType ? "int" : "float";
+    if(type == DataType::VectorType){
+        data = "vector";
+    }
     std::string name = data + "_ori_" + std::to_string(this->op_list.size());
     this->op_list.push_back(
         std::make_unique<ComputeOperationNode>(NodeInfo(op_list.size(), name), 
@@ -241,6 +267,9 @@ ComputeOperationNode* Graph::insertOriNode(Value result, DataType type){
 ComputeOperationNode* Graph::insertDivsiNode(Value result, DataType type){
         
     std::string data = type == DataType::IntegerType ? "int" : "float";
+    if(type == DataType::VectorType){
+        data = "vector";
+    }
     std::string name = data + "_divsi" + std::to_string(this->op_list.size());
     this->op_list.push_back(
         std::make_unique<ComputeOperationNode>(NodeInfo(op_list.size(), name), 
@@ -258,6 +287,9 @@ ComputeOperationNode* Graph::insertDivsiNode(Value result, DataType type){
 ComputeOperationNode* Graph::insertMulNode(Value result, DataType type){
         
     std::string data = type == DataType::IntegerType ? "int" : "float";
+    if(type == DataType::VectorType){
+        data = "vector";
+    }
     std::string name = data + "_mul_" + std::to_string(this->op_list.size());
     this->op_list.push_back(
         std::make_unique<ComputeOperationNode>(NodeInfo(op_list.size(), name), 
@@ -271,6 +303,37 @@ ComputeOperationNode* Graph::insertMulNode(Value result, DataType type){
 
     return static_cast<ComputeOperationNode*>(ff->get());
 }   
+
+ReductionNode* Graph::insertReductionNode(Value result, DataType type){
+
+
+    OpCode code;
+    if(auto op = dyn_cast<vector::ReductionOp>(result.getDefiningOp())){
+        switch (op.getKind()) {
+        case vector::CombiningKind::ADD:
+            code = OpCode::add;
+            break;
+        case vector::CombiningKind::MUL:
+            code = OpCode::mul;
+            break;
+        case vector::CombiningKind::AND:
+            code = OpCode::andi;
+            break;
+        }
+    }
+    std::string name = "vector_reduction_" + std::to_string(this->op_list.size());
+    this->op_list.push_back(
+        std::make_unique<ReductionNode>(NodeInfo(op_list.size(), name), 
+        OperationNode::OperationType::ReductionType, type, result.getDefiningOp(), code
+    ));
+
+    auto ff = std::find_if(op_list.begin(), op_list.end(), [&result](auto& arg) -> bool {
+        return arg.get()->getOperation() == result.getDefiningOp();
+    });
+
+    return static_cast<ReductionNode*>(ff->get());
+
+}
 
 BitCastNode* Graph::insertBitCastNode(arith::IndexCastOp op){
         
@@ -290,6 +353,19 @@ BitCastNode* Graph::insertBitCastNode(arith::TruncIOp op){
         
     // std::string data = type == DataType::IntegerType ? "int" : "float";
     std::string name = "trunc_" + std::to_string(this->op_list.size());
+    this->op_list.push_back(
+        std::make_unique<BitCastNode>(NodeInfo(op_list.size(), name), op.getOperation()
+    ));
+
+    auto ff = std::find_if(op_list.begin(), op_list.end(), [&op](auto& arg) -> bool {
+        return static_cast<BitCastNode*>(arg.get())->getParentOp() == op.getOperation();
+    });
+
+    return static_cast<BitCastNode*>(ff->get());
+}
+BitCastNode* Graph::insertBitCastNode(vector::BroadcastOp op){
+        
+    std::string name = "vector_broadcast_" + std::to_string(this->op_list.size());
     this->op_list.push_back(
         std::make_unique<BitCastNode>(NodeInfo(op_list.size(), name), op.getOperation()
     ));
@@ -417,6 +493,13 @@ LSNode* Graph::insertLoadNode(Value result, DataType type){
                                    DataType::FloatType,
                                    LSNode::opmemType::load, result.getDefiningOp(),
                                    this->getMemoryUnit()));
+    //isVectorTy
+    } else if(type == DataType::VectorType){
+        this->op_list.push_back(
+        std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LoadType,
+                                   DataType::VectorType,
+                                   LSNode::opmemType::load, result.getDefiningOp(),
+                                   this->getMemoryUnit()));
     //isArrayTy
     } else{
 
@@ -424,7 +507,6 @@ LSNode* Graph::insertLoadNode(Value result, DataType type){
     auto ff = std::find_if(this->op_list.begin(), this->op_list.end(), [&result](auto& arg) -> bool {
         return arg.get()->getOperation() == result.getDefiningOp();
     });
-    //TODO load/store节点里面隐含adder节点，后续增加。
     return static_cast<LSNode*>(ff->get());
 }
 

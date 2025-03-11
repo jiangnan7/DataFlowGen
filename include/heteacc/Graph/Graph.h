@@ -162,8 +162,11 @@ public:
     ComputeOperationNode* insertOriNode(Value result, DataType type);
     ComputeOperationNode* insertShlNode(Value result, DataType type);
     
+    ReductionNode* insertReductionNode(Value result, DataType type);
+
     BitCastNode* insertBitCastNode(arith::IndexCastOp op);
     BitCastNode* insertBitCastNode(arith::TruncIOp op);
+    BitCastNode* insertBitCastNode(vector::BroadcastOp op);
     MergeNode* insertMergeNode(dataflow::MergeOp op);
 
     LSNode* insertLoadNode(Value result, DataType type);

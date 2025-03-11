@@ -37,7 +37,8 @@ public:
 
             // Vector statements.
             vector::TransferReadOp, vector::TransferWriteOp,
-            vector::BroadcastOp,
+            vector::BroadcastOp, vector::ReductionOp, vector::BitCastOp,
+            vector::FMAOp, vector::YieldOp,
 
             // Memref statements.
             memref::AllocOp, memref::AllocaOp, memref::LoadOp, memref::StoreOp,
@@ -135,6 +136,10 @@ public:
   HANDLE(vector::TransferReadOp);
   HANDLE(vector::TransferWriteOp);
   HANDLE(vector::BroadcastOp);
+  HANDLE(vector::ReductionOp);
+  HANDLE(vector::BitCastOp);
+  HANDLE(vector::FMAOp);
+  HANDLE(vector::YieldOp);
 
   // Memref statements.
   HANDLE(memref::AllocOp);

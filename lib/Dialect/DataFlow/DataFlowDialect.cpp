@@ -498,7 +498,12 @@ ParseResult SelectOp::parse(OpAsmParser &parser, OperationState &result) {
     if (parser.parseType(resultType))
       return failure();
   } else {
-    conditionType = parser.getBuilder().getI1Type();
+    // conditionType = parser.getBuilder().getI1Type();
+    if (auto shapedType = dyn_cast<mlir::VectorType>(resultType)) {
+      conditionType = VectorType::get(shapedType.getShape(), parser.getBuilder().getI1Type());
+    } else {
+      conditionType = parser.getBuilder().getI1Type();
+    }
   }
 
   result.addTypes(resultType);

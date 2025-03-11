@@ -107,6 +107,8 @@ ArgumentNode* ContainerNode::insertLiveInArgument(Value val, ArgumentNode::Argum
       valType = DataType::IntegerType;
     } else if (val.getType().isa<mlir::IndexType>()){
       valType = DataType::IntegerType;
+    } else if (val.getType().isa<mlir::VectorType>()){
+      valType = DataType::VectorType;
     } else {
       assert(!"Unsuppported Type.");  
     }
@@ -182,6 +184,8 @@ ContainerNode::insertLiveOutArgument(Value val,
       valType = DataType::IntegerType;
     } else if (val.getType().isa<mlir::IndexType>()){
       valType = DataType::IntegerType;
+    } else if (val.getType().isa<mlir::VectorType>()){
+      valType = DataType::VectorType;
     } else {
       assert(!"Unsuppported Type.");  
     }
@@ -214,6 +218,8 @@ ContainerNode::insertCarryDepenArgument(Value val,
       valType = DataType::IntegerType;
     } else if (val.getType().isa<mlir::IndexType>()){
       valType = DataType::IntegerType;
+    } else if (val.getType().isa<mlir::VectorType>()){
+      valType = DataType::VectorType;
     } else {
       assert(!"Unsuppported Type.");  
     }

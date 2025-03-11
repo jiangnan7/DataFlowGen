@@ -12,7 +12,6 @@ namespace mlir {
 namespace heteacc {
 
 
-//循环
 using AffineLoopBand = llvm::SmallVector<AffineForOp, 6>;
 using AffineLoopBands = std::vector<AffineLoopBand>;
 using FactorList = SmallVector<unsigned, 8>;
@@ -298,8 +297,6 @@ Optional<std::pair<int64_t, int64_t>> getBoundOfAffineMap(AffineMap map,
                                                           ValueRange operands);
 
 
-//之前都是通用的
-//下面这个是给循环用的
 
 /// Apply loop perfection. Try to sink all operations between loop statements
 /// into the innermost loop of the input loop band.
@@ -324,7 +321,6 @@ bool applyEraseVariableBound(AffineLoopBand &band);
 
 
 
-//指令级优化
 bool applyFullyLoopUnrolling(Block &block, unsigned maxIterNum=10);
 
 /// Apply loop pipelining to the pipelineLoc of the input loop band, all inner
