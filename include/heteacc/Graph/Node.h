@@ -37,7 +37,7 @@ class OperationNode;
 class ContainerNode;
 class MergeNode; 
 
-enum DataType { IntegerType = 0, FloatType, MemrefType, UknownType };
+enum DataType { IntegerType = 0, FloatType, VectorType, MemrefType, UknownType };
 
 enum OpCode {
     add = 0,
@@ -164,6 +164,7 @@ private:
   MemoryPort read_port_data;
   MemoryPort write_port_data;
 
+  int lane_num = 0;
 public:
   Node(NodeType _nt, NodeInfo _ni) : node_type(_nt), info(_ni) {}
 
@@ -183,7 +184,14 @@ public:
   NodeType getType() const {
     return this->node_type;
   }
+
+  int getLaneNums() const {
+    return this->lane_num;
+  }
   
+  void setLaneNums(const int nums)  {
+    this->lane_num = nums;
+  }
   std::vector<uint32_t> conflict_output_index;
   std::vector<uint32_t> conflict_input_index;
 
@@ -439,7 +447,8 @@ public:
     StoreType,
     CmpType,
     AddressGenType,
-    InductionVarType
+    InductionVarType,
+    ReductionType
     
   };
 
@@ -525,14 +534,28 @@ private:
   double value_f =0.0;
   int id;
   bool isInt = true;
+  DataType dataType;
 public:
 
-  ConstNode(NodeInfo _ni, mlir::Operation* op, bool isint, int _id)
-    : Node(Node::ConstTy, _ni), parent_op(op) ,isInt(isint) ,id(_id){
-    if (isInt)
-      value = dyn_cast<arith::ConstantOp>(op).getValue().cast<IntegerAttr>().getInt();
-    else
-      value_f = dyn_cast<arith::ConstantOp>(op).getValue().cast<FloatAttr>().getValueAsDouble();
+  ConstNode(NodeInfo _ni, mlir::Operation* op, bool isint, DataType type, int _id)
+    : Node(Node::ConstTy, _ni), parent_op(op) ,isInt(isint) , dataType(type), id(_id){
+    if(dataType == DataType::VectorType){
+      
+      auto denseAttr = dyn_cast<mlir::DenseElementsAttr>(dyn_cast<arith::ConstantOp>(op).getValue());
+      Type elementType = dyn_cast<mlir::VectorType>(denseAttr.getType()).getElementType();
+      if (elementType.isIntOrIndex()) {
+          auto values = denseAttr.getValues<APInt>();
+          for (const APInt &apint : values) {
+              value = apint.getSExtValue();
+          }
+      } 
+
+    } else {
+      if (isInt)
+        value = dyn_cast<arith::ConstantOp>(op).getValue().cast<IntegerAttr>().getInt();
+      else
+        value_f = dyn_cast<arith::ConstantOp>(op).getValue().cast<FloatAttr>().getValueAsDouble();
+    }
   }
 
   int getConstID(){
@@ -948,6 +971,30 @@ public:
 
 
 
+class ReductionNode : public OperationNode {
+
+public:
+  
+
+  explicit ReductionNode(NodeInfo _ni, OperationType optype, DataType datatype, mlir::Operation* operation, OpCode opcode) 
+    : OperationNode(_ni, OperationType::CmpType, datatype, operation, opcode)
+    {}
+
+  // Overloading isa<>, dyn_cast from llvm
+  static bool
+  classof(const OperationNode* I) {
+    return I->getOperationType() == OperationType::ReductionType;
+  }
+  // static bool
+  // classof(const Node* T) {
+  //   return isa<OperationNode>(T) && classof(cast<OperationNode>(T));
+  // }
+  
+  virtual std::string printDefinition(PrintType) override;
+  virtual std::string printInputEnable(PrintType) override;
+  virtual std::string printOutputData(PrintType, uint32_t) override;
+  virtual std::string printInputData(PrintType, uint32_t) override;
+};
 
 
 class AllocaNode : public OperationNode {
@@ -1040,7 +1087,7 @@ public:
   AllocaNode* alloca_node;
   int64_t size;
   uint32_t num_byte;
-
+  uint32_t mem_id;
 private:
 
   memType mem_type;
@@ -1059,7 +1106,15 @@ public:
       alloca_node(alloca),
       size(mem_size),
       num_byte(mem_byte) {}
-
+  explicit MemoryNode(NodeInfo _nf, memType memtype,
+                          uint32_t memID,
+                          uint32_t mem_size,
+                          uint32_t mem_byte)
+    : Node(Node::MemoryUnitTy, _nf),
+      mem_type(memtype),
+      mem_id(memID),
+      size(mem_size),
+      num_byte(mem_byte) {}
 
   AllocaNode* getAllocaNode() {
     return this->alloca_node;
@@ -1067,6 +1122,9 @@ public:
 
   uint32_t getMemSize() {
     return this->size;
+  }
+  uint32_t getMemID() {
+    return this->mem_id;
   }
   void setMemSize(int64_t num) {
     this->size = num;
@@ -1254,6 +1312,9 @@ public:
   void
   setMemoryUnit(MemoryNode* _node) {
     this->mem_node = _node;
+  }
+  MemoryNode* getMemoryUnit() {
+    return this->mem_node;
   }
   void
   setRouteID(uint32_t _id) {
