@@ -8,7 +8,7 @@
 
 
 namespace mlir {
-    // 
+  
 namespace heteacc {
 
 
@@ -16,11 +16,6 @@ using AffineLoopBand = llvm::SmallVector<AffineForOp, 6>;
 using AffineLoopBands = std::vector<AffineLoopBand>;
 using FactorList = SmallVector<unsigned, 8>;
 
-/// Parrallel and point loop attribute utils.
-bool hasParallelAttr(Operation *op);
-void setParallelAttr(Operation *op);
-bool hasPointAttr(Operation *op);
-void setPointAttr(Operation *op);
 
 
 /// Ensure that all operations that could be executed after `start`
@@ -248,11 +243,11 @@ bool isForInductionVar(Value val);
 /// AffineStoreOp) indexed by the corresponding memref.
 using MemAccessesMap = DenseMap<Value, SmallVector<Operation *, 16>>;
 /// Collect all load and store operations in the block and return them in "map".
-void getMemAccessesMap(Block &block, MemAccessesMap &map,
-                       bool includeVectorTransfer = false);
+void getMemAccessesMap(Block &block, MemAccessesMap &map);
 
 
-
+SmallVector<int64_t> createPermutationMap(ArrayRef<Value> vec1,
+                                          ArrayRef<Value> vec2);
 /// Collect all loop bands in the "block" and return them in "bands". If
 /// "allowHavingChilds" is true, loop bands containing more than 1 other loop
 /// bands are also collected. Otherwise, only loop bands that contains no child

@@ -481,25 +481,31 @@ SelectNode* Graph::insertSelectNode(arith::SelectOp op){
 
 LSNode* Graph::insertLoadNode(Value result, DataType type){
     std::string name = "load_" + std::to_string(this->op_list.size());
+    int memID = 999;
+    if (auto id = result.getDefiningOp()->getAttr("ID")) {
+      memID = id.cast<IntegerAttr>().getInt();
+    }
+    MemoryNode* memUnit = this->memID2Node[memID];
+
     if(type == DataType::IntegerType){
         this->op_list.push_back(
         std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LoadType,
                                    DataType::IntegerType,
                                    LSNode::opmemType::load, result.getDefiningOp(),
-                                   this->getMemoryUnit()));
+                                   memUnit));
     } else if(type == DataType::FloatType){
         this->op_list.push_back(
         std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LoadType,
                                    DataType::FloatType,
                                    LSNode::opmemType::load, result.getDefiningOp(),
-                                   this->getMemoryUnit()));
+                                   memUnit));
     //isVectorTy
     } else if(type == DataType::VectorType){
         this->op_list.push_back(
         std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LoadType,
                                    DataType::VectorType,
                                    LSNode::opmemType::load, result.getDefiningOp(),
-                                   this->getMemoryUnit()));
+                                   memUnit));
     //isArrayTy
     } else{
 
@@ -512,10 +518,15 @@ LSNode* Graph::insertLoadNode(Value result, DataType type){
 
 LSNode* Graph::insertStoreNode(Value result, DataType type, mlir::Operation* op){
     std::string name = "store_" + std::to_string(this->op_list.size());
+    int memID = 999;
+    if (auto id = op->getAttr("ID")) {
+      memID = id.cast<IntegerAttr>().getInt();
+    }
+    MemoryNode* memUnit = this->memID2Node[memID];
     this->op_list.push_back(
         std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::StoreType,
                                    LSNode::opmemType::store, op,
-                                   this->getMemoryUnit()));
+                                   memUnit));
 
     auto ff = std::find_if(this->op_list.begin(), this->op_list.end(), [&op](auto& arg) -> bool {
         return arg.get()->getOperation() == op;
@@ -544,10 +555,19 @@ MemoryNode* Graph::createBufferMemory(AllocaNode* alloca, uint32_t size, uint32_
                "buffer_memories_" + std::to_string(scratchpad_memories.size())),
       MemoryNode::memType::scratchpad, alloca, size, num_byte));
     return static_cast<MemoryNode*>(scratchpad_memories.end()->get());
- 
-    
 }
 
+MemoryNode* Graph::createBufferMemory(uint32_t id, uint32_t size, uint32_t num_byte){
+
+    this->scratchpad_memories.push_back(std::make_unique<MemoryNode>(
+      NodeInfo(this->scratchpad_memories.size(),
+               "memory_" + std::to_string(id)),
+      MemoryNode::memType::scratchpad, id, size, num_byte));
+    auto ff = std::find_if(this->scratchpad_memories.begin(), this->scratchpad_memories.end(), [&id](auto& arg) -> bool {
+        return arg.get()->getMemID() == id;
+    });
+    return static_cast<MemoryNode*>(ff->get());    
+}
 
 ReturnNode* Graph::insertReturnNode(mlir::func::ReturnOp returnop){
     std::string name = "return_" + std::to_string(this->op_list.size());

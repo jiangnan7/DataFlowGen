@@ -128,6 +128,8 @@ public:
   llvm::DenseMap<dataflow::StateOp, dataflow::IfOp> state2if;
 
   std::map<Operation *, bool> op2traversal;
+  std::map<Operation *, int> memop2id;
+  std::map<int, int> id2size;
   GraphGen(): 
     dependency_graph(std::make_unique<Graph>(NodeInfo(0, "dummy"))),
     code_out(llvm::outs())
@@ -145,7 +147,7 @@ public:
   void buildLoopGraph(mlir::func::FuncOp func);
   void dependencyAnalyze(mlir::func::FuncOp func);
   void connectingBranch(mlir::func::FuncOp func);
-
+  void buildMemoryGraph(mlir::func::FuncOp func);
 
   void buildEnhancedControlDataFlowGraph(func::FuncOp func);
 

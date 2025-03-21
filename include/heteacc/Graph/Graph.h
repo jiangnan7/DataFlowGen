@@ -136,6 +136,8 @@ public:
         return this->memory_unit.get();
     }
 
+    std::unordered_map<int , MemoryNode*> memID2Node;
+
     ArgumentNode* storeArg(Value arg){
         this->countValue.push_back(arg);
         this->arg_list.push_back(std::make_unique<ArgumentNode>(NodeInfo(this->arg_list.size(), "function_argument_" + std::to_string(this->countValue.size())),
@@ -189,6 +191,7 @@ public:
     AllocaNode* insertAllocaNode(Value result, OperationNode::OperationType optype,  uint32_t size, uint32_t num_byte);
 
     MemoryNode* createBufferMemory(AllocaNode* alloca, uint32_t size, uint32_t num_byte);
+    MemoryNode* createBufferMemory(uint32_t id, uint32_t size, uint32_t num_byte = 32);
 
     Edge* addEdge(Edge::EdgeType, Port src, Port dst);
     
@@ -213,7 +216,9 @@ public:
     FineArgCallNode* getArgCall() const {
       return fine_arg_call.get();
     }
-
+    const ScratchpadList& getScratchpadMemories() const {
+        return this->scratchpad_memories;
+    }
     void connectingGraph(mlir::func::FuncOp func);
 
 protected:
