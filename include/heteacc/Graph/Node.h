@@ -126,8 +126,6 @@ public:
     Operation,
     ComputeNodeTy,
     MemoryUnitTy,
-    LoadOpTy,
-    StoreOpTy,
     ConstTy,
 
     ExecutionBlockNodeTy,
@@ -164,7 +162,7 @@ private:
   MemoryPort read_port_data;
   MemoryPort write_port_data;
 
-  int lane_num = 0;
+  uint32_t lane_num = 0;
 public:
   Node(NodeType _nt, NodeInfo _ni) : node_type(_nt), info(_ni) {}
 
@@ -180,16 +178,21 @@ public:
   getName() {
     return this->info.Name;
   }
-
+  void setName(const std::string &name) {
+    this->info.Name = name;
+  }
+  void setID(uint32_t id) {
+      this->info.ID = id;
+  }
   NodeType getType() const {
     return this->node_type;
   }
 
-  int getLaneNums() const {
+  uint32_t getLaneNums() const {
     return this->lane_num;
   }
   
-  void setLaneNums(const int nums)  {
+  void setLaneNums(const uint32_t nums)  {
     this->lane_num = nums;
   }
   std::vector<uint32_t> conflict_output_index;
@@ -438,13 +441,11 @@ public:
     BinaryType = 0,
     AllocaType,
     ReturnType,
-    LoadType,
     LSType,
     StateBranchType,
     BitCastType,
     MergeType,
     SelectType,
-    StoreType,
     CmpType,
     AddressGenType,
     InductionVarType,
@@ -458,6 +459,7 @@ private:
   mlir::Operation* parent_op;
   OpCode op_code;
   ExecutionBlockNode* parentNode;
+  bool static_flag = false;
 
 public:
 
@@ -486,7 +488,12 @@ public:
 
   mlir::Operation* getOperation();
 
-  
+  void setStaticFlag(bool flag){
+    this->static_flag = flag;
+  }
+  bool getStaticFlag(){
+    return this->static_flag;
+  }
   DataType getDataType() const {
     return this->data_type;
   }

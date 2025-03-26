@@ -279,7 +279,7 @@ def SelectOp : DataFlowOp<"select", [
     ```
   }];
 
-  let arguments = (ins BoolLike:$condition,
+  let arguments = (ins AnyType:$condition,
                        AnyType:$true_value,
                        AnyType:$false_value);
   let results = (outs AnyType:$result);
@@ -371,9 +371,9 @@ def AddressOp : DataFlowOp<"addr", []> {
 
   let arguments = (ins 
                     AnyType:$baseAddr,
-                    Variadic<Index>:$dims,
+                    Variadic<AnyTypeOf<[Index, VectorOf<[Index]>]>>:$dims,
                     I64ArrayAttr:$memShape); 
-  let results = (outs AnyInteger:$result);
+  let results = (outs AnyTypeOf<[AnyInteger, VectorOf<[AnyInteger]>]>:$result);
   let hasCustomAssemblyFormat = 1;
 
   let assemblyFormat = [{
@@ -390,7 +390,7 @@ def LoadOp : DataFlowOp<"load", []> {
   }];
 
   let arguments = (ins 
-                    AnyInteger:$address);
+                    AnyTypeOf<[AnyInteger, VectorOf<[AnyInteger]>]>:$address);
   let results = (outs AnyType:$result);
   let hasCustomAssemblyFormat = 1;
 
@@ -400,6 +400,40 @@ def LoadOp : DataFlowOp<"load", []> {
   let assemblyFormat = [{
     $address attr-dict `:`  type($address) `->` type($result)
   }];
+
+}
+
+def VectorIndexLoadOp : DataFlowOp<"vector.load", []> {
+  let summary = "vector.load";
+  let description = [{
+    non-linear Load
+  }];
+
+  let arguments = (ins AnyShaped:$source, AnyType:$indices);
+  let results = (outs AnyVectorOfAnyRank:$vector);
+  let hasCustomAssemblyFormat = 1;
+
+  let assemblyFormat = [{
+        $source `[` $indices `]` attr-dict `:` type($source) `[` type($indices) `]`  `->` type($vector)
+  }];
+  
+
+}
+
+def VectorIndexStoreOp : DataFlowOp<"vector.store", []> {
+  let summary = "vector.store";
+  let description = [{
+    non-linear store
+  }];
+
+  let arguments = (ins AnyType:$valueToStore,
+                    AnyShaped:$source, AnyType:$indices);
+  let hasCustomAssemblyFormat = 1;
+
+  let assemblyFormat = [{
+      $valueToStore `,` $source `[` $indices `]` attr-dict `:` type($valueToStore) `->`  type($source) `[` type($indices) `]`
+  }];
+  
 
 }
 
@@ -431,7 +465,7 @@ def StoreOp : DataFlowOp<"store", []> {
 
   let arguments = (ins 
                     AnyType:$value,
-                    AnyInteger:$address);
+                    AnyTypeOf<[AnyInteger, VectorOf<[AnyInteger]>]>:$address);
   // let results = (outs AnyType:$result);
   let hasCustomAssemblyFormat = 1;
 

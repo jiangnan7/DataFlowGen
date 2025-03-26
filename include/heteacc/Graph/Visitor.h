@@ -23,6 +23,7 @@ public:
             dataflow::LaunchOp, dataflow::YieldOp, dataflow::TaskOp,
             dataflow::AddressOp, dataflow::LoadOp, dataflow::InputOp,
             dataflow::StoreOp, dataflow::OutputOp, dataflow::MergeOp,
+            dataflow::VectorIndexLoadOp, dataflow::VectorIndexStoreOp,
             // Function operations.
             func::CallOp, func::ReturnOp, 
 
@@ -106,6 +107,8 @@ public:
   HANDLE(dataflow::InputOp);
   HANDLE(dataflow::StoreOp);
   HANDLE(dataflow::OutputOp);
+  HANDLE(dataflow::VectorIndexLoadOp);
+  HANDLE(dataflow::VectorIndexStoreOp);
 
   // Control flow operations.
   HANDLE(func::CallOp);

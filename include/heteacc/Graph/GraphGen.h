@@ -454,6 +454,10 @@ public:
       this->map_op_node[op.getOperation()] = load_node;
     } else if(valueType.isa<mlir::VectorType>()){
       auto load_node = this->dependency_graph->insertLoadNode(op.getResult(), DataType::VectorType);
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      load_node->setLaneNums(laneSize);
+      if(op->hasAttr("loadNums"))
+        load_node->setStaticFlag(true);
       this->map_value_node[op.getResult()] = load_node;
       this->map_op_node[op.getOperation()] = load_node;
     }
@@ -468,16 +472,20 @@ public:
     auto valueType = op.getValue().getType();
 
     if(valueType.isa<mlir::IntegerType>()){
-      auto store_node = this->dependency_graph->insertStoreNode(op.getAddress(), DataType::IntegerType, op.getOperation());
+      auto store_node = this->dependency_graph->insertStoreNode(op.getValue(), DataType::IntegerType, op.getOperation());
       // this->map_value_node[op.getMemRef()] = store_node;
       this->map_op_node[op.getOperation()] = store_node;
     } else if(valueType.isa<mlir::FloatType>()){
-      auto store_node = this->dependency_graph->insertStoreNode(op.getAddress(), DataType::FloatType, op.getOperation());
+      auto store_node = this->dependency_graph->insertStoreNode(op.getValue(), DataType::FloatType, op.getOperation());
       // this->map_value_node[op.getMemRef()] = store_node;
       this->map_op_node[op.getOperation()] = store_node;
     } else if(valueType.isa<mlir::VectorType>()){
-      auto store_node = this->dependency_graph->insertStoreNode(op.getAddress(), DataType::VectorType, op.getOperation());
+      auto store_node = this->dependency_graph->insertStoreNode(op.getValue(), DataType::VectorType, op.getOperation());
       // this->map_value_node[op.getMemRef()] = store_node;
+      unsigned laneSize = getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
+      store_node->setLaneNums(laneSize);
+      if(op->hasAttr("loadNums"))
+        store_node->setStaticFlag(true);
       this->map_op_node[op.getOperation()] = store_node;
     }
     else {
@@ -539,6 +547,8 @@ public:
     if (auto lane = op->getAttr("laneNums")) {
         address_node->setLaneNums(lane.cast<IntegerAttr>().getInt());
     }
+    if(op->hasAttr("loadNums"))
+        address_node->setStaticFlag(true);
     this->map_op_node[op.getOperation()] = address_node;
     this->map_value_node[op.getResult()] = address_node;
   }
