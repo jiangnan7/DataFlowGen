@@ -110,11 +110,11 @@ struct vectorTransferReadLowering
     }
     auto addrOp = rewriter.create<AddressOp>(
           op.getLoc(), rewriter.getI32Type(), op.getSource(), ValueRange{dims}, rewriter.getI64ArrayAttr(memRefShape));
-
+      addrOp->setAttr("laneNums", rewriter.getI32IntegerAttr(laneCount)); 
     
     auto loadOp = rewriter.replaceOpWithNewOp<dataflow::LoadOp>(
           op, op.getVectorType(), addrOp.getResult(), op->getAttrs());
-      loadOp->setAttr("bankNums", rewriter.getI32IntegerAttr(laneCount)); 
+      loadOp->setAttr("laneNums", rewriter.getI32IntegerAttr(laneCount)); 
 
     return success();
   }
@@ -139,9 +139,12 @@ struct vectorTransferWriteLowering
     auto memRefShape = op.getSource().getType().getShape();
 
 
+    bool static_flag = true;    
     llvm::SmallVector<Value, 8> dims;
     for(auto a : op.getIndices()){
       dims.push_back(a);
+      if(!a.getDefiningOp<arith::ConstantOp>())
+        static_flag = false;
     }
 
     Value vecValue = op.getVector();
@@ -151,7 +154,10 @@ struct vectorTransferWriteLowering
 
     auto newOp = rewriter.create<dataflow::StoreOp>(op.getLoc(), op.getVector(), addrOp.getResult());
     newOp->setAttrs(op->getAttrs());
-    newOp->setAttr("bankNums", rewriter.getI32IntegerAttr(laneCount)); 
+    newOp->setAttr("laneNums", rewriter.getI32IntegerAttr(laneCount)); 
+    if(static_flag){
+      newOp->setAttr("loadNums", rewriter.getI32IntegerAttr(1)); 
+    }
     rewriter.eraseOp(op);
 
     return success();
@@ -171,6 +177,8 @@ struct GenerateGEP : GenerateGEPBase<GenerateGEP> {
     patterns.add<memrefStoreLowering>(context, /*benefit=*/1);
     patterns.add<vectorTransferReadLowering>(context, /*benefit=*/1);
     patterns.add<vectorTransferWriteLowering>(context, /*benefit=*/1);
+    // patterns.add<vectorIndexLoadLowering>(context, /*benefit=*/1);
+    // patterns.add<vectorIndexStoreLowering>(context, /*benefit=*/1);
 
     ConversionTarget target(*context);
     target.addIllegalDialect<mlir::AffineDialect, scf::SCFDialect>();

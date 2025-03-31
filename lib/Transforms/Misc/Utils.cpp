@@ -10,22 +10,9 @@
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "heteacc/Misc/Utils.h"
-
+#include "heteacc/Dialect/DataFlow/Utils.h"
 using namespace mlir;
 
-/// Parrallel and point loop attribute utils.
-void heteacc::setParallelAttr(Operation *op) {
-  op->setAttr("parallel", UnitAttr::get(op->getContext()));
-}
-bool heteacc::hasParallelAttr(Operation *op) {
-  return op->hasAttrOfType<UnitAttr>("parallel");
-}
-void heteacc::setPointAttr(Operation *op) {
-  op->setAttr("point", UnitAttr::get(op->getContext()));
-}
-bool heteacc::hasPointAttr(Operation *op) {
-  return op->hasAttrOfType<UnitAttr>("point");
-}
 
 /// Given a tiled loop band, return true and get the tile (tile-space) loop band
 /// and the point (intra-tile) loop band. If failed, return false.
@@ -37,13 +24,13 @@ bool heteacc::getTileAndPointLoopBand(const AffineLoopBand &band,
   bool isPointLoop = false;
 
   for (auto loop : band) {
-    if (!isPointLoop && !hasPointAttr(loop))
+    if (!isPointLoop)
       tileBand.push_back(loop);
 
-    else if (isPointLoop && hasPointAttr(loop))
+    else if (isPointLoop)
       pointBand.push_back(loop);
 
-    else if (!isPointLoop && hasPointAttr(loop)) {
+    else if (!isPointLoop) {
       isPointLoop = true;
       pointBand.push_back(loop);
 
@@ -192,22 +179,32 @@ heteacc::getBoundOfAffineMap(AffineMap map, ValueRange operands) {
 
 
 /// Collect all load and store operations in the block and return them in "map".
-void heteacc::getMemAccessesMap(Block &block, MemAccessesMap &map,
-                                 bool includeVectorTransfer) {
+void heteacc::getMemAccessesMap(Block &block, MemAccessesMap &map) {
   for (auto &op : block) {
-    if (auto load = dyn_cast<AffineReadOpInterface>(op))
+    op.dump();
+    if (auto load = dyn_cast<AffineReadOpInterface>(op)){
       map[load.getMemRef()].push_back(&op);
-
+    }
     else if (auto store = dyn_cast<AffineWriteOpInterface>(op))
       map[store.getMemRef()].push_back(&op);
 
     else if (auto read = dyn_cast<vector::TransferReadOp>(op)) {
-      if (includeVectorTransfer)
         map[read.getSource()].push_back(&op);
 
     } else if (auto write = dyn_cast<vector::TransferWriteOp>(op)) {
-      if (includeVectorTransfer)
         map[write.getSource()].push_back(&op);
+
+    } else if (auto load = dyn_cast<memref::LoadOp>(op)) {
+        map[load.getMemRef()].push_back(&op);
+
+    } else if (auto store = dyn_cast<memref::StoreOp>(op)) {
+        map[store.getMemRef()].push_back(&op);
+
+    } else if (auto load = dyn_cast<heteacc::dataflow::VectorIndexLoadOp>(op)) {
+        map[load.getSource()].push_back(&op);
+
+    } else if (auto store = dyn_cast<heteacc::dataflow::VectorIndexStoreOp>(op)) {
+        map[store.getSource()].push_back(&op);
 
     } else if (op.getNumRegions()) {
       // Recursively collect memory access operations in each block.

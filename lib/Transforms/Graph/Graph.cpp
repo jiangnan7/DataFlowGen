@@ -489,20 +489,22 @@ LSNode* Graph::insertLoadNode(Value result, DataType type){
 
     if(type == DataType::IntegerType){
         this->op_list.push_back(
-        std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LoadType,
+        std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LSType,
                                    DataType::IntegerType,
                                    LSNode::opmemType::load, result.getDefiningOp(),
                                    memUnit));
     } else if(type == DataType::FloatType){
         this->op_list.push_back(
-        std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LoadType,
+        std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LSType,
                                    DataType::FloatType,
                                    LSNode::opmemType::load, result.getDefiningOp(),
                                    memUnit));
     //isVectorTy
     } else if(type == DataType::VectorType){
+        if(!result.getDefiningOp()->hasAttr("loadNums"))
+            this->memID2Node[memID]->setLaneNums(result.getDefiningOp()->getAttr("laneNums").cast<IntegerAttr>().getInt());
         this->op_list.push_back(
-        std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LoadType,
+        std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LSType,
                                    DataType::VectorType,
                                    LSNode::opmemType::load, result.getDefiningOp(),
                                    memUnit));
@@ -523,8 +525,11 @@ LSNode* Graph::insertStoreNode(Value result, DataType type, mlir::Operation* op)
       memID = id.cast<IntegerAttr>().getInt();
     }
     MemoryNode* memUnit = this->memID2Node[memID];
+
+    if(type == DataType::VectorType && !op->hasAttr("loadNums"))
+        this->memID2Node[memID]->setLaneNums(op->getAttr("laneNums").cast<IntegerAttr>().getInt());
     this->op_list.push_back(
-        std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::StoreType,
+        std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name), OperationNode::OperationType::LSType,
                                    LSNode::opmemType::store, op,
                                    memUnit));
 
