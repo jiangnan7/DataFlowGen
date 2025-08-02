@@ -1,7 +1,8 @@
-//===- dataflowExtension.cpp - Extension module -------------------------------===//
+//===- dataflowExtension.cpp - Extension module
+//-------------------------------===//
 
-#include "heteacc-c/Dialect/DataFlow.h"
 #include "PybindAdaptors.h"
+#include "heteacc-c/Dialect/DataFlow.h"
 #include <pybind11/pybind11.h>
 
 #include "mlir-c/Bindings/Python/Interop.h"
@@ -13,12 +14,10 @@
 
 #include <pybind11/pybind11.h>
 
-
 namespace py = pybind11;
 using namespace mlir;
 using namespace mlir::python;
 using namespace mlir::python::adaptors;
-
 
 //===----------------------------------------------------------------------===//
 // PybindUtils
@@ -31,9 +30,8 @@ mlir::python::SetPyError(PyObject *excClass, const llvm::Twine &message) {
   return pybind11::error_already_set();
 }
 
-
 PYBIND11_MODULE(_heteacc, m) {
-   m.doc() = "Heteacc Python Native Extension";
+  m.doc() = "Heteacc Python Native Extension";
   llvm::sys::PrintStackTraceOnErrorSignal(/*argv=*/"");
   LLVMEnablePrettyStackTrace();
   auto dataflow_m = m.def_submodule("dataflow");

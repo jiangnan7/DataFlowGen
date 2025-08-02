@@ -1,13 +1,13 @@
 
+#include "heteacc/Dialect/DataFlow/DataFlow.h"
+#include "heteacc/Misc/Utils.h"
 #include "mlir/Analysis/Liveness.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/IntegerSet.h"
-#include "heteacc/Dialect/DataFlow/DataFlow.h"
-#include "llvm/ADT/TypeSwitch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "heteacc/Misc/Utils.h"
+#include "llvm/ADT/TypeSwitch.h"
 using namespace mlir;
 using namespace heteacc;
 using namespace dataflow;
@@ -16,17 +16,12 @@ using namespace dataflow;
 // DataFlow dialect.
 //===----------------------------------------------------------------------===//
 
-
-
-
-
-
 void DataFlowDialect::initialize() {
-    addTypes<
+  addTypes<
 #define GET_TYPEDEF_LIST
 #include "heteacc/Dialect/DataFlow/DataFlowOpsTypes.cpp.inc"
       >();
-    addAttributes<
+  addAttributes<
 #define GET_ATTRDEF_LIST
 #include "heteacc/Dialect/DataFlow/DataFlowOpsAttributes.h.inc"
       >();
@@ -36,8 +31,6 @@ void DataFlowDialect::initialize() {
 #include "heteacc/Dialect/DataFlow/DataFlowOps.cpp.inc"
       >();
 }
-
-
 
 //===----------------------------------------------------------------------===//
 // LaunchOp
@@ -65,7 +58,7 @@ struct SimplifyDispatchOrTaskOutputs : public OpRewritePattern<OpType> {
       }
     SmallVector<Type, 4> outputTypes;
     for (Value v : usedOutputs) {
-        outputTypes.push_back(v.getType());
+      outputTypes.push_back(v.getType());
     }
 
     // Construct new op with only used outputs.
@@ -74,8 +67,8 @@ struct SimplifyDispatchOrTaskOutputs : public OpRewritePattern<OpType> {
       rewriter.replaceOpWithNewOp<YieldOp>(yield, usedOutputs);
 
       rewriter.setInsertionPoint(op);
-      auto newTask =
-          rewriter.create<OpType>(op.getLoc(),  TypeRange{outputTypes}, ValueRange(usedOutputs));
+      auto newTask = rewriter.create<OpType>(
+          op.getLoc(), TypeRange{outputTypes}, ValueRange(usedOutputs));
       rewriter.inlineRegionBefore(op.getBody(), newTask.getBody(),
                                   newTask.getBody().end());
       for (auto t : llvm::zip(usedResults, newTask.getResults()))
@@ -114,9 +107,8 @@ private:
 };
 } // namespace
 
-
 void LaunchOp::getCanonicalizationPatterns(RewritePatternSet &results,
-                                             MLIRContext *context) {
+                                           MLIRContext *context) {
   results.add<SimplifyDispatchOrTaskOutputs<LaunchOp>>(context);
   results.add<InlineLaunchOpOrTask<LaunchOp>>(context, [](LaunchOp op) {
     return op.getOps<TaskOp>().empty() || llvm::hasSingleElement(op.getOps());
@@ -133,7 +125,6 @@ LogicalResult LaunchOp::verify() {
 YieldOp LaunchOp::getYieldOp() {
   return cast<YieldOp>(getBody().front().getTerminator());
 }
-
 
 //===----------------------------------------------------------------------===//
 // TaskOp
@@ -156,9 +147,7 @@ LogicalResult TaskOp::verify() {
 }
 
 /// Get the parent dispatch op.
-LaunchOp TaskOp::getLaunchOp() {
-  return (*this)->getParentOfType<LaunchOp>();
-}
+LaunchOp TaskOp::getLaunchOp() { return (*this)->getParentOfType<LaunchOp>(); }
 
 /// Get the terminator yield op.
 YieldOp TaskOp::getYieldOp() {
@@ -183,12 +172,12 @@ SmallVector<Operation *> TaskOp::getLiveinUsers(Value livein) {
   return {users.begin(), users.end()};
 }
 
-// void EnableOp:build(OpBuilder &builder, OperationState &result, Value enable){
+// void EnableOp:build(OpBuilder &builder, OperationState &result, Value
+// enable){
 //   result.addOperands({va});
 //   Type boolType = builder.getI1Type();
-//   auto trueValue = builder.create<mlir::ConstantIntOp>(result.location, 1, boolType);
-//   result.addTypes(boolType);
-//   result.addOperands(trueValue);
+//   auto trueValue = builder.create<mlir::ConstantIntOp>(result.location, 1,
+//   boolType); result.addTypes(boolType); result.addOperands(trueValue);
 // }
 
 //===----------------------------------------------------------------------===//
@@ -208,7 +197,6 @@ void ForOp::build(OpBuilder &builder, OperationState &result, Value lb,
   bodyBlock.addArgument(builder.getIndexType(), result.location);
   for (Value v : iterArgs)
     bodyBlock.addArgument(v.getType(), v.getLoc());
-
 
   if (iterArgs.empty() && !bodyBuilder) {
     ForOp::ensureTerminator(*bodyRegion, builder, result.location);
@@ -238,11 +226,9 @@ std::optional<OpFoldResult> ForOp::getSingleUpperBound() {
   return OpFoldResult(getUpperBound());
 }
 
-
 //===----------------------------------------------------------------------===//
 // IfOp
 //===----------------------------------------------------------------------===//
-
 
 void IfOp::build(OpBuilder &builder, OperationState &result, Value cond,
                  bool withElseRegion) {
@@ -308,7 +294,6 @@ ParseResult IfOp::parse(OpAsmParser &parser, OperationState &result) {
   return success();
 }
 
-
 void IfOp::print(OpAsmPrinter &p) {
   bool printBlockTerminators = false;
 
@@ -334,7 +319,6 @@ void IfOp::print(OpAsmPrinter &p) {
 
   p.printOptionalAttrDict((*this)->getAttrs());
 }
-
 
 void IfOp::getSuccessorRegions(Optional<unsigned> index,
                                ArrayRef<Attribute> operands,
@@ -381,7 +365,6 @@ void IfOp::getRegionInvocationBounds(
   }
 }
 
-
 Block *IfOp::thenBlock() { return &getThenRegion().back(); }
 YieldOp IfOp::thenYield() { return cast<YieldOp>(&thenBlock()->back()); }
 Block *IfOp::elseBlock() {
@@ -391,7 +374,6 @@ Block *IfOp::elseBlock() {
   return &r.back();
 }
 YieldOp IfOp::elseYield() { return cast<YieldOp>(&elseBlock()->back()); }
-
 
 static void printInitializationList(OpAsmPrinter &p,
                                     Block::BlockArgListType blocksArgs,
@@ -500,7 +482,8 @@ ParseResult SelectOp::parse(OpAsmParser &parser, OperationState &result) {
   } else {
     // conditionType = parser.getBuilder().getI1Type();
     if (auto shapedType = dyn_cast<mlir::VectorType>(resultType)) {
-      conditionType = VectorType::get(shapedType.getShape(), parser.getBuilder().getI1Type());
+      conditionType = VectorType::get(shapedType.getShape(),
+                                      parser.getBuilder().getI1Type());
     } else {
       conditionType = parser.getBuilder().getI1Type();
     }
@@ -516,7 +499,6 @@ ParseResult SelectOp::parse(OpAsmParser &parser, OperationState &result) {
 // SelectOp
 //===----------------------------------------------------------------------===//
 
-
 void dataflow::SelectOp::print(OpAsmPrinter &p) {
   p << " " << getOperands();
   p.printOptionalAttrDict((*this)->getAttrs());
@@ -527,8 +509,8 @@ void dataflow::SelectOp::print(OpAsmPrinter &p) {
   p << getType();
 }
 
-void dataflow::SelectOp::inferResultRanges(ArrayRef<ConstantIntRanges> argRanges,
-                                        SetIntRangeFn setResultRange) {
+void dataflow::SelectOp::inferResultRanges(
+    ArrayRef<ConstantIntRanges> argRanges, SetIntRangeFn setResultRange) {
   Optional<APInt> mbCondVal = argRanges[0].getConstantValue();
 
   if (mbCondVal) {
@@ -546,7 +528,6 @@ void dataflow::SelectOp::inferResultRanges(ArrayRef<ConstantIntRanges> argRanges
 
 #define GET_ATTRDEF_LIST
 #include "heteacc/Dialect/DataFlow/DataFlowOpsAttributes.h.inc"
-
 
 #define GET_TYPEDEF_CLASSES
 #include "heteacc/Dialect/DataFlow/DataFlowOpsTypes.cpp.inc"
