@@ -21,21 +21,38 @@ std::string ConstNode::printDefinition(PrintType _pt) {
   std::string _text;
   std::string _name(this->getName());
   switch (_pt) {
-    case PrintType::Scala:
+    case PrintType::Scala:{
+      if(this->getLaneNums() == 0){
 
-      _text = "  val $name = Module(new $type(value = $val"
+        _text = "  val $name = Module(new $type(value = $val"
               ", ID = $id))\n\n";
-      strReplace(_text, "$name", _name.c_str());
-      strReplace(_text, "$num_out",
-      std::to_string(this->numDataOutputPort()));
-      strReplace(_text, "$id", this->getID());
-      strReplace(_text, "$type", "ConstFastNode");
-      if(this->isInt){
-          strReplace(_text, "$val", std::to_string(this->value));
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$num_out",
+        std::to_string(this->numDataOutputPort()));
+        strReplace(_text, "$id", this->getID());
+        strReplace(_text, "$type", "ConstFastNode");
+        if(this->isInt){
+            strReplace(_text, "$val", std::to_string(this->value));
+        } else {
+            strReplace(_text, "$val", std::to_string(this->value_f) + "L");
+        }
+
       } else {
-          strReplace(_text, "$val", std::to_string(this->value_f) + "L");
+        std::replace(_name.begin(), _name.end(), '.', '_');
+        _text = "  val $name = Module(new $type(value = $val"
+                ",  NumLanes = $lane, ID = $id))\n\n";
+        strReplace(_text, "$id", this->getID());
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$type", "ConstFastNodeWithVectorization");
+        strReplace(_text, "$lane", this->getLaneNums());
+        if(this->isInt){
+            strReplace(_text, "$val", std::to_string(this->value));
+        } else {
+            strReplace(_text, "$val", std::to_string(this->value_f) + "L");
+        }
       }
       break;
+    }
     default: assert(!"Uknown print type!");
   }
   return _text;
@@ -82,16 +99,32 @@ std::string BitCastNode::printDefinition(PrintType _pt) {
   std::string _text;
   std::string _name(this->getName());
   switch (_pt) {
-    case PrintType::Scala:
-      std::replace(_name.begin(), _name.end(), '.', '_');
-      _text = "  val $name = Module(new $type(NumOuts = "
-              "$num_out, ID = $id))\n\n";
-      strReplace(_text, "$id", std::to_string(this->getID()));
-      strReplace(_text, "$name", _name.c_str());
-      strReplace(_text, "$type", "BitCastNode");
-      strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
+    case PrintType::Scala:{
+      if(this->getLaneNums() == 0){
+        std::replace(_name.begin(), _name.end(), '.', '_');
+        _text = "  val $name = Module(new $type(NumOuts = "
+                "$num_out, ID = $id))\n\n";
+        strReplace(_text, "$id", std::to_string(this->getID()));
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$type", "BitCastNode");
+        strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
+
+      } else {
+        std::replace(_name.begin(), _name.end(), '.', '_');
+        _text = "  val $name = Module(new $type(NumOuts = "
+                "$num_out, NumLanes = $lane, ID = $id)(sign = false, Debug "
+            "= false))\n\n";
+        strReplace(_text, "$id", std::to_string(this->getID()));
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$type", "BroadcastNodeWithVectorization");
+        strReplace(_text, "$lane", this->getLaneNums());
+        strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
+      }
 
       break;
+
+    }
+
     case PrintType::Dot: assert(!"Dot file format is not supported!");
     default: assert(!"Uknown print type!");
   }
@@ -152,24 +185,41 @@ std::string ComputeOperationNode::printDefinition(PrintType _pt) {
   std::string _text;
   std::string _name(this->getName());
   switch (_pt) {
-    case PrintType::Scala:
+    case PrintType::Scala:{
+      if(this->getLaneNums() == 0){
         _text = "  val $name = Module(new $type(NumOuts = "
             "$num_out, ID = $id, opCode = \"$opcode\")(sign = false, Debug "
             "= false))\n\n";
-  
+
         strReplace(_text, "$name", _name.c_str());
         strReplace(_text, "$id", this->getID());
         strReplace(_text, "$opcode", this->getOpcodeName());
         strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
         if(this->isIntegerType()){
-            // strReplace(_text, "$type", "ComputeNode");
             strReplace(_text, "$type", "ComputeNodeWithoutState");
         } else if (this->isFloatType()){
             strReplace(_text, "(sign = false, Debug "
             "= false)", "(t = FType.D)");
             strReplace(_text, "$type", "FPComputeNode");
         }
-     break;
+      } else {
+        _text = "  val $name = Module(new $type(NumOuts = "
+            "Seq($num_out), NumLanes = $lane, ID = $id, opCode = \"$opcode\")(sign = false, Debug "
+            "= false))\n\n";
+
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$id", this->getID());
+        strReplace(_text, "$opcode", this->getOpcodeName());
+        strReplace(_text, "$lane", this->getLaneNums());
+        std::string numOutSeq;
+        for(int i=0; i < this->getLaneNums(); i++)
+            numOutSeq += std::to_string(this->numDataOutputPort()) + ",";
+        strReplace(_text, "$num_out", numOutSeq.substr(0, this->getLaneNums() * 2 - 1));
+        strReplace(_text, "$type", "ComputeNodeWithVectorization");
+      }
+
+      break;
+    }
     default: assert(!"Uknown print type!");
   }
   return _text;
@@ -236,24 +286,43 @@ std::string CmpNode::printDefinition(PrintType _pt) {
   std::string _text;
   std::string _name(this->getName());
   switch (_pt) {
-    case PrintType::Scala:
+    case PrintType::Scala:{
+      if(this->getLaneNums() == 0){
+          _text = "  val $name = Module(new $type(NumOuts = "
+                "$num_out, ID = $id, opCode = \"$opcode\")(sign = $sign, Debug "
+                "= false))\n\n";
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
+        strReplace(_text, "$id", this->getID());
+        // strReplace(_text, "$type", "ComputeNode");
+        strReplace(_text, "$type", "ComputeNodeWithoutState");
+        strReplace(
+            _text,
+            "$opcode",
+            opCodeToString(this->geOpCodeEnum()));
+        //TODO: SIGN && Folat Cmp.
+        strReplace(_text, "$sign", "false");
 
-      _text = "  val $name = Module(new $type(NumOuts = "
-              "$num_out, ID = $id, opCode = \"$opcode\")(sign = $sign, Debug "
-              "= false))\n\n";
-      strReplace(_text, "$name", _name.c_str());
-      strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
-      strReplace(_text, "$id", this->getID());
-      // strReplace(_text, "$type", "ComputeNode");
-      strReplace(_text, "$type", "ComputeNodeWithoutState");
-      strReplace(
-          _text,
-          "$opcode",
-          opCodeToString(this->geOpCodeEnum()));
-      //TODO: SIGN && Folat Cmp.
-      strReplace(_text, "$sign", "false");
+      } else {
+        _text = "  val $name = Module(new $type(NumOuts = "
+            "Seq($num_out), NumLanes = $lane, ID = $id, opCode = \"$opcode\")(sign = false, Debug = false))\n\n";
 
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$id", this->getID());
+        std::string numOutSeq;
+        for(int i=0; i < this->getLaneNums(); i++)
+            numOutSeq += std::to_string(this->numDataOutputPort()) + ",";
+        strReplace(_text, "$num_out", numOutSeq.substr(0, this->getLaneNums() * 2 - 1));
+        strReplace(_text, "$lane", this->getLaneNums());
+        strReplace(_text, "$type", "ComputeNodeWithVectorization");
+        strReplace(
+            _text,
+            "$opcode",
+            opCodeToString(this->geOpCodeEnum()));
+        strReplace(_text, "$sign", "false");
+      }
       break;
+      }
     default: assert(!"Uknown print type!");
   }
   return _text;
@@ -309,7 +378,77 @@ CmpNode::printOutputData(PrintType _pt, uint32_t _id) {
   return _text;
 }
 
+//===----------------------------------------------------------------------===//
+//                            RedcutionNode Class
+//===----------------------------------------------------------------------===//
 
+std::string ReductionNode::printDefinition(PrintType _pt) {
+  std::string _text;
+  std::string _name(this->getName());
+  switch (_pt) {
+    case PrintType::Scala:{
+        _text = "  val $name = Module(new $type(NumOuts = "
+            "$num_out, NumLanes = $lane, ID = $id, opCode = \"$opcode\", BranchSupport = true)(sign = false))\n\n";
+
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$lane", this->getLaneNums());
+        strReplace(_text, "$id", this->getID());
+        strReplace(_text, "$opcode", this->getOpcodeName());
+        strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
+        strReplace(_text, "$type", "ReductionNodeWithVectorization");
+
+
+      break;
+    }
+    default: assert(!"Uknown print type!");
+  }
+  return _text;
+}
+
+std::string ReductionNode::printInputEnable(PrintType _pt) {
+  std::string _text;
+  std::string _name(this->getName());
+  switch (_pt) {
+    case PrintType::Scala:
+
+      _text = "$name.io.enable";
+      strReplace(_text, "$name", _name.c_str());
+
+      break;
+    default: assert(!"Uknown print type!");
+  }
+  return _text;
+}
+
+std::string ReductionNode::printOutputData(PrintType _pt, uint32_t _port_id) {
+  std::string _text;
+  std::string _name(this->getName());
+  switch (_pt) {
+    case PrintType::Scala:
+      _text = "$name.io.Out($_port_id)";
+      strReplace(_text, "$name", _name.c_str());
+      strReplace(_text, "$_port_id", _port_id);
+
+      break;
+    default: assert(!"Uknown print type!");
+  }
+  this->conflict_output_index.push_back(_port_id);
+  return _text;
+}
+
+std::string ReductionNode::printInputData(PrintType _pt, uint32_t _idx) {
+  std::string _text;
+  std::string _name(this->getName());
+  switch (_pt) {
+    case PrintType::Scala:
+      _text = "$name.io.Input";
+      strReplace(_text, "$name", _name.c_str());
+      break;
+    default: assert(!"Uknown print type!");
+  }
+  this->conflict_input_index.push_back(_idx);
+  return _text;
+}
 
 //===----------------------------------------------------------------------===//
 //                            StateBranchNode Class
@@ -476,18 +615,33 @@ std::string SelectNode::printDefinition(PrintType _pt) {
   std::string _text;
   std::string _name(this->getName());
   switch (_pt) {
-    case PrintType::Scala:
+    case PrintType::Scala:{
 
-      _text = "  val $name = Module(new $type("
+      if(this->getLaneNums() == 0){
+         _text = "  val $name = Module(new $type("
               "NumOuts = $num_out, ID = $id))\n\n";
-      // strReplace(_text, "$type", "SelectNode");
-      strReplace(_text, "$type", "SelectNodeWithoutState");
-      strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
+        // strReplace(_text, "$type", "SelectNode");
+        strReplace(_text, "$type", "SelectNodeWithoutState");
+        strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
 
-      strReplace(_text, "$name", _name.c_str());
-      strReplace(_text, "$id", this->getID());
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$id", this->getID());
 
+      } else {
+         _text = "  val $name = Module(new $type("
+              "NumOuts = Seq($num_out), NumLanes = $lane, ID = $id))\n\n";
+        strReplace(_text, "$type", "SelectNodeWithVectorization");
+        // strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
+        strReplace(_text, "$lane", this->getLaneNums());
+        std::string numOutSeq;
+        for(int i=0; i < this->getLaneNums(); i++)
+            numOutSeq += std::to_string(this->numDataOutputPort()) + ",";
+        strReplace(_text, "$num_out", numOutSeq.substr(0, this->getLaneNums() * 2 - 1));
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$id", this->getID());
+      }
       break;
+    }
     default: assert(!"Uknown print type!");
   }
   return _text;
@@ -554,7 +708,8 @@ std::string ExecutionBlockNode::printDefinition(PrintType pt) {
   std::string _text;
   std::string _name(this->getName());
   switch (pt) {
-    case PrintType::Scala:
+    case PrintType::Scala:{
+
 
       _text = "  val $name = Module(new $type(NumInputs = $num_in, NumOuts = "
               "$num_out, BID = $bid))\n\n";
@@ -571,16 +726,24 @@ std::string ExecutionBlockNode::printDefinition(PrintType pt) {
                   "$num_out, NumPhi = $num_phi, BID = $bid))\n\n";
           strReplace(_text, "$type", "BasicBlockNode");
         }
-  
+
 
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$num_in", this->numControlInputPort());
-      strReplace(_text, "$num_out", this->numControlOutputPort());
+      int num_out = std::distance(this->const_list.begin(), this->const_list.end());
+      for(auto iter = this->operation_node_begin(); iter != this->operation_node_end(); iter++){
+        if(static_cast<OperationNode *>(*iter)->getOperationType() == OperationNode::OperationType::StateBranchType)
+          num_out++;
+      }
+      strReplace(_text, "$num_out", num_out);
+
+      // strReplace(_text, "$num_out", this->numControlOutputPort());
       strReplace(_text, "$bid", this->getID());
       strReplace(_text, "$num_phi", this->getNumMerge());
 
-    break;
-    
+      break;
+
+    }
     default: assert(!"Uknown print type!");
   }
   return _text;
@@ -629,7 +792,7 @@ std::string ExecutionBlockNode::printOutputEnable(PrintType pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    
+
     default: assert(!"Uknown print type!");
   }
   return _text;
@@ -646,7 +809,7 @@ std::string ExecutionBlockNode::printOutputEnable(PrintType pt, std::pair<Node*,
       strReplace(_text, "$id", _node.second.getID());
 
       break;
-    
+
     default: assert(!"Uknown print type!");
   }
   return _text;
@@ -787,7 +950,7 @@ std::string LoopNode::printDefinition(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$id", this->getID());
       strReplace(_text, "$type", "LoopBlockNode");
-      strReplace(_text, "$num_exit", static_cast<uint32_t>(this->loop_exits.size()));
+      strReplace(_text, "$num_exit", 1);//static_cast<uint32_t>(this->loop_exits.size())
 
       auto live_in_args = make_argument_port(this->getLiveInSets());
       strReplace(_text, "$<input_vector>", live_in_args, ", ");
@@ -850,8 +1013,8 @@ std::string LoopNode::printOutputEnable(PrintType _pt, PortEntry _port) {
         if(this->activate_num == 0){
           _text = "$name.io.activate_loop_start";
           this->activate_num += 1;
-        } 
-        else 
+        }
+        else
           _text = "$name.io.activate_loop_back";
       }
       else {
@@ -900,7 +1063,7 @@ std::string LoopNode::printInputEnable(PrintType _pt, uint32_t _id) {
   return _text;
 }
 //===----------------------------------------------------------------------===//
-//                            ReturnNode 
+//                            ReturnNode
 //===----------------------------------------------------------------------===//
 //
 std::string ReturnNode::printDefinition(PrintType _pt) {
@@ -1186,22 +1349,52 @@ std::string AddressGenNode::printDefinition(PrintType _pt) {
 
   switch (_pt) {
     case PrintType::Scala: {
-      std::replace(_name.begin(), _name.end(), '.', '_');
-      _text = "  val $name = Module(new $type(NumIns = $num_ins, "
-              "NumOuts = $num_out, "
-              "ID = $id)(ElementSize = $size, ArraySize = List()))\n\n";
-      strReplace(_text, "$type", "GepNodeWithoutState");
-      strReplace(_text, "$name", _name.c_str());
-      strReplace(_text, "$id", std::to_string(this->getID()));
-      strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
+      auto index = this->getRelatedOp().getDims()[0];
+      if(this->getLaneNums() == 0 || index.getDefiningOp<arith::ConstantOp>()){
+        std::replace(_name.begin(), _name.end(), '.', '_');
+        _text = "  val $name = Module(new $type(NumIns = $num_ins, "
+                "NumOuts = $num_out, "
+                "ID = $id)(ElementSize = $size, ArraySize = List()))\n\n";
+        strReplace(_text, "$type", "GepNodeWithoutState");
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$id", std::to_string(this->getID()));
+        strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
 
-      // The first input is always baseaddress
-      strReplace(_text, "$num_ins", std::to_string(this->numDataInputPort() - 1));
+        // The first input is always baseaddress
+        strReplace(_text, "$num_ins", std::to_string(this->numDataInputPort() - 1));
+        if(this->getLaneNums() > 0){
+          strReplace(_text, "$num_out", std::to_string( this->getLaneNums()));
+        }
+        std::stringstream _array;
+        strReplace(_text, "$size", 1);
 
-      std::stringstream _array;
-      strReplace(_text, "$size", 1);
+        // strReplace(_text, "$array", "List(" + _array.str() + ")");
 
-      // strReplace(_text, "$array", "List(" + _array.str() + ")");
+      } else {
+        std::replace(_name.begin(), _name.end(), '.', '_');
+        _text = "  val $name = Module(new $type(NumIns = $num_ins, "
+                "NumOuts = Seq($num_out), NumLanes = $lane, "
+                "ID = $id)(ElementSize = $size, ArraySize = List()))\n\n";
+        strReplace(_text, "$type", "GepNodeWithVectorization");
+        strReplace(_text, "$name", _name.c_str());
+        strReplace(_text, "$id", std::to_string(this->getID()));
+        int lane = this->getLaneNums();
+        strReplace(_text, "$lane", std::to_string(lane));
+        std::string numOutSeq;
+        for(int i=0; i < lane; i++)
+            numOutSeq += std::to_string(this->numDataOutputPort()) + ",";
+        strReplace(_text, "$num_out", numOutSeq.substr(0, lane * 2 - 1));
+
+        // The first input is always baseaddress
+        strReplace(_text, "$num_ins", std::to_string(this->numDataInputPort() - 1));
+
+        std::stringstream _array;
+        strReplace(_text, "$size", 1);
+
+        // strReplace(_text, "$array", "List(" + _array.str() + ")");
+
+      }
+
 
       break;
     }
@@ -1296,20 +1489,22 @@ std::string LSNode::printDefinition(PrintType _pt) {
 
   switch (_pt) {
     case PrintType::Scala: {
-      
+
       if(this->isStore){
         _text = "  val $name = Module(new Store(NumOuts = 1, "
               "ID = $id, RouteID = $rid))\n\n";
       } else  {
         _text = "  val $name = Module(new Load("
               "NumOuts = $num_out, ID = $id, RouteID = $rid))\n\n";
-      }    
+      }
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$id", this->getID());
       strReplace(_text, "$rid", this->getRouteID());
-      strReplace(_text, "$num_out", this->numDataOutputPort());
-      strReplace(_text, "$npo", this->numControlInputPort() - 1);
-      strReplace(_text, "$nso", this->numControlOutputPort());
+      if(!this->getStaticFlag())
+        strReplace(_text, "$num_out", this->numDataOutputPort());
+      else {
+        strReplace(_text, "$num_out", this->numDataOutputPort() * this->getLaneNums());
+      }
 
       break;
     }
@@ -1386,7 +1581,7 @@ std::string LSNode::printInputData(PrintType _pt, uint32_t _id) {
         strReplace(_text, "$name", _name.c_str());
         strReplace(_text, "$mem", this->mem_node->getName());
       }
-      
+
       break;
     default: break;
   }
@@ -1509,8 +1704,7 @@ std::string MemoryNode::printDefinition(PrintType pt) {
   switch (pt) {
     case PrintType::Scala: {
 
-      _text = "  //Cache\n"
-              "  val $name = Module(new $module_type(Size=$size, ID = $id, NumRead = "
+      _text = "  val $name = Module(new $module_type(Size=$size, ID = $id, NumRead = "
               "$num_rd, NumWrite = $num_wr))\n";
       ;
       strReplace(_text, "$name", _name.c_str());
@@ -1600,10 +1794,10 @@ std::string FineArgCallNode::printDefinition(PrintType _pt) {
         //_arg_count.push_back(0);
         return _arg_count;
     };
-    
+
     switch (_pt) {
         case PrintType::Scala: {
-       
+
             _text = "\n  val $name = Module(new $type(argTypes = "
                     "List($<ptrs_input_vector>$<vals_input_vector>)))\n"
                     "  $name.io.In <> io.in\n\n";
@@ -1657,13 +1851,13 @@ std::string FineArgCallNode::printOutputData(PrintType _pt, uint32_t id){
     std::string _name(this->getName());
     switch (_pt) {
         case PrintType::Scala:
-  
+
         _text = "$name.io.Out.data(\"field$id\")";
         strReplace(_text, "$name", _name.c_str());
         strReplace(_text, "$id", id);
 
         break;
-        
+
         default: assert(!"Uknown print type!");
     }
     return _text;
@@ -1682,18 +1876,18 @@ void Graph::dumpGraph(PrintType _pt, std::string json_path) {
         //TODO: Function
 
         LLVM_DEBUG(llvm::dbgs() << "\nprintOperations \n ";);
-        printOperations(PrintType::Scala);    
+        printOperations(PrintType::Scala);
         LLVM_DEBUG(llvm::dbgs() << "\nprintControlEdge. \n ";);
-        printControlEdge(PrintType::Scala);    
+        printControlEdge(PrintType::Scala);
         LLVM_DEBUG(llvm::dbgs() << "\nprintLoopConnection. \n ";);
-        printLoopConnection(PrintType::Scala);  
+        printLoopConnection(PrintType::Scala);
         LLVM_DEBUG(llvm::dbgs() << "\nprintConnection. \n ";);
-        printConnection(PrintType::Scala);  
+        printConnection(PrintType::Scala);
 
         //Output
         this->outputHardware << "  io.out <> " << this->out_node->printOutputData(PrintType::Scala)
                         << "\n\n";
-        this->outputHardware << "}\n\n"; 
+        this->outputHardware << "}\n\n";
         LLVM_DEBUG(llvm::dbgs() << "\nprintScalaEnd. \n ";);
         // printScalaEnd(PrintType::Scala);
 
@@ -1764,7 +1958,27 @@ import utility._
     this->outputHardware << this->getArgCall()->printDefinition(PrintType::Scala);
 
     // Memory.
-    this->outputHardware << this->memory_unit->printDefinition(PrintType::Scala);
+    // this->outputHardware << this->memory_unit->printDefinition(PrintType::Scala);
+    for (const auto& mem : this->getScratchpadMemories()) {
+        this->outputHardware << mem->printDefinition(PrintType::Scala);
+        if(mem->getLaneNums() > 0){
+            const std::string oriName = mem->getName();
+            assert(mem->getName() == oriName);
+
+            for (int i = 1; i < mem->getLaneNums(); ++i) {
+                std::string newName = oriName + "_bank" + std::to_string(i);
+
+                mem->setName(newName);
+                this->outputHardware << "  //The vectorized copy.\n";
+                this->outputHardware << mem->printDefinition(PrintType::Scala);
+            }
+            mem->setName(oriName);
+            assert(mem->getName() == oriName);
+        }
+        this->outputHardware << "\n";
+    }
+
+
 }
 
 /**
@@ -1792,7 +2006,7 @@ void Graph::printOperations(PrintType _pt) {
         this->outputHardware << helperScalaPrintHeader("Printing Operation nodes. " + std::to_string(op_list.size()));
         for (auto& ins_node : this->op_list) {
             // auto compute_op = dyn_cast<ComputeOperationNode>(&*ins_node);
-            // if(compute_op){ 
+            // if(compute_op){
             //     this->outputHardware << "  //";
             //     ins_node->getOperation()->print(this->outputHardware);
             //     this->outputHardware << "\n";
@@ -1803,13 +2017,31 @@ void Graph::printOperations(PrintType _pt) {
             ins_node->getOperation()->print(this->outputHardware);
             this->outputHardware << "\n";
             this->outputHardware << ins_node->printDefinition(PrintType::Scala);
+            if(!ins_node->getStaticFlag() && (ins_node->getLaneNums() > 0) &&
+                (ins_node->getOperationType() == OperationNode::OperationType::LSType)){
 
+              NodeInfo ori = ins_node->getInfo();
+              const std::string oriName = ori.Name;
+              assert(ins_node->getName() == oriName);
+              // const uint32_t oriRouteID = ins_node->getRouteID();
+
+              for (int i = 1; i < ins_node->getLaneNums(); ++i) {
+                  std::string newName = oriName + "_lane" + std::to_string(i);
+
+                  ins_node->setName(newName);
+                  // ins_node->setRouteID(oriRouteID + i);
+                  this->outputHardware << "  //The vectorized copy.\n";
+                  this->outputHardware << ins_node->printDefinition(PrintType::Scala);
+              }
+              ins_node->setName(oriName);
+              assert(ins_node->getName() == oriName);
+            }
             // continue;
             // auto call_ins = dyn_cast<ReturnNode>(&*ins_node);
             // if (ins_node->numDataOutputPort() == 0 && ins_node->numControlOutputPort() == 0
             //     && call_ins == nullptr)
             // continue;
-            
+
             // break;
         }
 
@@ -1826,7 +2058,7 @@ void Graph::printControlEdge(PrintType _pt) {
   switch (_pt) {
         case PrintType::Scala:
         this->outputHardware << helperScalaPrintHeader("Control Signal.");
-        
+
         for(auto iter_output_control = this->fine_arg_call.get()->outputControl_begin(); iter_output_control != this->fine_arg_call.get()->outputControl_end(); iter_output_control++){
           auto node   = (iter_output_control->first);
           auto output_index = node->returnControlInputPortIndex(this->fine_arg_call.get());
@@ -1858,7 +2090,7 @@ void Graph::printControlEdge(PrintType _pt) {
                             << "\n\n";
             }
 
-          }  
+          }
         }
         for(auto &exe: this->exe_block_list){
             std::set<Node*> unique_loop_nodes;
@@ -1896,9 +2128,9 @@ void Graph::printControlEdge(PrintType _pt) {
                                                                     *_output_it)
                               << "\n\n";
               }
-            }  
+            }
         }
-        
+
         this->outputHardware << helperScalaPrintHeader("Loop Control Signal.");
         for (auto& loop : this->loop_nodes) {
           for(auto iter_input_control = loop.get()->inputControl_begin(); iter_input_control != loop.get()->inputControl_end(); iter_input_control++){
@@ -1912,12 +2144,11 @@ void Graph::printControlEdge(PrintType _pt) {
                                                             _output_index.getID())
                           << "\n\n";
           }
-        } 
+        }
 
         //store control
-        std::vector<LSNode*> store_nodes;
         for (auto& ins_node : this->op_list) {
-          if(ins_node->getOperationType() == OperationNode::OperationType::StoreType){
+          if(ins_node->getOperationType() == OperationNode::OperationType::LSType){
             if (ins_node->numDataOutputPort() == 0)
               this->outputHardware << "  " << static_cast<LSNode*>(ins_node.get())->printGround(PrintType::Scala) << "\n\n";
 
@@ -1959,64 +2190,186 @@ void Graph::printConnection(PrintType _pt) {
         }
         for (auto& _data_edge : this->edge_list) {
           if (_data_edge->getType() == Edge::DataTypeEdge) {
-            this->outputHardware << "  "
-                          << _data_edge->getTar().first->printInputData(
-                                PrintType::Scala, _data_edge->getTar().second.getID())
-                          << " <> "
-                          << _data_edge->getSrc().first->printOutputData(
-                                PrintType::Scala, _data_edge->getSrc().second.getID())
-                          << "\n\n";
+            auto* src_node = _data_edge->getSrc().first;
+            auto* tar_node = _data_edge->getTar().first;
+
+            auto src_port = _data_edge->getSrc().second.getID();
+            auto tar_port = _data_edge->getTar().second.getID();
+
+            int lanes = std::max(src_node->getLaneNums(), tar_node->getLaneNums());
+            const std::string tar_str_back = tar_node->printInputData(PrintType::Scala, tar_port);
+            const std::string src_str_back = src_node->printOutputData(PrintType::Scala, src_port);
+
+            if (lanes > 0 && static_cast<OperationNode *>(tar_node)->getOperationType() != OperationNode::OperationType::AddressGenType) {
+
+              for (int lane = 0; lane < lanes; ++lane) {
+                std::string tar_str = tar_str_back;
+                std::string src_str = src_str_back;
+                // Input
+                 // LeftIO => LeftIO(x)
+                if (static_cast<OperationNode *>(tar_node)->getOperationType() == OperationNode::OperationType::LSType){
+                  const std::string oriName = tar_node->getName();
+                  if(lane != 0) {
+                    std::string newName = "_lane" + std::to_string(lane);
+                    tar_str.insert(oriName.size(), newName);
+                  }
+
+                  assert(tar_node->getName() == oriName);
+                } else if(tar_node->getType() == Node::NodeType::ComputeNodeTy){
+                  tar_str += "$(lane)";
+                  strReplace(tar_str, "$(lane)", "(" + std::to_string(lane) + ")");
+                }
+
+
+                // Output
+                if(static_cast<OperationNode *>(src_node)->getOperationType() == OperationNode::OperationType::LSType){
+                  if(static_cast<OperationNode *>(src_node)->getStaticFlag()){
+                    src_str.erase(src_str.size() - 3);  //erase scalar port "(0)"
+                    src_str += "$(lane)";
+                    strReplace(src_str, "$(lane)", "(" + std::to_string(lane) + ")");
+                  } else {
+                    const std::string oriName = src_node->getName();
+                    if(lane != 0) {
+                      std::string newName = "_lane" + std::to_string(lane);
+                      src_str.insert(oriName.size(), newName);
+                    }
+
+                    assert(src_node->getName() == oriName);
+                  }
+                } else if (src_node->getType() == Node::NodeType::ComputeNodeTy){
+                  src_str.insert(src_str.size() - 3, ".elements(\"field" + std::to_string(lane) + "\")");
+                } else if (src_node->getType() == Node::NodeType::ConstTy){
+                  src_str += "$(lane)";
+                  strReplace(src_str, "$(lane)", "(" + std::to_string(lane) + ")");
+                }
+// else if (static_cast<OperationNode *>(src_node)->getStaticFlag()){
+//                   // if(lane == 0) this->outputHardware << "  " << tar_str << " <> " << src_str << "\n\n";
+//                   // else continue;
+//                 }  conv2d加了以后，没有const的，导致出问题，其他的没问题，如果加了address有问题。常数
+                this->outputHardware << "  " << tar_str << " <> " << src_str << "\n\n";
+              }
+            } else {
+              // this->outputHardware << "  "
+              //               << _data_edge->getTar().first->printInputData(
+              //                     PrintType::Scala, _data_edge->getTar().second.getID())
+              //               << " <> "
+              //               << _data_edge->getSrc().first->printOutputData(
+              //                     PrintType::Scala, _data_edge->getSrc().second.getID())
+              //               << "\n\n";
+              this->outputHardware << "  "
+                            << tar_str_back
+                            << " <> "
+                            << src_str_back
+                            << "\n\n";
+            }
           }
         }
-        auto cache = this->getMemoryUnit();
-        for(auto iter = cache->read_req_begin(); iter != cache->read_req_end(); iter++){
-          this->outputHardware << "  "
-                      << cache->printMemReadInput(
-                             PrintType::Scala,
-                             cache->returnMemoryReadInputPortIndex(iter->first).getID())
-                      << " <> "
-                      << iter->first->printMemReadOutput(
-                             PrintType::Scala,
-                             iter->first->returnMemoryReadOutputPortIndex(cache).getID())
-                      << "\n\n";
+        // auto cache = this->getMemoryUnit();
+        for (const auto& cache : this->getScratchpadMemories()) {
+              for(auto iter = cache->read_req_begin(); iter != cache->read_req_end(); iter++){
 
-        this->outputHardware << "  "
-                      << iter->first->printMemReadInput(
-                             PrintType::Scala,
-                             iter->first->returnMemoryReadInputPortIndex(cache).getID())
-                      << " <> "
-                      << cache->printMemReadOutput(
-                             PrintType::Scala,
-                             cache->returnMemoryReadOutputPortIndex(iter->first).getID())
-                      << "\n\n";
+                const std::string memReadInput = cache->printMemReadInput(
+                                    PrintType::Scala,
+                                    cache->returnMemoryReadInputPortIndex(iter->first).getID());
+                const std::string memReadOutput = iter->first->printMemReadOutput(
+                                    PrintType::Scala,
+                                    iter->first->returnMemoryReadOutputPortIndex(cache.get()).getID());
+                this->outputHardware << "  " << memReadInput << " <> " << memReadOutput << "\n\n";
 
+                const std::string nodeReadInput = iter->first->printMemReadInput(
+                                    PrintType::Scala,
+                                    iter->first->returnMemoryReadInputPortIndex(cache.get()).getID());
+                const std::string nodeReadOutput = cache->printMemReadOutput(
+                                    PrintType::Scala,
+                                    cache->returnMemoryReadOutputPortIndex(iter->first).getID());
+
+                this->outputHardware << "  " << nodeReadInput << " <> " << nodeReadOutput << "\n\n";
+
+                if((cache->getLaneNums() > 0)  && !static_cast<OperationNode *>(iter->first)->getStaticFlag()){
+                  int lanes = std::max(cache->getLaneNums(), iter->first->getLaneNums());
+
+
+                  std::string oriMemName = cache->getName();
+                  std::string oriLoadName = iter->first->getName();
+
+                  for (int lane = 1; lane < lanes; ++lane) {
+                      std::string memReadInput_back = "$" + memReadInput;
+                      std::string memReadOutput_back = "$" + memReadOutput;
+
+                      std::string nodeReadInput_back = "$" + nodeReadInput;
+                      std::string nodeReadOutput_back = "$" + nodeReadOutput;
+
+                      strReplace(memReadInput_back, "$" + oriMemName, oriMemName + "_bank" + std::to_string(lane));
+                      strReplace(memReadOutput_back, "$" + oriLoadName, oriLoadName + "_lane" + std::to_string(lane));
+
+                      this->outputHardware << "  " << memReadInput_back << " <> " << memReadOutput_back << "\n\n";
+
+                      strReplace(nodeReadInput_back, "$" + oriLoadName, oriLoadName + "_lane" + std::to_string(lane));
+                      strReplace(nodeReadOutput_back, "$" + oriMemName, oriMemName + "_bank" + std::to_string(lane));
+
+                      this->outputHardware << "  " << nodeReadInput_back << " <> " << nodeReadOutput_back << "\n\n";
+                  }
+                }
+              }
+              for(auto iter = cache->write_req_begin(); iter != cache->write_req_end(); iter++){
+
+                const std::string memWriteInput = cache->printMemWriteInput(
+                                  PrintType::Scala,
+                                  cache->returnMemoryWriteInputPortIndex(iter->first).getID());
+                const std::string memWriteOutput = iter->first->printMemWriteOutput(
+                                  PrintType::Scala,
+                                  iter->first->returnMemoryWriteOutputPortIndex(cache.get()).getID());
+
+                this->outputHardware << "  " << memWriteInput << " <> " << memWriteOutput << "\n\n";
+
+                const std::string nodeWriteInput = iter->first->printMemWriteInput(
+                                    PrintType::Scala,
+                                    iter->first->returnMemoryWriteInputPortIndex(cache.get()).getID());
+                const std::string nodeWriteOutput = cache->printMemWriteOutput(
+                                    PrintType::Scala,
+                                    cache->returnMemoryWriteOutputPortIndex(iter->first).getID());
+
+                this->outputHardware << "  " << nodeWriteInput << " <> " << nodeWriteOutput << "\n\n";
+
+                if((cache->getLaneNums() > 0)  && !static_cast<OperationNode *>(iter->first)->getStaticFlag()){
+                  int lanes = std::max(cache->getLaneNums(), iter->first->getLaneNums());
+
+
+                  std::string oriMemName = cache->getName();
+                  std::string oriStoreName = iter->first->getName();
+
+
+                  for (int lane = 1; lane < lanes; ++lane) {
+
+                      std::string memWriteInput_back = "$" + memWriteInput;
+                      std::string memWriteOutput_back = "$" + memWriteOutput;
+
+                      std::string nodeWriteInput_back = "$" + nodeWriteInput;
+                      std::string nodeWriteOutput_back = "$" + nodeWriteOutput;
+
+
+                      strReplace(memWriteInput_back, "$" + oriMemName, oriMemName + "_bank" + std::to_string(lane));
+                      strReplace(memWriteOutput_back, "$" + oriStoreName, oriStoreName + "_lane" + std::to_string(lane));
+
+                      this->outputHardware << "  " << memWriteInput_back << " <> " << memWriteOutput_back << "\n\n";
+
+                      strReplace(nodeWriteInput_back, "$" + oriStoreName, oriStoreName + "_lane" + std::to_string(lane));
+                      strReplace(nodeWriteOutput_back, "$" + oriMemName, oriMemName + "_bank" + std::to_string(lane));
+
+                      this->outputHardware << "  " << nodeWriteInput_back << " <> " << nodeWriteOutput_back << "\n\n";
+                  }
+                }
+              }
         }
-        for(auto iter = cache->write_req_begin(); iter != cache->write_req_end(); iter++){
-        this->outputHardware << "  "
-                      << cache->printMemWriteInput(
-                             PrintType::Scala,
-                             cache->returnMemoryWriteInputPortIndex(iter->first).getID())
-                      << " <> "
-                      << iter->first->printMemWriteOutput(
-                             PrintType::Scala,
-                             iter->first->returnMemoryWriteOutputPortIndex(cache).getID())
-                      << "\n\n";
 
-        this->outputHardware << "  "
-                      << iter->first->printMemWriteInput(
-                             PrintType::Scala,
-                             iter->first->returnMemoryWriteInputPortIndex(cache).getID())
-                      << " <> "
-                      << cache->printMemWriteOutput(
-                             PrintType::Scala,
-                             cache->returnMemoryWriteOutputPortIndex(iter->first).getID())
-                      << "\n\n";
-      }
+
       //TODO: ALLOC OP. DMM.
       //Block -> enable
       this->outputHardware << helperScalaPrintHeader("Printing Execution Block Enable.");
         for (auto &exe : this->exe_block_list) {
+          int portID = 0;
           for(auto iter = exe.get()->const_begin(); iter != exe.get()->const_end(); iter++){
+            portID++;
             this->outputHardware
               << "  " << (*iter)->printInputEnable(PrintType::Scala) << " <> "
               << exe->printOutputEnable(
@@ -2024,22 +2377,41 @@ void Graph::printConnection(PrintType _pt) {
                      exe->returnControlOutputPortIndex(*iter).getID())
               << "\n\n";
           }
+
           for(auto iter = exe.get()->operation_node_begin(); iter != exe.get()->operation_node_end(); iter++){
-            LLVM_DEBUG(llvm::dbgs() << (*iter)->getName(););
+            // LLVM_DEBUG(llvm::dbgs() << (*iter)->getName(););
+            if(static_cast<OperationNode *>(*iter)->getOperationType() != OperationNode::OperationType::StateBranchType)  continue;
             auto operation_node = static_cast<Node *>(*iter);
             auto ff = std::find_if(
                 operation_node->inputControl_begin(),
                 operation_node->inputControl_end(),
                 [&exe](auto& arg) -> bool { return exe.get() == &*arg.first; });
-            if (ff == operation_node->inputControl_end()) 
+            if (ff == operation_node->inputControl_end())
               assert(!"Couldn't find the control edge\n");
             this->outputHardware
               << "  " << operation_node->printInputEnable(PrintType::Scala) << " <> "
               << exe->printOutputEnable(
                      PrintType::Scala,
-                     exe->returnControlOutputPortIndex(operation_node).getID())
+                     portID)
               << "\n\n";
           }
+          // Now we don't need to enable it.
+          // for(auto iter = exe.get()->operation_node_begin(); iter != exe.get()->operation_node_end(); iter++){
+          //   LLVM_DEBUG(llvm::dbgs() << (*iter)->getName(););
+          //   auto operation_node = static_cast<Node *>(*iter);
+          //   auto ff = std::find_if(
+          //       operation_node->inputControl_begin(),
+          //       operation_node->inputControl_end(),
+          //       [&exe](auto& arg) -> bool { return exe.get() == &*arg.first; });
+          //   if (ff == operation_node->inputControl_end())
+          //     assert(!"Couldn't find the control edge\n");
+          //   this->outputHardware
+          //     << "  " << operation_node->printInputEnable(PrintType::Scala) << " <> "
+          //     << exe->printOutputEnable(
+          //            PrintType::Scala,
+          //            exe->returnControlOutputPortIndex(operation_node).getID())
+          //     << "\n\n";
+          // }
         }
       break;
 
@@ -2148,7 +2520,7 @@ void Graph::printLoopConnection(PrintType _pt) {
           // for (auto& carry_value : loop_node->getCarryDepenSets()) {
             if (carry_value->get()->getArgType() != ArgumentNode::ArgumentType::CarryDependency)
               continue;
-            for(auto iter = carry_value->get()->inputDataport_begin(); iter != carry_value->get()->inputDataport_end(); iter++){  
+            for(auto iter = carry_value->get()->inputDataport_begin(); iter != carry_value->get()->inputDataport_end(); iter++){
               this->outputHardware
                   << "  "
                   << carry_value->get()->printInputData(
@@ -2160,8 +2532,8 @@ void Graph::printLoopConnection(PrintType _pt) {
                   << "\n\n";
             }
           // }
-          
-            for(auto iter = carry_value->get()->outputDataport_begin(); iter != carry_value->get()->outputDataport_end(); iter++){  
+
+            for(auto iter = carry_value->get()->outputDataport_begin(); iter != carry_value->get()->outputDataport_end(); iter++){
               if (isa<ArgumentNode>(iter->first))
                 continue;
               this->outputHardware
@@ -2198,8 +2570,8 @@ void Graph::printScalaEnd(PrintType _pt){
     strReplace(function_file, "$module_name", this->graph_info.Name);
 
     this->outputHardware << function_file;
-      
+
     break;
-    
+
   }
 }
