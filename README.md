@@ -52,7 +52,7 @@ Follow the instructions in [`hardware/README.md`](hardware/README.md) to install
 To translate the C/C++ kernel, run the:
 ```
 $ ./thirdparty/Polygeist/build/bin/cgeist ./benchmark/HLS/if_loop_1/if_loop_1.cpp \ 
-  -function=doitgenTriple -S  -memref-fullrank \
+  -function=if_loop_1 -S  -memref-fullrank \
   -raise-scf-to-affine > ./benchmark/HLS/if_loop_1/if_loop_1.mlir
 ```
 ## DataFlowGen-OPT
