@@ -61,7 +61,7 @@ $ ./thirdparty/Polygeist/build/bin/cgeist ./benchmark/HLS/if_loop_1/if_loop_1.cp
 To transform the initiation program, run the
 ```
 $  ./build/bin/heteacc-opt  ./benchmark/HLS/if_loop_1/if_loop_1.mlir   --generate-dataflow \
- --analyze-memref-address  --optimize-dataflow  --generate-GEP --cse  --enhanced-cdfg \ 
+ --analyze-memref-address  --optimize-dataflow  --generate-GEP --cse  --enhanced-cdfg \
  --hybird-branch-prediction --graph-init="top-func=if_loop_1" --debug-only="graph"
 ```
 
