@@ -51,13 +51,13 @@ Follow the instructions in [`hardware/README.md`](hardware/README.md) to install
 
 To translate the C/C++ kernel, run the:
 ```
-$ ./thirdparty/Polygeist/build/bin/cgeist ./benchmark/HLS/if_loop_1/if_loop_1.cpp \ 
+$ ./thirdparty/Polygeist/build/bin/cgeist ./benchmark/HLS/if_loop_1/if_loop_1.cpp \
   -function=doitgenTriple -S  -memref-fullrank \
   -raise-scf-to-affine > ./benchmark/HLS/if_loop_1/if_loop_1.mlir
 ```
 ## DataFlowGen-OPT
 
-### IR Transformation 
+### IR Transformation
 To transform the initiation program, run the
 ```
 $  ./build/bin/heteacc-opt  ./benchmark/HLS/if_loop_1/if_loop_1.mlir   --generate-dataflow \
@@ -72,4 +72,3 @@ This is a hardware library written in [Chisel](https://www.chisel-lang.org/). Th
 $ cd hardware
 $ sbt "testOnly   heteacc.generator.if_loop_1DF_test"
 ```
-
