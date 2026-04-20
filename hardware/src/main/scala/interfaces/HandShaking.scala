@@ -333,8 +333,68 @@ class HandShakingCtrlMask(val NumInputs: Int,
 
 
 
+class HandShakingDynIO[T <: Data](val NumOuts: Int, val Debug: Boolean = false)(gen: T)(implicit p: Parameters)
+  extends AccelBundle with HasAccelParams {
+  // Output IO
+  val Out    = Vec(NumOuts, Decoupled(gen))
+}
 
+class HandShakingDyn[T <: Data](val NumOuts: Int,
+                                val ID: Int, val Debug: Boolean = false)(gen: T)(implicit val p: Parameters)
+  extends Module with HasAccelParams with UniformPrintfs {
 
+  lazy val io = IO(new HandShakingDynIO(NumOuts, Debug)(gen))
+
+  // Output Handshaking
+  val out_ready_R = Seq.fill(NumOuts)(RegInit(false.B))
+  val out_valid_R = Seq.fill(NumOuts)(RegInit(false.B))
+
+  /*============================*
+   *           Wiring           *
+   *============================*/
+
+  // Wire up OUT READYs and VALIDs
+  for (i <- 0 until NumOuts) {
+    io.Out(i).valid := out_valid_R(i)
+    when(io.Out(i).fire( )) {
+      // Detecting when to reset
+      out_ready_R(i) := io.Out(i).ready
+      // Propagating output
+      out_valid_R(i) := false.B
+    }
+  }
+
+  // OUTs
+  def IsOutReady(): Bool = {
+    if (NumOuts == 0) {
+      return true.B
+    } else {
+      val fire_mask = (out_ready_R zip io.Out.map(_.fire)).map { case (a, b) => a | b }
+      fire_mask reduce {_ & _}
+    }
+  }
+
+  def IsOutValid(): Bool = {
+    //    out_valid_R.asUInt.andR
+    if (NumOuts == 0) {
+      return true.B
+    } else {
+      out_valid_R.reduceLeft(_ && _)
+    }
+  }
+
+  def ValidOut(): Unit = {
+    (out_valid_R zip io.Out.map(_.fire)).foreach{ case (a,b) => a := b ^ true.B}
+  }
+
+  def InvalidOut(): Unit = {
+    out_valid_R.foreach(_ := false.B)
+  }
+
+  def Reset(): Unit = {
+    out_ready_R.foreach(_ := false.B)
+  }
+}
 
 
 
