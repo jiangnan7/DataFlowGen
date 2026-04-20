@@ -203,7 +203,7 @@ class BasicBlockNode(NumInputs: Int,
 
   // Wire up Outputs
   for (i <- 0 until NumOuts) {
-    io.Out(i).bits.control := predicate
+    io.Out(i).bits.control := true.B//predicate
     io.Out(i).bits.taskID := predicate_task
     io.Out(i).bits.debug := predicate_debug
   }
@@ -223,7 +223,7 @@ class BasicBlockNode(NumInputs: Int,
       when(start) {
         ValidOut()
         state := s_LATCH
-        
+
       }
     }
     is(s_LATCH) {
