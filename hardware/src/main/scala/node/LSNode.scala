@@ -81,7 +81,7 @@ class TEHB(size: Int = 32)(implicit val p: Parameters) extends MultiIOModule {
 
 
 class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val p: Parameters) extends MultiIOModule  {
-    
+
     val io = IO(new Bundle {
 
     val load_address  = Vec(NumRead, Flipped(DecoupledIO(new DataBundle)))
@@ -90,7 +90,7 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
 
     val store_address  = Vec(NumWrite, Flipped(DecoupledIO(new DataBundle)))
     val store_data = Vec(NumWrite, Flipped(DecoupledIO(new DataBundle)))
-    
+
   })
   for (i <- 0 until NumRead) {
     io.load_data(i).valid := false.B
@@ -166,7 +166,7 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
     mem.r_en := !finish
 
     when(finish) {
-      mem.addr := 32.U 
+      mem.addr := 32.U
       mem.w_en := false.B
       mem.w_data := DontCare
     }.otherwise {
@@ -230,9 +230,7 @@ class Load(NumOuts: Int, ID: Int, RouteID: Int)
           (implicit p: Parameters,
                      name: sourcecode.Name,
                      file: sourcecode.File)
-                extends HandShakingNPS(NumOuts, ID)(new DataBundle)(p)
-
-{
+                extends HandShakingNPS(NumOuts, ID)(new DataBundle)(p) {
 
   val node_name = name.value
   val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
@@ -300,7 +298,7 @@ class Store(NumOuts: Int, ID: Int, RouteID: Int)
 
   address_out.bits := GepAddr.bits
 
-  
+
   for (i <- 0 until NumOuts) {
     io.Out(i) <> inData
 
@@ -313,12 +311,12 @@ class Store(NumOuts: Int, ID: Int, RouteID: Int)
     Reset()
     if (log) {
       printf(p"[LOG] [${module_name}] [TID: ${enable_R.taskID}] [STORE] " +
-            p"[${node_name}] "+ 
+            p"[${node_name}] "+
             p"[Addr: ${Decimal(GepAddr.bits.data)}] " +
             p"[Data: ${Decimal(inData.bits.data)}] " +
             p"[Cycle: ${cycleCount}]\n")
     }
   }
-       
+
 
 }

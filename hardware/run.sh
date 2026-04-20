@@ -1,0 +1,7 @@
+sbt "testOnly   heteacc.generator.if_loop_1DF_test"
+sbt "testOnly   heteacc.generator.doitgenTripleDF_test"
+sbt "testOnly   heteacc.generator.dropoutDF_test"
+sbt "testOnly   heteacc.generator.firDF_test"
+sbt "testOnly   heteacc.generator.getTanhDF_test"
+sbt "testOnly   heteacc.generator.sumi3_memDF_test"
+sbt "testOnly   heteacc.generator.histogramDF_test"
