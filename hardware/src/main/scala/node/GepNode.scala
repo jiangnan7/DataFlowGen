@@ -140,7 +140,7 @@ class GepNode(NumIns: Int, NumOuts: Int, ID: Int)
 
 class GepNodeWithoutStateIO(NumIns: Int, NumOuts: Int)
                (implicit p: Parameters)
-  extends HandShakingIONPS(NumOuts)(new DataBundle) {
+  extends HandShakingDynIO(NumOuts)(new DataBundle) {
 
   // Inputs should be fed only when Ready is HIGH
   // Inputs are always latched.
@@ -157,7 +157,7 @@ class GepNodeWithoutState(NumIns: Int, NumOuts: Int, ID: Int)
              (implicit p: Parameters,
               name: sourcecode.Name,
               file: sourcecode.File)
-  extends HandShakingNPS(NumOuts, ID)(new DataBundle)(p) {
+  extends HandShakingDyn(NumOuts, ID)(new DataBundle)(p) {
   override lazy val io = IO(new GepNodeWithoutStateIO(NumIns, NumOuts))
   // Printf debugging
   val node_name = name.value
@@ -177,18 +177,18 @@ class GepNodeWithoutState(NumIns: Int, NumOuts: Int, ID: Int)
   io.baseAddress.ready := join.ready(0)
   io.idx(0).ready := join.ready(1)
   join.nReady := oehb.dataIn.ready
-  
+
 
   oehb.dataIn.bits := DontCare
   oehb.dataIn.valid := join.valid
-  
+
 
   oehb.dataOut.ready := io.Out.map(_.ready).reduce(_ && _)
   for (i <- 0 until NumOuts) {
     // oehb.dataOut.ready := io.Out(i).ready
     io.Out(i).valid := oehb.dataOut.valid
   }
-  
+
 
   val seek_value =
     if (ArraySize.isEmpty) {
@@ -202,18 +202,18 @@ class GepNodeWithoutState(NumIns: Int, NumOuts: Int, ID: Int)
 
   val data_out = io.baseAddress.bits.data + seek_value
   // val data_out = io.baseAddress.bits.data + io.idx(0).bits.data
-  val predicate = io.enable.bits.control
-  val taskID = io.enable.bits.taskID
-  
-  io.Out.foreach(_.bits := DataBundle(data_out, taskID, predicate))
-  
+  // val predicate = io.enable.bits.control
+  // val taskID = io.enable.bits.taskID
+
+  io.Out.foreach(_.bits := DataBundle(data_out, true.B, true.B))
+
   when(IsOutReady()) {
     Reset()
     if (log) {
-      printf(p"[LOG] [${module_name}] [TID: ${enable_R.taskID}] [GEP] [${node_name}] " +
-        p"[Pred: ${enable_R.control}][Out: 0x${Hexadecimal(data_out)}] [Cycle: ${cycleCount}]\n")
+      printf(p"[LOG] [${module_name}] [TID: ${true.B}] [GEP] [${node_name}] " +
+        p"[Pred: ${true.B}][Out: 0x${Hexadecimal(data_out)}] [Cycle: ${cycleCount}]\n")
     }
   }
- 
+
 
 }

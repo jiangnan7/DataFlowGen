@@ -132,7 +132,7 @@ class SelectNode(NumOuts: Int, ID: Int, Debug : Boolean = false)
 
 class SelectNodeWithoutStateIO(NumOuts: Int, Debug:Boolean=false)
                   (implicit p: Parameters)
-  extends HandShakingIONPS(NumOuts, Debug )(new DataBundle) {
+  extends HandShakingDynIO(NumOuts, Debug )(new DataBundle) {
 
   // Input data 1
   val InData1 = Flipped(Decoupled(new DataBundle()))
@@ -149,7 +149,7 @@ class SelectNodeWithoutState(NumOuts: Int, ID: Int, Debug : Boolean = false)
                 (implicit p: Parameters,
                  name: sourcecode.Name,
                  file: sourcecode.File)
-  extends HandShakingNPS(NumOuts, ID, Debug)(new DataBundle())(p) {
+  extends HandShakingDyn(NumOuts, ID, Debug)(new DataBundle())(p) {
   override lazy val io = IO(new SelectNodeWithoutStateIO(NumOuts, Debug))
 
   // Printf debugging
@@ -160,8 +160,8 @@ class SelectNodeWithoutState(NumOuts: Int, ID: Int, Debug : Boolean = false)
   val (cycleCount, _) = Counter(true.B, 32 * 1024)
 
 
-  val predicate = enable_R.control | io.enable.bits.control
-  val taskID = Mux(enable_valid_R, enable_R.taskID ,io.enable.bits.taskID)
+  // val predicate = enable_R.control | io.enable.bits.control
+  // val taskID = Mux(enable_valid_R, enable_R.taskID ,io.enable.bits.taskID)
 
 
   private val join = Module(new Join(3))
@@ -177,18 +177,46 @@ class SelectNodeWithoutState(NumOuts: Int, ID: Int, Debug : Boolean = false)
 
   // dataOut.valid := join.valid
   io.Out.foreach(_.valid := join.valid)
-  
+
 
   // Wire up Outputs
   val output_data = Mux(io.Select.bits.data.orR, io.InData1.bits.data, io.InData2.bits.data)
-  io.Out.foreach(_.bits := DataBundle(output_data, taskID, predicate))
+  // private val buffer = ShiftRegister(output_data, 1)
+  io.Out.foreach(_.bits := DataBundle(output_data, true.B, true.B))
   when(IsOutReady()){
     Reset()
     printf(p"[LOG] [${module_name}] [TID: %d] [SELECT] " +
-      p"[${node_name}] [Task: ${taskID}] [Out: ${output_data}] [Cycle: ${cycleCount}]\n")
+      p"[${node_name}] [Task: ${true.B}] [Out: ${output_data}] [Cycle: ${cycleCount}]\n")
   }
 
+  // private val join = Module(new Join(3))
+  // private val oehb = Module(new OEHB(32))
+
+  // join.pValid(0) := io.InData1.valid
+  // join.pValid(1) := io.InData2.valid
+  // join.pValid(2) := io.Select.valid
+
+  // join.nReady := oehb.dataIn.ready
+
+  // oehb.dataIn.bits := DontCare
+  // oehb.dataIn.valid := join.valid
+
+  // io.InData1.ready := join.ready(0)
+  // io.InData2.ready := join.ready(1)
+  // io.Select.ready  := join.ready(2)
+
+  // // dataOut.valid := join.valid
+  // // io.Out.foreach(_.valid := join.valid)
+  // oehb.dataOut.ready := io.Out.map(_.ready).reduce(_ && _)
+
+  // for (i <- 0 until NumOuts) {
+  //   io.Out(i).valid := oehb.dataOut.valid
+  // }
+
 }
+
+
+
 
 //sbt "test:runMain heteacc.node.SelectNodeGen"
 import java.io.PrintWriter

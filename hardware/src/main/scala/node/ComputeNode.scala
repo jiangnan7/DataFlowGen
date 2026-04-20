@@ -72,7 +72,7 @@ class ComputeNode(NumOuts: Int, ID: Int, opCode: String)
   // val predicate = Mux(enable_valid_R, enable_R.control, io.enable.bits.control)
   // val taskID = Mux(enable_valid_R, enable_R.taskID, io.enable.bits.taskID)
 
- 
+
   /*===============================================*
    *            Latch inputs. Wire up output       *
    *===============================================*/
@@ -194,7 +194,7 @@ class OEHB(size: Int = 32) extends MultiIOModule {
 
 class ComputeNodeWithoutStateIO(NumOuts: Int, Debug: Boolean)
                    (implicit p: Parameters)
-  extends HandShakingIONPS(NumOuts, Debug)(new DataBundle) {
+  extends HandShakingDynIO(NumOuts, Debug)(new DataBundle) {
   val LeftIO = Flipped(Decoupled(new DataBundle()))
   val RightIO = Flipped(Decoupled(new DataBundle()))
 }
@@ -204,7 +204,7 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
                  (implicit p: Parameters,
                   name: sourcecode.Name,
                   file: sourcecode.File)
-  extends HandShakingNPS(NumOuts, ID, Debug)(new DataBundle())(p)
+  extends HandShakingDyn(NumOuts, ID, Debug)(new DataBundle())(p)
     with HasAccelShellParams{
   override lazy val io = IO(new ComputeNodeWithoutStateIO(NumOuts, Debug))
   val node_name = name.value
@@ -213,7 +213,7 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
   /*===========================================*
    *            Registers                      *
    *===========================================*/
-  
+
   // val left_R = RegInit(DataBundle.default)
   // val left_valid_R = RegInit(false.B)
 
@@ -240,36 +240,37 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
     io.Out(i).valid := oehb.dataOut.valid
   }
 
-  
+
   //Instantiate ALU with selected code
   val FU = Module(new UALU(xlen, opCode, issign = sign))
 
-  val out_data_R = RegNext(Mux(enable_R.control, FU.io.out, 0.U), init = 0.U)
-  val predicate = io.enable.bits.control
-  val taskID = io.enable.bits.taskID
+  // val out_data_R = RegNext(Mux(enable_R.control, FU.io.out, 0.U), init = 0.U)
+  // val predicate = io.enable.bits.control
+  // val taskID = io.enable.bits.taskID
 
   FU.io.in1 := io.LeftIO.bits.data
   FU.io.in2 := io.RightIO.bits.data
 
   private val buffer = ShiftRegister(FU.io.out, 1)
-  // io.RightIO.ready := true.B  
-  // io.LeftIO.ready := true.B  
+  // io.RightIO.ready := true.B
+  // io.LeftIO.ready := true.B
   // io.Out.foreach(_.bits := DataBundle(out_data_R ))
-  io.Out.foreach(_.bits := DataBundle(buffer, taskID, predicate))
+  io.Out.foreach(_.bits := DataBundle(buffer, true.B, true.B))
   when(IsOutReady()) {
     if (log) {
-          printf(p"[LOG] [${module_name}] [TID: ${taskID}] [COMPUTE] [Name: ${node_name}] " +
+          printf(p"[LOG] [${module_name}] [COMPUTE] [Name: ${node_name}] " +
             p"[ID: ${ID}] " +
-            p"[Pred: ${enable_R.control}] " +
+            p"[Pred: ${true.B}] " +
             p"[In(0): 0x${Hexadecimal(io.LeftIO.bits.data)}] " +
             p"[In(1) 0x${Hexadecimal(io.RightIO.bits.data)}] " +
             p"[Out: 0x${Hexadecimal(FU.io.out)}] " +
             p"[OpCode: ${opCode}] " +
             p"[Cycle: ${cycleCount}]\n")
-        } 
+        }
     Reset()
   }
 }
+
 
 class ComputeNodeWithVectorizationIO(NumOuts: Seq[Int], NumLanes: Int, Debug: Boolean)
     (implicit p: Parameters) extends AccelBundle {
@@ -370,7 +371,7 @@ class ComputeNodeWithVectorization(NumOuts: Seq[Int], NumLanes: Int, ID: Int, op
       fire_mask.reduce(_ && _)
     }
   }
-  
+
   when(IsOutReady()) {
     if (Debug) {
       for (lane <- 0 until NumLanes) {
@@ -393,10 +394,10 @@ object ComputeNodeGen extends App {
   // sbt "test:runMain heteacc.node.ComputeNodeGen  -td ./test_run_dir"
   // println(getVerilogString(new ComputeNode(NumOuts = 1, ID = 0, opCode = "Add")(sign = false, Debug = false)))
   val opCodes = Seq(
-    ("Add", 1), ("Sub", 2), ("And", 3), ("Or", 4), ("Xor", 5), 
-    ("Xnor", 6), ("ShiftLeft", 7), ("ShiftRight", 8), ("ShiftRightLogical", 9), 
-    ("ShiftRightArithmetic", 10), ("EQ", 11), ("NE", 12), ("LT", 13), 
-    ("GT", 14), ("LTE", 15), ("GTE", 16), ("PassA", 17), ("PassB", 18), 
+    ("Add", 1), ("Sub", 2), ("And", 3), ("Or", 4), ("Xor", 5),
+    ("Xnor", 6), ("ShiftLeft", 7), ("ShiftRight", 8), ("ShiftRightLogical", 9),
+    ("ShiftRightArithmetic", 10), ("EQ", 11), ("NE", 12), ("LT", 13),
+    ("GT", 14), ("LTE", 15), ("GTE", 16), ("PassA", 17), ("PassB", 18),
     ("Mul", 19), ("Udiv", 20), ("Max", 21), ("Min", 22)
   )
 
@@ -413,4 +414,4 @@ object ComputeNodeGen extends App {
   }
   // (new chisel3.stage.ChiselStage).emitVerilog(new ComputeNode(NumOuts = 1, ID = 0, opCode = "Add")(sign = false, Debug = false))
 
-} 
+}

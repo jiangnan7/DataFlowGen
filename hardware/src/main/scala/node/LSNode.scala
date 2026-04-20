@@ -59,10 +59,11 @@ class TEHB(size: Int = 32)(implicit val p: Parameters) extends MultiIOModule {
   dataIn.ready := !full_reg
   reg_en := dataIn.ready & dataIn.valid & (!dataOut.ready)
   mux_sel := full_reg
-  dataOut.bits.predicate <> DontCare
-  dataOut.bits.taskID <> DontCare
+  dataOut.bits.predicate := DontCare
+  dataOut.bits.taskID := DontCare
   full_reg := dataOut.valid & (!dataOut.ready)
 
+  // Ensure initialization of dataOut.bits
   when(reg_en) {
     data_reg := dataIn.bits.data
   }
@@ -72,11 +73,6 @@ class TEHB(size: Int = 32)(implicit val p: Parameters) extends MultiIOModule {
   }.otherwise {
     dataOut.bits := dataIn.bits
   }
-  //  def apply(size : Int = 32)(in : DecoupledIO[UInt]) = {
-  //    val tehb = Module(new TEHB(size))
-  //    tehb.dataIn := in
-  //    tehb.dataOut
-  //  }
 }
 
 
@@ -230,7 +226,8 @@ class Load(NumOuts: Int, ID: Int, RouteID: Int)
           (implicit p: Parameters,
                      name: sourcecode.Name,
                      file: sourcecode.File)
-                extends HandShakingNPS(NumOuts, ID)(new DataBundle)(p) {
+                extends HandShakingDyn(NumOuts, ID)(new DataBundle)(p)
+{
 
   val node_name = name.value
   val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
@@ -256,8 +253,8 @@ class Load(NumOuts: Int, ID: Int, RouteID: Int)
   when(IsOutReady()){
     Reset()
     if (log) {
-      printf("[LOG] " + "[" + module_name + "] [TID->%d] [LOAD] " + node_name + ": Output fired @ %d, Address:%d, Value: %d\n",
-        enable_R.taskID, cycleCount, GepAddr.bits.data, data_in.bits.data)
+      printf("[LOG] " + "[" + module_name + "] [LOAD] " + node_name + ": Output fired @ %d, Address:%d, Value: %d\n",
+        cycleCount, GepAddr.bits.data, data_in.bits.data)
     }
   }
 
@@ -270,7 +267,7 @@ class Store(NumOuts: Int, ID: Int, RouteID: Int)
           (implicit p: Parameters,
                       name: sourcecode.Name,
                       file: sourcecode.File)
-                extends HandShakingNPS(NumOuts, ID)(new DataBundle)(p)
+                extends HandShakingDyn(NumOuts, ID)(new DataBundle)(p)
     with HasAccelShellParams  with HasDebugCodes {
 
   val node_name = name.value
@@ -310,7 +307,7 @@ class Store(NumOuts: Int, ID: Int, RouteID: Int)
   when(IsOutReady()){
     Reset()
     if (log) {
-      printf(p"[LOG] [${module_name}] [TID: ${enable_R.taskID}] [STORE] " +
+      printf(p"[LOG] [${module_name}]  [STORE] " +
             p"[${node_name}] "+
             p"[Addr: ${Decimal(GepAddr.bits.data)}] " +
             p"[Data: ${Decimal(inData.bits.data)}] " +

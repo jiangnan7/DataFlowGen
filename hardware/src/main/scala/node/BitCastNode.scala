@@ -6,7 +6,7 @@ import chisel3.Module
 import heteacc.interfaces._
 import util._
 import chipsalliance.rocketchip.config._
-
+import utility.UniformPrintfs
 
 class BitCastNodeIO(NumOuts: Int, Debug:Boolean)
                 (implicit p: Parameters)
@@ -103,7 +103,7 @@ class BitCastNode(NumOuts: Int, ID: Int, Debug: Boolean= false)
 
 class BitCastNodeWithoutStateIO(NumOuts: Int, Debug:Boolean)
                 (implicit p: Parameters)
-  extends HandShakingIONPS(NumOuts, Debug )(new DataBundle) {
+  extends HandShakingDynIO(NumOuts, Debug )(new DataBundle) {
   // LeftIO: Left input data for computation
   val Input = Flipped(Decoupled(new DataBundle()))
 
@@ -113,7 +113,7 @@ class BitCastNodeWithoutState(NumOuts: Int, ID: Int, Debug: Boolean= false)
               (implicit p: Parameters,
                name: sourcecode.Name,
                file: sourcecode.File)
-  extends HandShakingNPS(NumOuts, ID, Debug)(new DataBundle())(p) {
+  extends HandShakingDyn(NumOuts, ID, Debug)(new DataBundle())(p) {
   override lazy val io = IO(new BitCastNodeWithoutStateIO(NumOuts, Debug))
 
    // Printf debugging
@@ -122,11 +122,11 @@ class BitCastNodeWithoutState(NumOuts: Int, ID: Int, Debug: Boolean= false)
 
   override val printfSigil = "[" + module_name + "] " + node_name + ": " + ID + " "
   val (cycleCount, _) = Counter(true.B, 32 * 1024)
-  
+
   // io.Input.ready := true.B
   io.Out.foreach(_.bits := io.Input.bits)//DataBundle(out_data_R, io.enable.bits.taskID, io.enable.bits.control))
   // ValidOut()
-  
+
   private val join = Module(new Join(1))
   // private val buff = Module(new DelayBuffer(2 - 1, 1))
   private val oehb = Module(new OEHB(0))
@@ -153,11 +153,11 @@ class BitCastNodeWithoutState(NumOuts: Int, ID: Int, Debug: Boolean= false)
   when(IsOutReady()) {
     if (log) {
       printf("[LOG] " + "[" + module_name + "] " + "[TID->%d] [CMP] " +
-      node_name + ": Output fired @ %d, Value: %d\n", 
+      node_name + ": Output fired @ %d, Value: %d\n",
       cycleCount, io.Input.bits.data, io.Out(0).bits.data)
 
     }
     Reset()
   }
- 
+
 }
