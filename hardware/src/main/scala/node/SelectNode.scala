@@ -216,7 +216,67 @@ class SelectNodeWithoutState(NumOuts: Int, ID: Int, Debug : Boolean = false)
 }
 
 
+class SelectNodeWithoutStateIOSupportCarry(NumOuts: Int, Debug:Boolean=false)
+                  (implicit p: Parameters)
+  extends HandShakingIONPS(NumOuts, Debug )(new DataBundle) {
 
+  // Input data 1
+  val InData1 = Flipped(Decoupled(new DataBundle()))
+
+
+  // Select input data
+  val Select = Flipped(Decoupled(new DataBundle()))
+
+}
+
+class SelectNodeWithoutStateSupportCarry(NumOuts: Int, ID: Int, Debug : Boolean = false)
+                (implicit p: Parameters,
+                 name: sourcecode.Name,
+                 file: sourcecode.File)
+  extends HandShakingNPS(NumOuts, ID, Debug)(new DataBundle())(p) {
+  override lazy val io = IO(new SelectNodeWithoutStateIOSupportCarry(NumOuts, Debug))
+
+  // Printf debugging
+  val node_name = name.value
+  val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
+
+  override val printfSigil = "[" + module_name + "] " + node_name + ": " + ID + " "
+  val (cycleCount, _) = Counter(true.B, 32 * 1024)
+
+  val valueReg = RegInit(0.U(32.W))
+
+  // val predicate = enable_R.control | io.enable.bits.control
+  // val taskID = Mux(enable_valid_R, enable_R.taskID ,io.enable.bits.taskID)
+
+
+  private val join = Module(new Join(2))
+  join.pValid(0) := io.InData1.valid
+  join.pValid(1) := io.Select.valid
+
+  val nReadyReg = RegNext(io.Out.map(_.ready).reduce(_ && _), false.B)
+
+
+  join.nReady := nReadyReg//io.Out(0).ready
+
+  io.InData1.ready := join.ready(0)
+  io.Select.ready  := join.ready(1)
+
+  // dataOut.valid := join.valid
+  io.Out.foreach(_.valid := join.valid)
+
+
+  // Wire up Outputs
+  val output_data = Mux(io.Select.bits.data.orR, io.InData1.bits.data, valueReg)
+  io.Out.foreach(_.bits := DataBundle(output_data, true.B, true.B))
+  when(IsOutReady()){
+    Reset()
+    valueReg := valueReg + output_data
+    printf(p"[LOG] [${module_name}] [TID: %d] [SELECT] " +
+      p"[${node_name}] [Task: ${true.B}] [Out: ${output_data}] [Cycle: ${cycleCount}]\n")
+  }
+
+
+}
 
 //sbt "test:runMain heteacc.node.SelectNodeGen"
 import java.io.PrintWriter
