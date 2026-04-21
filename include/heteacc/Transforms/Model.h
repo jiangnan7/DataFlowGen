@@ -5,10 +5,8 @@
 #include "mlir/IR/Dominance.h"
 #include "llvm/Support/JSON.h"
 
-
-namespace mlir{
-namespace heteacc{
-
+namespace mlir {
+namespace heteacc {
 
 // Get the operator name to latency/DSP usage mapping.
 void getLatencyMap(llvm::json::Object *config,
@@ -17,7 +15,7 @@ void getLatencyMap(llvm::json::Object *config,
 //                     llvm::StringMap<int64_t> &dspUsageMap);
 
 // class VectorModel
-//     : public 
-}   
-}
-#endif //MODEL_H
+//     : public
+} // namespace heteacc
+} // namespace mlir
+#endif // MODEL_H

@@ -6,17 +6,13 @@
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 
-
 namespace mlir {
-  
-namespace heteacc {
 
+namespace heteacc {
 
 using AffineLoopBand = llvm::SmallVector<AffineForOp, 6>;
 using AffineLoopBands = std::vector<AffineLoopBand>;
 using FactorList = SmallVector<unsigned, 8>;
-
-
 
 /// Ensure that all operations that could be executed after `start`
 /// (noninclusive) and prior to `memOp` (e.g. on a control flow/op path between
@@ -210,15 +206,12 @@ bool hasNoInterveningEffect(Operation *start, Operation *memOp, Value memref) {
   return !hasSideEffect;
 }
 
-
-void composeSetAndOperands(IntegerSet &set,
-                                  SmallVectorImpl<Value> &operands);
+void composeSetAndOperands(IntegerSet &set, SmallVectorImpl<Value> &operands);
 void composeAffineMapAndOperands(AffineMap *map,
-                                        SmallVectorImpl<Value> *operands) ;
+                                 SmallVectorImpl<Value> *operands);
 /// Compose any affine.apply ops feeding into `operands` of the integer set
 /// `set` by composing the maps of such affine.apply ops with the integer
 /// set constraints.
-
 
 /// Check whether the two given if statements have the same condition.
 bool checkSameIfStatement(AffineIfOp lhsOp, AffineIfOp rhsOp);
@@ -227,24 +220,22 @@ bool checkSameIfStatement(AffineIfOp lhsOp, AffineIfOp rhsOp);
 /// false, respectively. The returned result is one-hot.
 std::pair<bool, bool> ifAlwaysTrueOrFalse(AffineIfOp ifOp);
 
-
-//affine的优化
+// affine的优化
 /// Returns true if the provided value is the induction variable of a
 /// AffineForOp.
 bool isForInductionVar(Value val);
 
-// /// Returns the loop parent of an induction variable. If the provided value is
+// /// Returns the loop parent of an induction variable. If the provided value
+// is
 // /// not an induction variable, then return nullptr.
 // AffineForOp getForInductionVarOwner(Value val);
 
-
-//dialect
+// dialect
 /// For storing all affine memory access operations (including AffineLoadOp, and
 /// AffineStoreOp) indexed by the corresponding memref.
 using MemAccessesMap = DenseMap<Value, SmallVector<Operation *, 16>>;
 /// Collect all load and store operations in the block and return them in "map".
 void getMemAccessesMap(Block &block, MemAccessesMap &map);
-
 
 SmallVector<int64_t> createPermutationMap(ArrayRef<Value> vec1,
                                           ArrayRef<Value> vec2);
@@ -255,11 +246,9 @@ SmallVector<int64_t> createPermutationMap(ArrayRef<Value> vec1,
 void getLoopBands(Block &block, AffineLoopBands &bands,
                   bool allowHavingChilds = false);
 
-
 /// This is method for finding the number of child loops which immediatedly
 /// contained by the input operation.
 unsigned getChildLoopNum(Operation *op);
-
 
 /// Given a tiled loop band, return true and get the tile (tile-space) loop
 /// band and the point (intra-tile) loop band. If failed, return false.
@@ -267,15 +256,11 @@ bool getTileAndPointLoopBand(const AffineLoopBand &band,
                              AffineLoopBand &tileBand,
                              AffineLoopBand &pointBand);
 
-
-
 /// Get the whole loop band given the outermost or innermost loop and return it
 /// in "band". Meanwhile, the return value is the innermost or outermost loop of
 /// this loop band.
 AffineForOp getLoopBandFromOutermost(AffineForOp forOp, AffineLoopBand &band);
 AffineForOp getLoopBandFromInnermost(AffineForOp forOp, AffineLoopBand &band);
-
-
 
 //===----------------------------------------------------------------------===//
 // Memory and loop analysis utils
@@ -286,17 +271,13 @@ AffineForOp getLoopBandFromInnermost(AffineForOp forOp, AffineLoopBand &band);
 void adjustToDivisorsOfTripCounts(ArrayRef<AffineForOp> band,
                                   SmallVectorImpl<unsigned> *tileSizes);
 
-
 /// Calculate the upper and lower bound of the affine map if possible.
 Optional<std::pair<int64_t, int64_t>> getBoundOfAffineMap(AffineMap map,
                                                           ValueRange operands);
 
-
-
 /// Apply loop perfection. Try to sink all operations between loop statements
 /// into the innermost loop of the input loop band.
 bool applyAffineLoopPerfection(AffineLoopBand &band);
-
 
 /// Apply loop tiling to the input loop band and sink all intra-tile loops to
 /// the innermost loop with the original loop order.
@@ -307,27 +288,20 @@ bool applyLoopTiling(AffineLoopBand &band, FactorList tileList,
 /// moved to an as outer as possible location of the input loop band. If
 /// "reverse" is true, as inner as possible.
 bool applyAffineLoopPermutation(AffineLoopBand &band,
-                             ArrayRef<unsigned> permMap = {},
-                             bool reverse = false);
+                                ArrayRef<unsigned> permMap = {},
+                                bool reverse = false);
 
 /// Try to rectangularize the input band.
 bool applyEraseVariableBound(AffineLoopBand &band);
 
-
-
-
-bool applyFullyLoopUnrolling(Block &block, unsigned maxIterNum=10);
+bool applyFullyLoopUnrolling(Block &block, unsigned maxIterNum = 10);
 
 /// Apply loop pipelining to the pipelineLoc of the input loop band, all inner
 /// loops are automatically fully unrolled.
 bool applyLoopPipeline(AffineLoopBand &band, unsigned pipelineLoc,
-                         unsigned targetII);
+                       unsigned targetII);
 
-
-
-}// namespace hls
-}//namespace mlir            
-
+} // namespace heteacc
+} // namespace mlir
 
 #endif // MISC_UTILS_H
-

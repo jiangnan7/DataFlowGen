@@ -5,10 +5,8 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include <assert.h>
 
-
-namespace mlir{
-namespace heteacc{
-
+namespace mlir {
+namespace heteacc {
 
 // Return the number of lanes along the vectorized dimension for the vector
 // type. For a multidimensional vector, return the innermost dimension size
@@ -19,14 +17,9 @@ inline unsigned getVectorLaneSize(mlir::VectorType type) {
   return std::max(1u, (unsigned)dimSize);
 }
 
+bool applyOpFusion(func::FuncOp func);
 
- bool applyOpFusion(func::FuncOp func);
-
-
-
-
-}
-}
+} // namespace heteacc
+} // namespace mlir
 
 #endif // MISC_VECTORIZATION_UTILS_H
-
