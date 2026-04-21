@@ -5,7 +5,6 @@
 
 #include "heteacc/Dialect/Vectorization/Vectorization.h"
 
-
 using namespace mlir;
 using namespace heteacc;
 using namespace vectorization;
@@ -23,7 +22,8 @@ void VectorizationDialect::initialize() {
       >();
 }
 
-// void hello::ConstantOp::build(mlir::OpBuilder &builder, mlir::OperationState &state, double value) {
+// void hello::ConstantOp::build(mlir::OpBuilder &builder, mlir::OperationState
+// &state, double value) {
 //   auto dataType = RankedTensorType::get({}, builder.getF64Type());
 //   auto dataAttribute = DenseElementsAttr::get(dataType, value);
 //   hello::ConstantOp::build(builder, state, dataType, dataAttribute);
