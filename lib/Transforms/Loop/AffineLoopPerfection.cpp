@@ -1,7 +1,7 @@
 #include "mlir/IR/IntegerSet.h"
-#include "heteacc/Transforms/Passes.h"
-#include "mlir/IR/IntegerSet.h"
+
 #include "heteacc/Misc/Utils.h"
+#include "heteacc/Transforms/Passes.h"
 using namespace mlir;
 using namespace heteacc;
 
@@ -32,7 +32,8 @@ bool heteacc::applyAffineLoopPerfection(AffineLoopBand &band) {
           auto map = builder.getConstantAffineMap(0);
 
           builder.setInsertionPoint(band.front());
-          auto alloc = builder.create<memref::AllocOp>(loop.getLoc(), type);//BufferOp
+          auto alloc =
+              builder.create<memref::AllocOp>(loop.getLoc(), type); // BufferOp
           builder.setInsertionPointAfter(&op);
           builder.create<AffineStoreOp>(loop.getLoc(), result, alloc, map,
                                         ValueRange({}));
@@ -161,7 +162,6 @@ bool heteacc::applyAffineLoopPerfection(AffineLoopBand &band) {
   }
   return true;
 }
-
 
 namespace {
 struct AffineLoopPerfection

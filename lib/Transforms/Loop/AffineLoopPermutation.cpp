@@ -1,23 +1,20 @@
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
-
-#include "heteacc/Transforms/Passes.h"
 #include "mlir/IR/IntegerSet.h"
-#include "heteacc/Misc/Utils.h"
 
+#include "heteacc/Misc/Utils.h"
+#include "heteacc/Transforms/Passes.h"
 using namespace mlir;
 using namespace heteacc;
-
-
 
 /// Optimize loop order. Loops associated with memory access dependencies are
 /// moved to an as outer as possible location of the input loop band. If
 /// "reverse" is true, as inner as possible.
 bool heteacc::applyAffineLoopPermutation(AffineLoopBand &band,
-                                       ArrayRef<unsigned> permMap,
-                                       bool reverse) {
-//   LLVM_DEBUG(llvm::dbgs() << "Loop order opt ";);
+                                         ArrayRef<unsigned> permMap,
+                                         bool reverse) {
+  //   LLVM_DEBUG(llvm::dbgs() << "Loop order opt ";);
   assert(!band.empty() && "no loops provided");
 
   if (!isPerfectlyNested(band))
@@ -126,13 +123,13 @@ bool heteacc::applyAffineLoopPermutation(AffineLoopBand &band,
 
         // Check the validation of the current permutation.
         if (isValidLoopInterchangePermutation(band, permMap)) {
-        //   LLVM_DEBUG(llvm::dbgs() << "(";);
-        //   LLVM_DEBUG(for (unsigned i = 0, e = permMap.size(); i < e; ++i) {
-        //     llvm::dbgs() << permMap[i];
-        //     if (i != e - 1)
-        //       llvm::dbgs() << ",";
-        //   });
-        //   LLVM_DEBUG(llvm::dbgs() << ") ";);
+          //   LLVM_DEBUG(llvm::dbgs() << "(";);
+          //   LLVM_DEBUG(for (unsigned i = 0, e = permMap.size(); i < e; ++i) {
+          //     llvm::dbgs() << permMap[i];
+          //     if (i != e - 1)
+          //       llvm::dbgs() << ",";
+          //   });
+          //   LLVM_DEBUG(llvm::dbgs() << ") ";);
 
           auto newRoot = band[permuteLoops(band, permMap)];
           band.clear();
@@ -169,12 +166,13 @@ bool heteacc::applyAffineLoopPermutation(AffineLoopBand &band,
       }
   }
 
-//   LLVM_DEBUG(llvm::dbgs() << "\n";);
+  //   LLVM_DEBUG(llvm::dbgs() << "\n";);
   return true;
 }
 
 namespace {
-struct AffineLoopPermutation : public AffineLoopPermutationBase<AffineLoopPermutation> {
+struct AffineLoopPermutation
+    : public AffineLoopPermutationBase<AffineLoopPermutation> {
   void runOnOperation() override {
     // Collect all target loop bands.
     AffineLoopBands targetBands;

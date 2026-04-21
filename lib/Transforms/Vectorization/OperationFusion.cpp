@@ -1,8 +1,9 @@
-#include "mlir/IR/IntegerSet.h"
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Pass/PassManager.h"
@@ -10,14 +11,12 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/SmallSet.h"
-#include "heteacc/Transforms/Passes.h"
-#include "heteacc/Misc/VecUtils.h"
 
+#include "heteacc/Misc/VecUtils.h"
+#include "heteacc/Transforms/Passes.h"
 using namespace mlir;
 using namespace heteacc;
 using namespace vectorization;
-
-
 
 // Given the LHS and RHS of an `arith::AddIOp`, if one of them is defined by an
 // `arith::MulIOp`, return a tuple with the `lhs`, `rhs`, and `acc` of the MAC
@@ -89,7 +88,8 @@ extractMACOperandsFromAddOperands(Value addLhs, Value addRhs) {
 //     //   return failure();
 //     // Type accType = getVectorOpDestType(cast<VectorType>(acc.getType()),
 //     //                                    /*AIEML =*/true);
-//     // auto upsOp = rewriter.create<aievec::UPSOp>(addOp.getLoc(), accType, acc,
+//     // auto upsOp = rewriter.create<aievec::UPSOp>(addOp.getLoc(), accType,
+//     acc,
 //     //                                             shiftParam);//accType,
 //     rewriter.setInsertionPoint(addOp);
 //     auto fmaElemOp = rewriter.create<vector::FMAOp>(
@@ -98,8 +98,8 @@ extractMACOperandsFromAddOperands(Value addLhs, Value addRhs) {
 //         addOp, resultType, fmaElemOp.getResult());
 //     //  rewriter.eraseOp(mulOp);
 
-//     // rewriter.replaceOpWithNewOp(addOp, fmaElemOp.getResult()); //   rewriter.eraseOp(mulOp);
-//     return success();
+//     // rewriter.replaceOpWithNewOp(addOp, fmaElemOp.getResult()); //
+//     rewriter.eraseOp(mulOp); return success();
 //   }
 
 //   // unsigned shiftParam;
@@ -107,35 +107,35 @@ extractMACOperandsFromAddOperands(Value addLhs, Value addRhs) {
 
 // }
 
-bool heteacc::applyOpFusion(func::FuncOp func){
+bool heteacc::applyOpFusion(func::FuncOp func) {
   auto builder = OpBuilder(func);
   auto context = func.getContext();
 
-  func->walk([&] (arith::AddIOp addOp) {
-     VectorType resultType = dyn_cast<VectorType>(addOp.getType());
-     if(!resultType)
+  func->walk([&](arith::AddIOp addOp) {
+    VectorType resultType = dyn_cast<VectorType>(addOp.getType());
+    if (!resultType)
       return WalkResult::interrupt();
-     auto res =
+    auto res =
         extractMACOperandsFromAddOperands(addOp.getLhs(), addOp.getRhs());
-      if (!res)
-        return WalkResult::interrupt();
-      auto [lhs, rhs, acc] = *res; llvm::outs() << "return " << "\n";
-       lhs.getDefiningOp()->dump();
-        rhs.getDefiningOp()->dump();
-         acc.getDefiningOp()->dump();
+    if (!res)
+      return WalkResult::interrupt();
+    auto [lhs, rhs, acc] = *res;
+    llvm::outs() << "return "
+                 << "\n";
+    lhs.getDefiningOp()->dump();
+    rhs.getDefiningOp()->dump();
+    acc.getDefiningOp()->dump();
   });
-
 }
 
 namespace {
 
-
- struct ConvertMulAddToAIEVecFMAElemOpPattern
+struct ConvertMulAddToAIEVecFMAElemOpPattern
     : public OpRewritePattern<arith::AddFOp> {
   using OpRewritePattern<arith::AddFOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(arith::AddFOp addOp,
-                  PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
     // Verify it's a vector operation
     VectorType resultType = dyn_cast<VectorType>(addOp.getType());
 
@@ -176,7 +176,6 @@ namespace {
     // auto upsOp = rewriter.create<aievec::UPSOp>(addOp.getLoc(), accType, acc,
     //                                             shiftParam);//accType,
 
-
     //  VectorType resultType = dyn_cast<VectorType>(addOp.getType());
     //  if(!resultType)
     //   return WalkResult::interrupt();
@@ -188,22 +187,24 @@ namespace {
     //    lhs.getDefiningOp()->dump();
     //     rhs.getDefiningOp()->dump();
     //      acc.getDefiningOp()->dump();
- 
+
     rewriter.setInsertionPoint(addOp);
     auto fmaElemOp = rewriter.create<vector::FMAOp>(
-        addOp.getLoc(), addOp.getType(), lhs,rhs, acc);
+        addOp.getLoc(), addOp.getType(), lhs, rhs, acc);
     // rewriter.replaceOpWithNewOp<vector::FMAOp>(
     //     addOp, resultType, fmaElemOp.getResult());
     //  rewriter.eraseOp(mulOp);
 
-    rewriter.replaceOp(addOp, fmaElemOp.getResult()); //   rewriter.eraseOp(mulOp);
+    rewriter.replaceOp(addOp,
+                       fmaElemOp.getResult()); //   rewriter.eraseOp(mulOp);
     return success();
   }
 
   // unsigned shiftParam;
 };
 
-struct OperationFusion : public PassWrapper<OperationFusion, OperationPass<func::FuncOp>>  {
+struct OperationFusion
+    : public PassWrapper<OperationFusion, OperationPass<func::FuncOp>> {
 
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(OperationFusion)
   // In case we want to register this pass as a standalone pass for test
@@ -214,9 +215,8 @@ struct OperationFusion : public PassWrapper<OperationFusion, OperationPass<func:
   }
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<AffineDialect, 
-                    arith::ArithDialect, memref::MemRefDialect, scf::SCFDialect,
-                    vector::VectorDialect>();
+    registry.insert<AffineDialect, arith::ArithDialect, memref::MemRefDialect,
+                    scf::SCFDialect, vector::VectorDialect>();
   }
 
   void runOnOperation() override {
@@ -228,7 +228,7 @@ struct OperationFusion : public PassWrapper<OperationFusion, OperationPass<func:
     // target.addIllegalOp<Arith::MulOp, Arith::AddOp>();
     // target.addLegalOp<func::FuncOp, func::ReturnOp, func::CallOp>();
     patterns.add<ConvertMulAddToAIEVecFMAElemOpPattern>(context);
-(void)applyPatternsAndFoldGreedily(func, std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
     // if (failed(applyPartialConversion(func, target, std::move(patterns)))) {
     //   signalPassFailure();
     // }
