@@ -426,8 +426,6 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
 
   val s_idle :: s_active :: s_end :: Nil = Enum(3)
   val state = RegInit(s_idle)
-
-
   switch(state) {
     is(s_idle) {
       /**
@@ -615,8 +613,14 @@ class LoopBlockNodeExperimentalIO(NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts:
 
 }
 
-class LoopBlockNodeExperimental(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[Int],
-                    NumExits: Int, Debug: Boolean = false)
+class LoopBlockNodeExperimental(ID: Int,
+                    NumIns: Seq[Int],
+                    NumCarry: Seq[Int],
+                    NumOuts: Seq[Int],
+                    NumExits: Int,
+                    LoopCounterMax: Int = 100,
+                    LoopCounterStep: Int = 1,
+                    Debug: Boolean = false)
                    (implicit val p: Parameters,
                     name: sourcecode.Name,
                     file: sourcecode.File) extends Module with HasAccelParams with UniformPrintfs {
@@ -629,8 +633,11 @@ class LoopBlockNodeExperimental(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], N
   val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
   val (cycleCount, _) = Counter(true.B, 32 * 1024)
   override val printfSigil = "[" + module_name + "] " + node_name + ": " + ID + " "
+  require(LoopCounterMax >= 0, "LoopCounterMax must be non-negative")
+  require(LoopCounterStep > 0, "LoopCounterStep must be positive")
   val loopcounter=RegInit(0.U(32.W))
-  val loopcounterMAX = 195.U(32.W)
+  val loopcounterMAX = LoopCounterMax.U(32.W)
+  val loopcounterSTEP = LoopCounterStep.U(32.W)
   /**
     * Input signals and their latches
     */
@@ -714,99 +721,6 @@ class LoopBlockNodeExperimental(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], N
       in_live_out_valid_R(i) := true.B
     }
   }
-
-
-  // for (i <- 0 until NumCarry.length) {
-  //   val readyReduced = RegInit(false.B) // 定义寄存器来存储readyReduced信号
-  //   readyReduced := io.CarryDepenOut.elements(s"field$i").map(_.ready).reduce(_ && _)
-
-  // // 将readyReduced赋值给CarryDepenIn的ready信号
-  //   io.CarryDepenIn(i).ready := readyReduced
-  //   // for (j <- 0 until NumCarry(i)) {
-  //   //   io.CarryDepenIn(i).ready := io.CarryDepenOut.elements(s"field$i")(j).ready // Ensure output is properly connected
-  //   // }
-
-  //   // val fire_mask = for (i <- NumOuts.indices) yield {
-  //   //   val fire_mask_live_out = out_carry_out_fire_R(i) reduce (_ & _)
-  //   //   fire_mask_live_out
-  //   // }
-  //   // fire_mask.reduce(_ & _)
-
-  // }
-
-
-  // val CarryDepenIn = Vec(NumCarry.length, Flipped(Decoupled(new DataBundle())))
-  //数据接收者，ready 是output
-  // val CarryDepenOut = new VariableDecoupledVec(NumCarry)
-  ////数据消费者，ready input  valid 是output
-
-
-  // for (i <- 0 until NumCarry.length) {
-  //   io.CarryDepenIn(i).ready := ~in_carry_in_valid_R(i)
-  //   when(io.CarryDepenIn(i).fire) {
-  //     in_carry_in_R(i) <> io.CarryDepenIn(i).bits
-  //     in_carry_in_valid_R(i) := true.B
-  //   }
-  // }
-
-  // for (i <- NumCarry.indices) {
-  //   for (j <- 0 until NumCarry(i)) {
-  //     io.CarryDepenOut.elements(s"field$i")(j).bits <> in_carry_in_R(i)
-  //     io.CarryDepenOut.elements(s"field$i")(j).valid := out_carry_out_valid_R(i)(j)
-  //   }
-  // }
-
-  // for (i <- NumCarry.indices) {
-  //   for (j <- 0 until NumCarry(i)) {
-  //     when(io.CarryDepenOut.elements(s"field$i")(j).fire) {
-  //       out_carry_out_valid_R(i)(j) := false.B
-  //       out_carry_out_fire_R(i)(j) := true.B
-  //     }
-  //   }
-  // }
-
-  // for (i <- 0 until NumCarry.length) {
-  //   val tmp_data_out = Reg(new DataBundle())  // 使用寄存器来存储数据
-  //   val tmp_valid = RegInit(false.B)          // 使用寄存器来存储valid信号
-  // //  tmp_data_out := io.CarryDepenIn(i).bits
-  //   tmp_valid := false.B
-
-
-  //   val join = Module(new Join(1))
-  //   val oehb = Module(new OEHB(0))
-
-  //   join.pValid(0) := io.CarryDepenIn(i).valid
-  //   io.CarryDepenIn(i).ready := join.ready(0)
-  //   join.nReady := oehb.dataIn.ready
-  //   oehb.dataIn.bits := DontCare
-  //   oehb.dataIn.valid := join.valid
-  //       val readyReduced = RegInit(false.B) // 定义寄存器来存储readyReduced信号
-  //   readyReduced := io.CarryDepenOut.elements(s"field$i").map(_.ready).reduce(_ && _)
-
-
-  //    oehb.dataOut.ready := readyReduced
-  //   for (j <- 0 until NumCarry(i)) {
-
-  //     io.CarryDepenOut.elements(s"field$i")(j).bits := tmp_data_out // Ensure output is properly connected
-  //     io.CarryDepenOut.elements(s"field$i")(j).valid :=  oehb.dataIn.valid//tmp_valid//regblock(j).valid // Ensure output is properly connected
-  //   }
-  // }
-
-
-  // for (i <- 0 until NumCarry.length) {
-  //   val tehb = Module(new TEHB(32))
-  //   val oehb = Module(new OEHBCC(32))
-
-  //   // Ensure tehb and oehb are properly connected
-  //   tehb.dataIn <> io.CarryDepenIn(i) // Ensure input is properly connected
-  //   tehb.dataOut <> oehb.dataIn
-  //   for (j <- 0 until NumCarry(i)) {
-  //     io.CarryDepenOut.elements(s"field$i")(j) <> oehb.dataOut // Ensure output is properly connected
-  //   }
-
-
-  // }
-
   // Latch the exit signals
   for (i <- 0 until NumCarry.length) {
     io.CarryDepenIn(i).ready := ~in_carry_in_valid_R(i)
@@ -938,7 +852,7 @@ class LoopBlockNodeExperimental(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], N
 
   // Live outs are ready if all have fired
   def IsCarryDepenValid(): Bool = {
-    if (NumOuts.length == 0) {
+    if (NumCarry.length == 0) {
       return true.B
     } else {
       in_carry_in_valid_R.reduceLeft(_ && _)
@@ -978,20 +892,6 @@ class LoopBlockNodeExperimental(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], N
     }
   }
 
-  // def IsCarryOutFired(): Bool = {
-  //   if (NumOuts.length == 0) {
-  //     return true.B
-  //   }
-  //   else {
-  //     val fire_mask = for (i <- NumOuts.indices) yield {
-  //       val fire_mask_live_out = out_carry_out_fire_R(i) reduce (_ & _)
-  //       fire_mask_live_out
-  //     }
-  //     fire_mask.reduce(_ & _)
-  //   }
-
-  // }
-
   /**
     * State machines
     */
@@ -1023,17 +923,10 @@ class LoopBlockNodeExperimental(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], N
 
           //Change state
           state := s_active
-          // for (i <- 0 until NumCarry.length) {
-          //   io.CarryDepenIn(i).ready := true.B
-          //   for (j <- 0 until NumCarry(i)) {
-          //     io.CarryDepenOut.elements(s"field$i")(j).valid := true.B
-          //   }
-          // }
           if (log) {
             printf(p"[LOG] [${module_name}] [TID: ${io.activate_loop_start.bits.taskID}]" +
               p" [LOOP] [${node_name}] [RESTARTED] [Cycle: ${loopcounter}] [LoopCycle: ${cycleCount}]\n")
           }
-          // loopcounter := loopcounter + 4.U
 
         }.otherwise {
           //If loop is in the if(false) path, put some garbage value on handshaking
@@ -1053,11 +946,13 @@ class LoopBlockNodeExperimental(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], N
     }
     is(s_active) {
       when((loopcounter < loopcounterMAX)
-        && IsLiveInFired() ) { //&& IsCarryDepenValid()
+        && IsLiveInFired()
+        && IsLiveOutValid()
+        && IsCarryDepenValid()) {
           //When loop needs to repeat itself
           //Drive loop internal output signals
-          loopcounter := loopcounter + 4.U
-          active_loop_start_R := ControlBundle.deactivate(enable_R.taskID) //loop_back_R(0).taskID resource++ fmhz++
+          loopcounter := loopcounter + loopcounterSTEP
+          active_loop_start_R := ControlBundle.deactivate(enable_R.taskID)
           active_loop_start_valid_R := true.B
 
           active_loop_back_R := ControlBundle.active(enable_R.taskID)
@@ -1065,11 +960,6 @@ class LoopBlockNodeExperimental(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], N
 
           out_live_in_fire_R.foreach(_.foreach(_ := false.B))
           out_carry_out_fire_R.foreach(_.foreach(_ := false.B))
-          // for (i <- 0 until NumCarry.length) {
-          //   for (j <- 0 until NumCarry(i)) {
-          //     io.CarryDepenOut.elements(s"field$i")(j).valid := true.B
-          //   }
-          // }
           out_live_in_valid_R.foreach(_.foreach(_ := true.B))
           out_carry_out_valid_R.foreach(_.foreach(_ := true.B))
 
@@ -1086,7 +976,9 @@ class LoopBlockNodeExperimental(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], N
           }
 
 
-        }.elsewhen(((loopcounter === loopcounterMAX || loopcounter > loopcounterMAX) && IsLiveOutValid()) ) { //last iteration && IsLiveOutValid()
+        }.elsewhen((loopcounter >= loopcounterMAX)
+          && IsLiveOutValid()
+          && IsCarryDepenValid()) {
           // Fire live-outs and loop exit control signal
 
           out_live_out_valid_R.foreach(_.foreach(_ := true.B))
@@ -1114,7 +1006,7 @@ class LoopBlockNodeExperimental(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], N
 
     }
     is(s_end) {
-      when(IsExitsFired() && IsLiveOutFired()) {// && IsLiveOutFired()
+      when(IsExitsFired() && IsLiveOutFired()) {
 
         //Restart to initial state
 
