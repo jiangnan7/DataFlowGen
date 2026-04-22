@@ -186,6 +186,16 @@ class BasicBlockNode(NumInputs: Int,
   val predicate_debug = predicate_in_R.map(_.debug).reduce(_ | _)
 
   val start = (io.predicateIn.map(_.fire) zip predicate_valid_R) map { case (a, b) => a | b } reduce (_ & _)
+  val predicate_bits = predicate_in_R.indices.map { i =>
+    Mux(predicate_valid_R(i), predicate_in_R(i), io.predicateIn(i).bits)
+  }
+  val predicate_control = predicate_bits.map(_.control)
+  val fast_predicate = predicate_control.reduce(_ | _)
+  val fast_predicate_task = predicate_bits.map(_.taskID).reduce(_ | _)
+  val fast_predicate_debug = predicate_bits.map(_.debug).reduce(_ | _)
+  val out_ready_now = if (NumOuts == 0) true.B else io.Out.map(_.ready).reduce(_ && _)
+  val mask_ready_now = if (NumPhi == 0) true.B else io.MaskBB.map(_.ready).reduce(_ && _)
+  val fire_now = state === s_IDLE && start && out_ready_now && mask_ready_now
 
   /*===============================================*
    *            Latch inputs. Wire up output       *
@@ -204,13 +214,15 @@ class BasicBlockNode(NumInputs: Int,
   // Wire up Outputs
   for (i <- 0 until NumOuts) {
     io.Out(i).bits.control := true.B//predicate
-    io.Out(i).bits.taskID := predicate_task
-    io.Out(i).bits.debug := predicate_debug
+    io.Out(i).bits.taskID := Mux(fire_now, fast_predicate_task, predicate_task)
+    io.Out(i).bits.debug := Mux(fire_now, fast_predicate_debug, predicate_debug)
+    io.Out(i).valid := out_valid_R(i) || fire_now
   }
 
   // Wire up mask output
   for (i <- 0 until NumPhi) {
-    io.MaskBB(i).bits := predicate_control_R.asUInt
+    io.MaskBB(i).bits := Mux(fire_now, VecInit(predicate_control).asUInt, predicate_control_R.asUInt)
+    io.MaskBB(i).valid := mask_valid_R(i) || fire_now
   }
 
 
@@ -221,9 +233,12 @@ class BasicBlockNode(NumInputs: Int,
   switch(state) {
     is(s_IDLE) {
       when(start) {
-        ValidOut()
-        state := s_LATCH
-
+        when(fire_now) {
+          predicate_valid_R.foreach(_ := false.B)
+        }.otherwise {
+          ValidOut()
+          state := s_LATCH
+        }
       }
     }
     is(s_LATCH) {
