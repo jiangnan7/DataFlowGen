@@ -97,7 +97,32 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
   def initMem(memoryFile: String) = mem.initMem(memoryFile)
 
 
-  if (NumWrite == 0) {
+  if (NumRead == 1 && NumWrite == 0) {
+    mem.addr := DontCare
+    mem.r_en := false.B
+    mem.w_data := DontCare
+    mem.w_en := false.B
+
+    val buffer = Module(new TEHB())
+    buffer.dataIn.bits := DontCare
+    buffer.dataIn.valid := false.B
+    buffer.dataOut <> io.load_data(0)
+
+    val req_fire = io.load_address(0).valid && buffer.dataIn.ready
+    val resp_valid = RegNext(req_fire, false.B)
+
+    io.load_address(0).ready := buffer.dataIn.ready
+
+    when(req_fire) {
+      mem.r_en := true.B
+      mem.addr := io.load_address(0).bits.data
+    }
+
+    buffer.dataIn.valid := resp_valid
+    when(resp_valid) {
+      buffer.dataIn.bits.data := mem.r_data
+    }
+  } else if (NumWrite == 0) {
     mem.addr := DontCare
     mem.r_en := false.B
     mem.w_data := DontCare

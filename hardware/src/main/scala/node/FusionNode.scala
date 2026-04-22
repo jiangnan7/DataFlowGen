@@ -14,6 +14,7 @@ import muxes._
 import util._
 import heteacc.mul._
 import heteacc.fpu._
+import utility.UniformPrintfs
 class FusedComputeNodeIO(NumIns: Int, NumOuts: Int)
                    (implicit p: Parameters)
 extends HandShakingFusedIO (NumIns, NumOuts)(new DataBundle) {
@@ -26,12 +27,12 @@ class FusedComputeNode(NumIns: Int, NumOuts: Int, ID: Int, opCode: String)
   override lazy val io = IO(new FusedComputeNodeIO(NumIns, NumOuts))
   // Printf debugging
 
-def PrintOut(): Unit = {
-       for(i <- 0 until NumIns) yield {
-        		printf("\"O_%x(D,P)\" : \"%x,%x\",",i.U,InRegs(i).data,InRegs(i).predicate)
-        	}
-     
-}
+  def PrintOut(): Unit = {
+        for(i <- 0 until NumIns) yield {
+              printf("\"O_%x(D,P)\" : \"%x,%x\",",i.U,InRegs(i).data,InRegs(i).predicate)
+            }
+
+  }
 
 
 
@@ -47,20 +48,19 @@ def PrintOut(): Unit = {
    *           Predicate Evaluation           *
    *==========================================*/
 
-  val predicate = IsEnable() //IsInPredicate() & 
+  val predicate = IsEnable() //IsInPredicate() &
   val start = IsInValid() & IsEnableValid()
 
   /*===============================================*
    *            Latch inputs. Wire up output       *
    *===============================================*/
 
+  val fire_now = (state === s_COMPUTE) || start
 
-  when(start & state =/= s_COMPUTE) {
-  	state := s_COMPUTE
-
-    if (log) {  
+  when(start && (state =/= s_COMPUTE)) {
+    if (log) {
       printf(p"[LOG] [${module_name}]" +
-              p" [FUSION] [${node_name}] [Cycle: ${cycleCount}]\n")
+        p" [FUSION] [${node_name}] [Cycle: ${cycleCount}]\n")
     }
   }
 
@@ -68,16 +68,15 @@ def PrintOut(): Unit = {
    *            Output Handshaking and Reset  *
    *==========================================*/
   InvalidOut()
-  when(IsOutReady() & (state === s_COMPUTE)) {
-    //if (Debug) getData(state)
-    // Reset data
-    state := s_idle
-
-    // Valid out is a wire
+  when(fire_now) {
     ValidOut()
+  }
 
-    //Reset output
+  when(fire_now && IsOutReady()) {
+    state := s_idle
     Reset()
+  }.elsewhen(start && (state =/= s_COMPUTE)) {
+    state := s_COMPUTE
   }
   var signed = if (sign == true) "S" else "U"
   override val printfSigil = opCode + xlen +  "_" + signed + "_" + ID + ":"
@@ -85,7 +84,7 @@ def PrintOut(): Unit = {
   if (log == true && (comp contains "OP")) {
     val x = RegInit(0.U(xlen.W))
     x     := x + 1.U
-  
+
     verb match {
       case "high"  => { }
       case "med"   => { }
@@ -111,7 +110,7 @@ class Chain(ID: Int, NumOps: Int, OpCodes: Array[String])(sign: Boolean)(implici
   extends FusedComputeNode(NumIns = NumOps + 1, NumOuts = NumOps + 1, ID = ID,OpCodes.mkString("_"))(sign)(p)
 {
 
- // Declare chain of FUs 
+ // Declare chain of FUs
   val FUs = for (i <- 0 until OpCodes.length) yield {
     val FU = Module(new UALU(xlen, OpCodes(i)))
     FU
@@ -158,7 +157,7 @@ class FloatChain(ID: Int, NumOps: Int, OpCodes: Array[String])(sign: Boolean)(im
   extends FusedComputeNode(NumIns = NumOps + 1, NumOuts = NumOps + 1, ID = ID,OpCodes.mkString("_"))(sign)(p)
 {
 
-  // Declare chain of FUs 
+  // Declare chain of FUs
   val FUs = for (i <- 0 until OpCodes.length) yield {
     val FU = Module(new FPUALU(64, OpCodes(i), FType.D))
     FU
