@@ -321,9 +321,7 @@ class ComputeNodeWithoutStateSupportCarry(NumOuts: Int, ID: Int, opCode: String)
 
   // join.nReady := nReadyReg//io.Out(0).ready
 
-  val nReadyReg = RegNext(io.Out.map(_.ready).reduce(_ && _), false.B)
-
-  oehb.dataOut.ready := nReadyReg
+  oehb.dataOut.ready := io.Out.map(_.ready).reduce(_ && _)
   for (i <- 0 until NumOuts) {
     io.Out(i).valid := oehb.dataOut.valid
   }
