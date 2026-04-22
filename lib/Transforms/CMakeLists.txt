@@ -18,6 +18,8 @@ add_mlir_dialect_library(MLIRHLSTransforms
   Memory/SimplifyVectorMemrefAccess.cpp
   Memory/AnalyzeMemrefAddress.cpp
   Memory/GenerateGEP.cpp
+  Memory/MemoryScheduling.cpp
+
   Misc/Utils.cpp
   Misc/HybridAnalysis.cpp
   Misc/EvaluationModel.cpp
