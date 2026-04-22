@@ -9,6 +9,8 @@
 #include "heteacc/Misc/VecUtils.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
+#include <cstdlib>
 #include <numeric>
 #include <queue>
 #include <set>
@@ -17,6 +19,20 @@
 
 namespace mlir {
 namespace heteacc {
+
+namespace detail {
+
+[[noreturn]] inline void unsupportedGraphGenType(StringRef context, Type type) {
+  std::string message;
+  llvm::raw_string_ostream os(message);
+  os << "Unsupported type in GraphGen ";
+  os << context << ": ";
+  type.print(os);
+  llvm::errs() << os.str() << "\n";
+  std::abort();
+}
+
+} // namespace detail
 
 // #define DEBUG_TYPE "graph"
 struct LoopInfo {
@@ -478,8 +494,7 @@ public:
       this->memory_buffer_map[op] = this->dependency_graph->createBufferMemory(
           alloca_node, totalElements, elementByte);
     } else {
-      op.dump();
-      assert(!"Don't support for this alloca");
+      detail::unsupportedGraphGenType("alloca", elementType);
     }
   }
 
@@ -507,8 +522,7 @@ public:
       this->map_value_node[op.getResult()] = load_node;
       this->map_op_node[op.getOperation()] = load_node;
     } else {
-      op.dump();
-      assert(!"Don't support for this ");
+      detail::unsupportedGraphGenType("load", valueType);
     }
   }
 
@@ -536,8 +550,7 @@ public:
         store_node->setStaticFlag(true);
       this->map_op_node[op.getOperation()] = store_node;
     } else {
-      op.dump();
-      assert(!"Don't support for this ");
+      detail::unsupportedGraphGenType("store", valueType);
     }
   }
 

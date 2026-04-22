@@ -8,8 +8,28 @@
 #include "heteacc/Graph/Utils.h"
 #include "heteacc/Graph/Visitor.h"
 #include "heteacc/Transforms/Passes.h"
+#include "llvm/Support/raw_ostream.h"
+#include <cstdlib>
 using namespace mlir;
 using namespace heteacc;
+
+namespace {
+
+[[noreturn]] void unsupportedNodeType(Type type) {
+  std::string message;
+  llvm::raw_string_ostream os(message);
+  os << "Unsupported type in graph node handling: ";
+  type.print(os);
+  llvm::errs() << os.str() << "\n";
+  std::abort();
+}
+
+[[noreturn]] void fatalNodeLookupError(StringRef message) {
+  llvm::errs() << message << "\n";
+  std::abort();
+}
+
+} // namespace
 
 DataType heteacc::isDataType(Value arg) {
 
@@ -24,11 +44,9 @@ DataType heteacc::isDataType(Value arg) {
     return DataType::FloatType;
 
   } else if (type.isa<mlir::VectorType>()) {
-    assert(!"Unsuppported Type.");
-    return DataType::UknownType;
+    unsupportedNodeType(type);
   } else {
-    assert(!"Unsuppported Type.");
-    return DataType::UknownType;
+    unsupportedNodeType(type);
   }
 }
 
@@ -107,7 +125,7 @@ ContainerNode::insertLiveInArgument(Value val,
   } else if (val.getType().isa<mlir::VectorType>()) {
     valType = DataType::VectorType;
   } else {
-    assert(!"Unsuppported Type.");
+    unsupportedNodeType(val.getType());
   }
   switch (con_type) {
   case ContainerNode::ContainType::LoopNodeTy: {
@@ -169,11 +187,11 @@ ContainerNode::insertLiveInArgument(Value val,
       return ff->get();
 
     } else {
-      assert(!"Unsuppported Type.");
+      unsupportedNodeType(val.getType());
     }
   }
   default:
-    assert(!"Container type is unkonw!");
+    fatalNodeLookupError("Unknown container type");
   }
 }
 
@@ -192,7 +210,7 @@ ContainerNode::insertLiveOutArgument(Value val,
   } else if (val.getType().isa<mlir::VectorType>()) {
     valType = DataType::VectorType;
   } else {
-    assert(!"Unsuppported Type.");
+    unsupportedNodeType(val.getType());
   }
 
   auto ff = std::find_if(this->live_out_sets.begin(), this->live_out_sets.end(),
@@ -229,7 +247,7 @@ ContainerNode::insertCarryDepenArgument(Value val,
   } else if (val.getType().isa<mlir::VectorType>()) {
     valType = DataType::VectorType;
   } else {
-    assert(!"Unsuppported Type.");
+    unsupportedNodeType(val.getType());
   }
   auto ff =
       std::find_if(this->carry_depen_sets.begin(), this->carry_depen_sets.end(),
@@ -495,13 +513,10 @@ PortID Node::returnDataOutputPortIndex(Node *_node) {
                    this->port_data.data_output_port.end(),
                    [&_node](auto &arg) -> bool { return arg.first == _node; });
   if (ff == this->port_data.data_output_port.end()) {
-    assert(!"Node doesn't exist\n");
+    fatalNodeLookupError("Data output port node does not exist");
   }
 
-  return find_if(this->port_data.data_output_port.begin(),
-                 this->port_data.data_output_port.end(),
-                 [&_node](auto &arg) -> bool { return arg.first == _node; })
-      ->second;
+  return ff->second;
 }
 
 PortID Node::returnDataInputPortIndex(Node *_node) {
@@ -511,12 +526,9 @@ PortID Node::returnDataInputPortIndex(Node *_node) {
                    [&_node](auto &arg) -> bool { return arg.first == _node; });
 
   if (ff == this->port_data.data_input_port.end())
-    assert(!"Node doesn't exist\n");
+    fatalNodeLookupError("Data input port node does not exist");
 
-  return find_if(this->port_data.data_input_port.begin(),
-                 this->port_data.data_input_port.end(),
-                 [&_node](auto &arg) -> bool { return arg.first == _node; })
-      ->second;
+  return ff->second;
 }
 
 PortID Node::returnControlOutputPortIndex(Node *_node) {
@@ -526,7 +538,7 @@ PortID Node::returnControlOutputPortIndex(Node *_node) {
                    [&_node](auto &arg) -> bool { return arg.first == _node; });
 
   if (ff == this->port_control.control_output_port.end())
-    assert(!"Node doesn't exist\n");
+    fatalNodeLookupError("Control output port node does not exist");
 
   return ff->second;
 }
@@ -537,7 +549,7 @@ PortID Node::returnControlInputPortIndex(Node *_node) {
                     [&_node](auto &arg) -> bool { return arg.first == _node; });
 
   if (ff == this->port_control.control_input_port.end())
-    assert(!"Input node doesn't exist\n");
+    fatalNodeLookupError("Control input port node does not exist");
 
   return ff->second;
 }

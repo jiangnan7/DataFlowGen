@@ -244,18 +244,11 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
                 // coeffMap[level] += (elem.second * subDimsSpaceMap[i]);
                 if (elem.first < effectedLevels.size()) {
                   unsigned level = effectedLevels[elem.first];
-                  llvm::errs() << "d" << level << " " << elem.second << " ";
                   coeffMap[level] += (elem.second * subDimsSpaceMap[i]);
-                } else {
-                  llvm::errs() << "Out of bounds access attempt for level "
-                               << elem.first << "\n";
                 }
               }
-              llvm::errs() << "\n";
               i++;
             }
-            llvm::errs() << "elem type size: ";
-            memRef.getElementType().dump();
             // Add attributes
             for (unsigned l = 0; l < totalLevel; l++) {
               affineAttrs.push_back(coeffMap[l]);
@@ -286,15 +279,11 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
                 auto addrValue = addrValues.back();
                 addrValues.pop_back();
                 if (auto op = addrValue.getDefiningOp()) {
-                  llvm::errs() << "It is op: ";
-                  op->dump();
                   addrValues.insert(addrValues.end(), op->getOperands().begin(),
                                     op->getOperands().end());
                 } else {
-                  llvm::errs() << "It is NOT op: ";
                   for (auto &elem : level2IdxVarMap) {
                     if (elem.second == addrValue) {
-                      llvm::errs() << "level: " << elem.first << "\n";
                       involvedLevels.insert(elem.first);
                       break;
                     }
@@ -302,13 +291,6 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
                 }
               }
             }
-            llvm::errs() << "involved levels: ";
-            for (auto level : involvedLevels) {
-              llvm::errs() << level << " ";
-            }
-            llvm::errs() << "\n";
-            llvm::errs() << "--------------------------------------------------"
-                            "-----------\n";
             std::vector<int64_t> tempV;
             tempV.assign(involvedLevels.begin(), involvedLevels.end());
             auto invLevels = builder.getI64ArrayAttr(tempV);
@@ -317,74 +299,6 @@ struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
         }
       }
     }
-
-    /*
-    getOperation()->walk([&](AffineForOp affineFor) {
-      llvm::errs() << "<<<<<<<<<temp loop>>>>>>>>>\n"; affineFor->dump();
-      int step = affineFor.getStep();
-      int lowerbound = affineFor.getConstantLowerBound();
-      int upperbound = affineFor.getConstantUpperBound();
-      llvm::errs() << "step: " << step << "; lowerbound: " << lowerbound << ";
-    upperbound: " << upperbound << "\n"; llvm::errs() << "InductionVar: " ;
-      mlir::Value loopIdv = affineFor.getInductionVar();
-      loopIdv.dump();
-      // for(auto user : affineFor.getInductionVar().getUsers()){
-      //   user->dump();
-      // }
-
-      for (auto &op : affineFor.getBody()->getOperations()) {
-        if(dyn_cast<AffineForOp>(op)){
-          llvm::errs() << "disgusting affineFor\n" ;
-        }
-        if(auto load = dyn_cast<AffineLoadOp>(op)){
-          llvm::errs() << "Affine Load: "; load.dump();
-          auto affineMap = load.getAffineMap();
-          auto memoryShape = load.getMemRefType().getShape();
-          int i = 0;
-          std::vector<mlir::Attribute> affineAttrs;
-          std::map<unsigned, int64_t> coeffMap;
-          int64_t TotalOffset = 0;
-          // Traverse all the affineExpr, and extract coeff of each loop level.
-    Finally multiply with memory size in this dimension for (auto affineExpr :
-    affineMap.getResults()) { std::pair<std::map<unsigned, int64_t>, int64_t>
-    factorTable; factorTable.second = 0; affineExprAnalysis(affineExpr,
-    factorTable); llvm::errs() << "memory size: " << memoryShape[i] << "\n";
-            llvm::errs() << "offset: " << factorTable.second << "; ";
-            llvm::errs() << "coeff: ";
-            TotalOffset += factorTable.second * memoryShape[i];
-            for(auto &elem : factorTable.first){
-              unsigned level = elem.first;
-              llvm::errs() << "d" << level << " " << elem.second << " ";
-              coeffMap[level] += (elem.second * memoryShape[i]);
-            }
-            llvm::errs() << "\n";
-            i++;
-          }
-          llvm::errs() << "elem type size: ";
-    load.getMemRefType().getElementType().dump();
-
-        }else if(auto store = dyn_cast<AffineStoreOp>(op)){
-          llvm::errs() << "Affine Store: "; store.dump();
-          auto affineMap = store.getAffineMap();
-
-          for (auto affineExpr : affineMap.getResults()) {
-            // pair<coeffMap<level, coeff>, offset>
-            std::pair<std::map<unsigned, int64_t>, int64_t> factorTable;
-    factorTable.second = 0; affineExprAnalysis(affineExpr, factorTable);
-            llvm::errs() << "offset: " << factorTable.second << "\n";
-            llvm::errs() << "coeff: ";
-            for(auto &elem : factorTable.first){
-              unsigned dim = elem.first;
-              llvm::errs() << "d" << dim << " " << elem.second << " ";
-            }
-            llvm::errs() << "\n";
-          }
-        }
-        // llvm::errs() << i++ << ": " << op->getName().getStringRef() << "  ";
-    op->dump();
-      }
-    });
-    */
   }
 };
 

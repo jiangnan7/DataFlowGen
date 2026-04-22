@@ -108,9 +108,6 @@ extractMACOperandsFromAddOperands(Value addLhs, Value addRhs) {
 // }
 
 bool heteacc::applyOpFusion(func::FuncOp func) {
-  auto builder = OpBuilder(func);
-  auto context = func.getContext();
-
   func->walk([&](arith::AddIOp addOp) {
     VectorType resultType = dyn_cast<VectorType>(addOp.getType());
     if (!resultType)
@@ -119,13 +116,10 @@ bool heteacc::applyOpFusion(func::FuncOp func) {
         extractMACOperandsFromAddOperands(addOp.getLhs(), addOp.getRhs());
     if (!res)
       return WalkResult::interrupt();
-    auto [lhs, rhs, acc] = *res;
-    llvm::outs() << "return "
-                 << "\n";
-    lhs.getDefiningOp()->dump();
-    rhs.getDefiningOp()->dump();
-    acc.getDefiningOp()->dump();
+    (void)*res;
+    return WalkResult::advance();
   });
+  return true;
 }
 
 namespace {

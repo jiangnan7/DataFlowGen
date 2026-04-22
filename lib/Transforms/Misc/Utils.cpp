@@ -177,7 +177,6 @@ heteacc::getBoundOfAffineMap(AffineMap map, ValueRange operands) {
 /// Collect all load and store operations in the block and return them in "map".
 void heteacc::getMemAccessesMap(Block &block, MemAccessesMap &map) {
   for (auto &op : block) {
-    op.dump();
     if (auto load = dyn_cast<AffineReadOpInterface>(op)) {
       map[load.getMemRef()].push_back(&op);
     } else if (auto store = dyn_cast<AffineWriteOpInterface>(op))
