@@ -1,7 +1,6 @@
 #ifndef NODE_STRUCTURE_H
 #define NODE_STRUCTURE_H
 
-#include "heteacc/Graph/Graph.h"
 #include "heteacc/Graph/Utils.h"
 #include "heteacc/Graph/Visitor.h"
 #include "heteacc/InitAllDialects.h"

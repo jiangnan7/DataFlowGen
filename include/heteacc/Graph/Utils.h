@@ -1,10 +1,9 @@
 #ifndef GRAPH_UTILS_H
 #define GRAPH_UTILS_H
 
-#include "heteacc/Graph/Graph.h"
-#include "heteacc/Graph/Node.h"
-#include "heteacc/Graph/Utils.h"
-#include "heteacc/Graph/Visitor.h"
+#include "heteacc/InitAllDialects.h"
+#include <string>
+#include <vector>
 
 namespace mlir {
 namespace heteacc {

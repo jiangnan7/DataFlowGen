@@ -19,15 +19,12 @@
 #include "heteacc/InitAllDialects.h"
 #include "heteacc/InitAllPasses.h"
 
-
 int main(int argc, char **argv) {
 
   mlir::DialectRegistry registry;
   mlir::heteacc::registerAllDialects(registry);
   mlir::heteacc::registerAllPasses();
 
-
   return mlir::failed(mlir::MlirOptMain(
       argc, argv, "HETEACC Optimization Tool", registry, true));
 }
-

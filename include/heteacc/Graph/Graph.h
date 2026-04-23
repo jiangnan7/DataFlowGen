@@ -1,12 +1,17 @@
 #ifndef GRAPH_STRUCTURE_H
 #define GRAPH_STRUCTURE_H
 
-#include "heteacc/Graph/Node.h"
-#include "heteacc/Graph/Utils.h"
-#include "heteacc/Graph/Visitor.h"
-#include "heteacc/InitAllDialects.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
+#include <list>
+#include <map>
+#include <memory>
+#include <unordered_map>
+#include <utility>
+
+#include "heteacc/Graph/Node.h"
+#include "heteacc/Graph/Visitor.h"
+#include "heteacc/InitAllDialects.h"
 namespace mlir {
 namespace heteacc {
 
@@ -16,6 +21,10 @@ class ComputeOperationNode;
 class OperationNode;
 class MemoryNode;
 class CmpNode;
+class LoopNode;
+class ExecutionBlockNode;
+class FineArgCallNode;
+class ConstNode;
 class Edge;
 
 using ArgumentList = std::list<std::unique_ptr<ArgumentNode>>;
