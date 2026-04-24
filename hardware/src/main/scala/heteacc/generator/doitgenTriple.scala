@@ -34,142 +34,102 @@ abstract class doitgenTripleDFIO(implicit val p: Parameters) extends Module with
 
 class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
 
-  val FineGrainedArgCall = Module(new SplitCallDCR(argTypes = List(1, 1, 1 )))
+  val FineGrainedArgCall = Module(new SplitCallDCR(argTypes = List(1, 1, 1)))
   FineGrainedArgCall.io.In <> io.in
 
-  val mem_ctrl_cache = Module(new MemoryEngine(Size=272, ID = 0, NumRead = 2, NumWrite = 0))
+  val mem_ctrl_cache = Module(new MemoryEngine(Size = 272, ID = 0, NumRead = 2, NumWrite = 0))
   mem_ctrl_cache.initMem("dataset/doitgenTriple/in.txt")
-  
-  val mem_ctrl_cache_store = Module(new MemoryEngine(Size=16, ID = 0, NumRead = 0, NumWrite = 1))
+
+  val mem_ctrl_cache_store = Module(new MemoryEngine(Size = 16, ID = 0, NumRead = 0, NumWrite = 1))
   mem_ctrl_cache_store.initMem("dataset/doitgenTriple/sum.txt")
 
   /* ================================================================== *
-   *                   Printing Const nodes.                            *
+   *                   Const nodes.                                     *
    * ================================================================== */
 
-  //%c0 = arith.constant 0 : index
   val int_const_1 = Module(new ConstFastNode(value = 0, ID = 2))
 
-  //%c0 = arith.constant 0 : index
-  val int_const_2 = Module(new ConstFastNode(value = 0, ID = 2))
-
-  //%c16 = arith.constant 16 : index
   val int_const_3 = Module(new ConstFastNode(value = 16, ID = 3))
 
-  //%c0_i32 = arith.constant 0 : i32
   val int_const_4 = Module(new ConstFastNode(value = 0, ID = 4))
 
-  //%c1 = arith.constant 1 : index
   val int_const_5 = Module(new ConstFastNode(value = 1, ID = 5))
 
-  //%c16 = arith.constant 16 : index
-  val int_const_6 = Module(new ConstFastNode(value = 16, ID = 6))
-
-  //%c1 = arith.constant 1 : index
   val int_const_7 = Module(new ConstFastNode(value = 1, ID = 7))
 
-  //%c16 = arith.constant 16 : index
   val int_const_8 = Module(new ConstFastNode(value = 16, ID = 8))
 
-
-
   /* ================================================================== *
-   *                   Printing Execution Block nodes.                  *
+   *                   Execution Block nodes.                           *
    * ================================================================== */
 
-  val exe_block_0 = Module(new BasicBlockNode(NumInputs = 2, NumOuts = 23, NumPhi = 2, BID = 0))
+  val exe_block_0 = Module(new BasicBlockNode(NumInputs = 2, NumOuts = 5, NumPhi = 1, BID = 0))
 
-  val exe_block_1 = Module(new BasicBlockNode(NumInputs = 2, NumOuts = 6, NumPhi = 0, BID = 1))
-
-
+  val exe_block_1 = Module(new BasicBlockNode(NumInputs = 2, NumOuts = 2, NumPhi = 0, BID = 1))
 
   /* ================================================================== *
-   *                   Printing Operation nodes. 25                     *
+   *                   Operation nodes.                                 *
    * ================================================================== */
 
-  //dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
   val state_branch_0 = Module(new UBranchNode(ID = 0))
 
-  //%6 = dataflow.merge %c0_i32 or %arg5 {Select = "Loop_Signal"} : i32
   val merge_2 = Module(new MergeNode(NumInputs = 2, NumOutputs = 2, ID = 2, Res = false))
 
-  //%7 = dataflow.merge %c0 or %arg4 {Select = "Loop_Signal"} : index
-  val merge_3 = Module(new MergeNode(NumInputs = 2, NumOutputs = 3, ID = 3, Res = false))
-
-  //%8 = dataflow.addr %arg0[%7] {memShape = [16]} : memref<16xi32>[index] -> i32
   val address_4 = Module(new GepNodeWithoutState(NumIns = 1, NumOuts = 1, ID = 4)(ElementSize = 1, ArraySize = List()))
 
-  //%9 = dataflow.load %8 : i32 -> i32
   val load_5 = Module(new Load(NumOuts = 3, ID = 5, RouteID = 0))
 
-  //%10 = arith.muli %0, %c16 : index
   val int_mul_6 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 6, opCode = "Mul")(sign = false, Debug = false))
 
-  //%11 = arith.addi %7, %10 : index
   val int_add_7 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 7, opCode = "Add")(sign = false, Debug = false))
 
-  //%12 = dataflow.addr %arg2[%11] {memShape = [256]} : memref<256xi32>[index] -> i32
   val address_8 = Module(new GepNodeWithoutState(NumIns = 1, NumOuts = 1, ID = 8)(ElementSize = 1, ArraySize = List()))
 
-  //%13 = dataflow.load %12 : i32 -> i32
   val load_9 = Module(new Load(NumOuts = 2, ID = 9, RouteID = 1))
 
-  //%14 = arith.cmpi sgt, %9, %c0_i32 : i32
   val int_cmp_10 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 10, opCode = "sgt")(sign = false, Debug = false))
 
-  //%15 = arith.muli %9, %13 : i32
   val int_mul_11 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 11, opCode = "Mul")(sign = false, Debug = false))
 
-  //%16 = arith.addi %15, %13 : i32
   val int_add_12 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 12, opCode = "Add")(sign = false, Debug = false))
 
-  //%17 = arith.muli %16, %9 : i32
   val int_mul_13 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 13, opCode = "Mul")(sign = false, Debug = false))
 
-  //%18 = arith.addi %6, %17 : i32
   val int_add_14 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 14, opCode = "Add")(sign = false, Debug = false))
 
-  //%19 = dataflow.select %14, %18, %6 : i32
   val select_15 = Module(new SelectNodeWithoutState(NumOuts = 2, ID = 15))
 
-  //%20 = arith.addi %7, %c1 {Exe = "Loop"} : index
-  val int_add_16 = Module(new ComputeNodeWithoutState(NumOuts = 2, ID = 16, opCode = "Add")(sign = false, Debug = false))
+  val int_add_16 = Module(new ComputeNodeWithoutStateSupportCarry(NumOuts = 1, ID = 16, opCode = "Add")(sign = false, Debug = false))
 
-  //%21 = arith.cmpi eq, %20, %c16 {Exe = "Loop"} : index
-  val int_cmp_17 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 17, opCode = "eq")(sign = false, Debug = false))
-
-  //dataflow.state %21, "loop_exit" or "loop_back" {Exe = "Loop"} : i1
-  val state_branch_18 = Module(new CBranchNodeVariable(NumTrue = 1, NumFalse = 1, NumPredecessor = 0, ID = 18))
-
-  //%2 = dataflow.addr %arg1[%0] {memShape = [16]} : memref<16xi32>[index] -> i32
   val address_19 = Module(new GepNodeWithoutState(NumIns = 1, NumOuts = 1, ID = 19)(ElementSize = 1, ArraySize = List()))
 
-  //dataflow.store %1 %2 : i32 i32
   val store_20 = Module(new Store(NumOuts = 1, ID = 20, RouteID = 2))
 
-  //%3 = arith.addi %0, %c1 {Exe = "Loop"} : index
   val int_add_21 = Module(new ComputeNodeWithoutState(NumOuts = 2, ID = 21, opCode = "Add")(sign = false, Debug = false))
 
-  //%4 = arith.cmpi eq, %3, %c16 {Exe = "Loop"} : index
   val int_cmp_22 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 22, opCode = "eq")(sign = false, Debug = false))
 
-  //dataflow.state %4, "loop_exit" or "loop_back" {Exe = "Loop"} : i1
   val state_branch_23 = Module(new CBranchNodeVariable(NumTrue = 1, NumFalse = 1, NumPredecessor = 0, ID = 23))
 
-  //func.return
   val return_24 = Module(new RetNode2(retTypes = List(), ID = 24))
 
-
-
   /* ================================================================== *
-   *                   Printing Loop nodes.                             *
+   *                   Loop nodes.                                      *
    * ================================================================== */
 
-  val loop_0 = Module(new LoopBlockNode(NumIns = List(1, 1, 1), NumOuts = List(1), NumCarry = List(1, 1), NumExits = 1, ID = 0))
+  val loop_0 = Module(new LoopBlockNodeExperimental(
+    NumIns = List(1, 1, 1),
+    NumOuts = List(1),
+    NumCarry = List(1),
+    NumExits = 1,
+    ID = 0,
+    LoopCounterMax = 16,
+    LoopCounterStep = 1
+  ))
 
   val loop_1 = Module(new LoopBlockNode(NumIns = List(1, 1, 1), NumOuts = List(), NumCarry = List(3), NumExits = 1, ID = 1))
 
-  loop_1.io.loopExit(0) <>  return_24.io.In.enable
+  loop_1.io.loopExit(0) <> return_24.io.In.enable
 
   /* ================================================================== *
    *                   Control Signal.                                  *
@@ -185,16 +145,11 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
 
   exe_block_1.io.predicateIn(1) <> loop_1.io.activate_loop_back
 
-
-
   /* ================================================================== *
    *                   Loop Control Signal.                             *
    * ================================================================== */
+
   loop_0.io.enable <> exe_block_1.io.Out(0)
-
-  loop_0.io.loopBack(0) <> state_branch_18.io.FalseOutput(0)
-
-  loop_0.io.loopFinish(0) <> state_branch_18.io.TrueOutput(0)
 
   loop_1.io.enable <> state_branch_0.io.Out(0)
 
@@ -204,20 +159,9 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
 
   store_20.io.Out(0).ready := true.B
 
-
-
-
-
-  /* ================================================================== *
-   *                   Loop dependencies.                               *
-   * ================================================================== */
-
-
-
   /* ================================================================== *
    *                   Input Data dependencies.                         *
    * ================================================================== */
-
 
   loop_0.io.InLiveIn(0) <> loop_1.io.OutLiveIn.elements("field1")(0)
 
@@ -225,15 +169,11 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
 
   loop_0.io.InLiveIn(2) <> loop_1.io.OutLiveIn.elements("field2")(0)
 
-
-
-  
   loop_1.io.InLiveIn(0) <> FineGrainedArgCall.io.Out.data.elements("field1")(0)
 
   loop_1.io.InLiveIn(1) <> FineGrainedArgCall.io.Out.data.elements("field0")(0)
 
   loop_1.io.InLiveIn(2) <> FineGrainedArgCall.io.Out.data.elements("field2")(0)
-
 
   /* ================================================================== *
    *                   Live-in dependencies.                            *
@@ -244,10 +184,8 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
   int_mul_6.io.RightIO <> loop_0.io.OutLiveIn.elements("field1")(0)
 
   address_8.io.baseAddress <> loop_0.io.OutLiveIn.elements("field2")(0)
-    
-  address_19.io.baseAddress <> loop_1.io.OutLiveIn.elements("field0")(0)
 
-  
+  address_19.io.baseAddress <> loop_1.io.OutLiveIn.elements("field0")(0)
 
   /* ================================================================== *
    *                   Output Data dependencies.                        *
@@ -255,49 +193,37 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
 
   loop_0.io.InLiveOut(0) <> select_15.io.Out(0)
 
-
-
   /* ================================================================== *
    *                   Live-out dependencies.                           *
    * ================================================================== */
 
+  loop_0.io.OutLiveOut.elements("field0")(0) <> store_20.inData
 
- loop_0.io.OutLiveOut.elements("field0")(0) <> store_20.inData
+  store_20.GepAddr <> address_19.io.Out(0)
 
- store_20.GepAddr <> address_19.io.Out(0)
   /* ================================================================== *
-   *                   Carry dependencies                               *
+   *                   Carry dependencies.                              *
    * ================================================================== */
 
-  loop_0.io.CarryDepenIn(0) <> int_add_16.io.Out(1) 
+  loop_0.io.CarryDepenIn(0) <> select_15.io.Out(1)
 
-  merge_3.io.InData(1) <> loop_0.io.CarryDepenOut.elements("field0")(0)
-
-  loop_0.io.CarryDepenIn(1) <> select_15.io.Out(1)
-
-  merge_2.io.InData(1) <> loop_0.io.CarryDepenOut.elements("field1")(0)
+  merge_2.io.InData(1) <> loop_0.io.CarryDepenOut.elements("field0")(0)
 
   loop_1.io.CarryDepenIn(0) <> int_add_21.io.Out(1)
 
   /* ================================================================== *
-   *                   Printing Connection.                             *
+   *                   Connections.                                     *
    * ================================================================== */
 
   merge_2.io.Mask <> exe_block_0.io.MaskBB(0)
 
-  merge_3.io.Mask <> exe_block_0.io.MaskBB(1)
-
   merge_2.io.InData(0) <> int_const_1.io.Out
-
-  merge_3.io.InData(0) <> int_const_2.io.Out
 
   int_mul_6.io.LeftIO <> int_const_3.io.Out
 
-  int_cmp_10.io.LeftIO <> load_5.io.Out(0)
+  int_cmp_10.io.RightIO <> int_const_4.io.Out
 
-  int_add_16.io.LeftIO <> int_const_5.io.Out
-
-  int_cmp_17.io.LeftIO <> int_const_6.io.Out
+  int_add_16.io.RightIO <> int_const_5.io.Out
 
   int_add_21.io.LeftIO <> int_const_7.io.Out
 
@@ -307,19 +233,19 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
 
   int_add_21.io.RightIO <> loop_1.io.CarryDepenOut.elements("field0")(2)
 
+  int_cmp_22.io.RightIO <> int_add_21.io.Out(0)
+
   int_add_14.io.LeftIO <> merge_2.io.Out(0)
 
   select_15.io.InData2 <> merge_2.io.Out(1)
 
-  address_4.io.idx(0) <> merge_3.io.Out(0)
+  address_4.io.idx(0) <> int_add_16.io.Out(0)
 
-  int_add_7.io.LeftIO <> merge_3.io.Out(1)
-
-  int_add_16.io.RightIO <> merge_3.io.Out(2)
+  int_add_7.io.LeftIO <> int_add_16.io.Out(0)
 
   load_5.GepAddr <> address_4.io.Out(0)
 
-  int_cmp_10.io.RightIO <> int_const_4.io.Out
+  int_cmp_10.io.LeftIO <> load_5.io.Out(0)
 
   int_mul_11.io.LeftIO <> load_5.io.Out(1)
 
@@ -345,99 +271,39 @@ class doitgenTripleDF(implicit p: Parameters) extends doitgenTripleDFIO()(p){
 
   select_15.io.InData1 <> int_add_14.io.Out(0)
 
-  int_cmp_17.io.RightIO <> int_add_16.io.Out(0)
-
-  state_branch_18.io.CmpIO <> int_cmp_17.io.Out(0)
-
-  int_cmp_22.io.RightIO <> int_add_21.io.Out(0)
-
   state_branch_23.io.CmpIO <> int_cmp_22.io.Out(0)
 
-      mem_ctrl_cache.io.load_address(0) <> load_5.address_out
+  mem_ctrl_cache.io.load_address(0) <> load_5.address_out
 
   load_5.data_in <> mem_ctrl_cache.io.load_data(0)
 
-
-    mem_ctrl_cache.io.load_address(1) <> load_9.address_out
+  mem_ctrl_cache.io.load_address(1) <> load_9.address_out
 
   load_9.data_in <> mem_ctrl_cache.io.load_data(1)
-
 
   mem_ctrl_cache_store.io.store_address(0) <> store_20.address_out
 
   store_20.io.Out(0) <> mem_ctrl_cache_store.io.store_data(0)
 
-
-
   /* ================================================================== *
-   *                   Printing Execution Block Enable.                 *
+   *                   Execution Block Enable.                          *
    * ================================================================== */
 
   int_const_1.io.enable <> exe_block_0.io.Out(0)
 
-  int_const_2.io.enable <> exe_block_0.io.Out(1)
+  int_const_3.io.enable <> exe_block_0.io.Out(1)
 
-  int_const_3.io.enable <> exe_block_0.io.Out(2)
+  int_const_4.io.enable <> exe_block_0.io.Out(2)
 
-  int_const_4.io.enable <> exe_block_0.io.Out(3)
+  int_const_5.io.enable <> exe_block_0.io.Out(3)
 
-  int_const_5.io.enable <> exe_block_0.io.Out(4)
+  merge_2.io.enable <> exe_block_0.io.Out(4)
 
-  int_const_6.io.enable <> exe_block_0.io.Out(5)
+  int_const_7.io.enable <> exe_block_1.io.Out(0)
 
-  merge_2.io.enable <> exe_block_0.io.Out(6)
-
-  merge_3.io.enable <> exe_block_0.io.Out(7)
-
-  address_4.io.enable <> exe_block_0.io.Out(8)
-
-  load_5.io.enable <> exe_block_0.io.Out(9)
-
-  int_mul_6.io.enable <> exe_block_0.io.Out(10)
-
-  int_add_7.io.enable <> exe_block_0.io.Out(11)
-
-  address_8.io.enable <> exe_block_0.io.Out(12)
-
-  load_9.io.enable <> exe_block_0.io.Out(13)
-
-  int_cmp_10.io.enable <> exe_block_0.io.Out(14)
-
-  int_mul_11.io.enable <> exe_block_0.io.Out(15)
-
-  int_add_12.io.enable <> exe_block_0.io.Out(16)
-
-  int_mul_13.io.enable <> exe_block_0.io.Out(17)
-
-  int_add_14.io.enable <> exe_block_0.io.Out(18)
-
-  select_15.io.enable <> exe_block_0.io.Out(19)
-
-  int_add_16.io.enable <> exe_block_0.io.Out(20)
-
-  int_cmp_17.io.enable <> exe_block_0.io.Out(21)
-
-  state_branch_18.io.enable <> exe_block_0.io.Out(22)
-
-  // int_const_0.io.enable <> exe_block_1.io.Out(1)
-
-  int_const_7.io.enable <> exe_block_1.io.Out(2)
-
-  int_const_8.io.enable <> exe_block_1.io.Out(3)
-
-  // merge_1.io.enable <> exe_block_1.io.Out(4)
-
-  address_19.io.enable <> exe_block_1.io.Out(5)
-
-  store_20.io.enable <> exe_block_1.io.Out(4)
-
-  int_add_21.io.enable <> exe_block_1.io.Out(0)
-
-  int_cmp_22.io.enable <> exe_block_1.io.Out(1)
+  int_const_8.io.enable <> exe_block_1.io.Out(1)
 
   state_branch_23.io.enable <> loop_0.io.loopExit(0)
 
   io.out <> return_24.io.Out
-
 }
-

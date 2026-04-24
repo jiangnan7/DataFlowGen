@@ -62,21 +62,21 @@ class sumi3_mem_mtest01[T <: AccelIO](c: T)
                                        outAddrVec: List[Int], outDataVec: List[Int])
   extends AccelTesterLocal(c)(inAddrVec, inDataVec, outAddrVec, outDataVec) {
 
-  
+
   poke(c.io.in.valid, false)
   poke(c.io.in.bits.data("field0").data, 0.U)
   // poke(c.io.in.bits.data("field0").taskID, 0.U)
   poke(c.io.in.bits.data("field0").predicate, false.B)
   poke(c.io.out.ready, false.B)
 
-  
+
   step(1)
   poke(c.io.in.bits.enable.control, true)
   poke(c.io.in.valid, true)
   poke(c.io.in.bits.data("field0").data, 0.U) // Array a[] base address
   poke(c.io.in.bits.data("field0").predicate, true)
   poke(c.io.out.ready, true.B)
- 
+
   var time = 0 //Cycle counter
   var result = false
   while (time < 2000 && !result) {
@@ -84,11 +84,11 @@ class sumi3_mem_mtest01[T <: AccelIO](c: T)
     step(1)
     val data = peek(c.io.out.bits.data("field0").data)
 
-    println(Console.RED + s"*** Got $data. Hoping for 49005000" + Console.RESET) 
+    println(Console.RED + s"*** Got $data. Hoping for 49005000" + Console.RESET)
 
     if (peek(c.io.out.valid) == 1) {
       result = true
-    
+
       println(Console.BLUE + s"*** Bgemm finished. Run time: $time cycles." + Console.RESET)
     }
   }
@@ -124,7 +124,7 @@ class sumi3_memDF_test extends FlatSpec with Matchers {
         "-td", s"test_run_dir/sumi3_memDF",
         "-tts", "0001",
         "--generate-vcd-output", "on"),
-        
+
       () => new sumi3_mem_main()(p)) {
       c => new sumi3_mem_mtest01(c)(inAddrVec, inDataVec, outAddrVec, outDataVec)
     } should be(true)
