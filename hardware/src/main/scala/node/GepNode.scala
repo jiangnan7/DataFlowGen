@@ -217,3 +217,129 @@ class GepNodeWithoutState(NumIns: Int, NumOuts: Int, ID: Int)
 
 
 }
+
+
+
+class GepNodeWithVectorizationIO(NumIns: Int, NumOuts: Seq[Int], NumLanes: Int)
+                                            (implicit p: Parameters) extends AccelBundle {
+  val baseAddress = Flipped(Decoupled(new DataBundle()))
+  val idx = Vec(NumIns, Flipped(Decoupled(new DataBundle())))
+  val Out = new VariableDecoupledVec(NumOuts)
+}
+
+
+class GepNodeWithVectorization(NumIns: Int, NumOuts: Seq[Int], NumLanes: Int, ID: Int)
+                              (ElementSize: Int, ArraySize: List[Int])
+                              (implicit val p: Parameters,
+                               name: sourcecode.Name,
+                               file: sourcecode.File) extends Module with HasAccelParams   {
+
+  val io = IO(new GepNodeWithVectorizationIO(NumIns, NumOuts, NumLanes))
+
+  val node_name = name.value
+  val module_name = file.value.split("/").last.split("\\.").head.capitalize
+  val (cycleCount, _) = Counter(true.B, 32 * 1024)
+
+  /*===========================================*
+   *            Registers                      *
+   *===========================================*/
+
+  private val join = Module(new Join())
+  private val oehb = Module(new OEHB(0))
+
+  join.pValid(0) := io.baseAddress.valid
+  join.pValid(1) := io.idx(0).valid
+  io.baseAddress.ready := join.ready(0)
+  io.idx(0).ready := join.ready(1)
+  join.nReady := oehb.dataIn.ready
+
+
+  oehb.dataIn.bits := DontCare
+  oehb.dataIn.valid := join.valid
+
+
+  // oehb.dataOut.ready := io.Out.map(_.ready).reduce(_ && _)
+  // for (i <- 0 until NumOuts) {
+  //   // oehb.dataOut.ready := io.Out(i).ready
+  //   io.Out(i).valid := oehb.dataOut.valid
+  // }
+
+  /*===========================================*
+   *            Validity and Output Logic      *
+   *===========================================*/
+
+  def ValidOut(): Bool = {
+    io.Out.elements.map { case (_, vec) =>
+      vec.map(_.ready).reduce(_ && _)
+    }.reduce(_ && _)
+  }
+
+
+  // oehb.dataOut.ready := ValidOut()
+
+  // for (i <- NumOuts.indices) {
+  //   io.Out.elements(s"field$i").foreach(_.valid := oehb.dataOut.valid)
+
+  // }
+  val allOutputsReady = io.Out.elements.values.flatMap(_.map(_.ready)).reduce(_ && _)
+  oehb.dataOut.ready := RegNext(allOutputsReady)
+
+  // for (i <- NumOuts.indices) {
+  //   for (j <- 0 until NumOuts(i)) {
+  //     io.Out.elements(s"field$i")(j).valid := oehb.dataOut.valid
+  //   }
+  // }
+  val outputValid = oehb.dataOut.valid
+  io.Out.elements.values.foreach(_.foreach(_.valid := outputValid))
+  /*===========================================*
+   *            Output Mapping and Logic       *
+   *===========================================*/
+  val seek_value =
+      if (ArraySize.isEmpty) {
+        io.idx(0).bits.data *  ElementSize.U
+      } else if (ArraySize.length == 1) {
+        (io.idx(0).bits.data * ArraySize(0).U) + (io.idx(1).bits.data * ElementSize.U)
+      }
+      else {
+        0.U
+      }
+
+  val data_out = io.baseAddress.bits.data + seek_value
+
+  // val next_value = Wire(UInt(32.W))
+  // next_value := data_out
+
+  for (i <- NumOuts.indices) {
+    val temp_value = data_out + (i.U * ElementSize.U)
+    for (j <- 0 until NumOuts(i)) {
+        io.Out.elements(s"field$i")(j).bits := DataBundle(temp_value, true.B, true.B)
+        io.Out.elements(s"field$i")(j).valid := oehb.dataOut.valid
+      }
+  }
+
+  def IsOutReady(): Bool = {
+    if (NumOuts.isEmpty) {
+      true.B
+    } else {
+      val out_ready_R = RegInit(VecInit(Seq.fill(NumOuts.sum)(false.B)))
+      val fire_mask = (out_ready_R zip io.Out.elements.flatMap { case (_, vec) =>
+        vec.map(out => out.valid && out.ready)
+      }).map { case (a, b) => a | b }
+      fire_mask.reduce(_ && _)
+    }
+  }
+
+  when(IsOutReady()) {
+    Reset()
+    if (log) {
+      for (lane <- 0 until NumLanes) {
+        printf(p"[LOG] [${module_name}] [TID: 0] [COMPUTE] [Name: ${node_name}] " +
+          p"[ID: ${ID}] [Lane: ${lane}] [Pred: 1] ")
+          // p"[In(0): 0x${Hexadecimal(io.baseAddress(lane).bits.data)}] " +
+          // p"[In(1): 0x${Hexadecimal(io.idx(lane).map(_.bits.data).reduce(_ + _))}] " +
+          // p"[Out: 0x${Hexadecimal(FUs(lane).io.out)}] " +
+          // p"[OpCode: opCode] [Cycle: ${cycleCount}]\n")
+      }
+    }
+  }
+}

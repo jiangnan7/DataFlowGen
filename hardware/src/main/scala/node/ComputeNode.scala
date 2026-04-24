@@ -476,6 +476,120 @@ class ComputeNodeWithVectorization(NumOuts: Seq[Int], NumLanes: Int, ID: Int, op
   }
 
 }
+
+class MulNodeWithVectorization(NumOuts: Seq[Int], NumLanes: Int, ID: Int, opCode: String)
+                              (sign: Boolean, Debug: Boolean = false)
+                              (implicit val p: Parameters,
+                    name: sourcecode.Name,
+                    file: sourcecode.File) extends Module with HasAccelParams with UniformPrintfs {
+
+
+  val io = IO(new ComputeNodeWithVectorizationIO(NumOuts, NumLanes, Debug))
+
+  val node_name = name.value
+  val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
+  val (cycleCount, _) = Counter(true.B, 32 * 1024)
+
+  /*===========================================*
+   *            Registers                      *
+   *===========================================*/
+
+  private val join = Module(new Join(NumLanes*2))
+  private val oehb = Module(new OEHB())
+
+
+  for (lane <- 0 until NumLanes) {
+    join.pValid(lane * 2) := io.LeftIO(lane).valid
+    join.pValid(lane * 2 + 1) := io.RightIO(lane).valid
+    io.LeftIO(lane).ready := join.ready(lane * 2)
+    io.RightIO(lane).ready := join.ready(lane * 2 + 1)
+  }
+
+  join.nReady := oehb.dataIn.ready
+
+  oehb.dataIn.bits := DontCare
+  oehb.dataIn.valid := join.valid
+
+  val in_live_in_valid_R = Seq.fill(NumOuts.length)(RegInit(false.B))
+
+  def ValidOut(): Bool = {
+    io.Out.elements.map { case (_, vec) =>
+      vec.map(_.ready).reduce(_ && _)
+    }.reduce(_ && _)
+  }
+
+  // for (i <- 0 until NumOuts.length) {
+  //   in_live_in_valid_R(i) := io.Out.elements.map(_.ready).reduce(_ && _)
+  // }
+
+
+  oehb.dataOut.ready := ValidOut()
+
+
+  for (i <- NumOuts.indices) {
+    for (j <- 0 until NumOuts(i)) {
+        io.Out.elements(s"field$i")(j).valid := oehb.dataOut.valid
+    }
+  }
+
+
+
+  val FUs = Seq.fill(NumLanes)(Module(new UALU(xlen, opCode, issign = sign)))
+
+  for (lane <- 0 until NumLanes) {
+      val left_R = RegInit(0.U(32.W))
+      val right_R =RegInit(0.U(32.W))
+      left_R <> io.LeftIO(lane).bits.data
+      right_R <> io.RightIO(lane).bits.data
+      FUs(lane).io.in1 :=left_R
+      FUs(lane).io.in2 := right_R
+  }
+
+  // for (lane <- 0 until NumLanes) {
+  //     FUs(lane).io.in1 := io.LeftIO(lane).bits.data
+  //     FUs(lane).io.in2 := io.RightIO(lane).bits.data
+  // }
+
+  private val buffer = FUs.map(FU => ShiftRegister(FU.io.out, 1))
+
+
+
+  for (i <- NumOuts.indices) {
+    for (j <- 0 until NumOuts(i)) {
+      io.Out.elements(s"field$i")(j).bits := DataBundle(buffer(i), 1.U, 1.U)
+      io.Out.elements(s"field$i")(j).valid := oehb.dataOut.valid
+    }
+  }
+
+  def IsOutReady(): Bool = {
+    if (NumOuts.isEmpty) {
+      true.B
+    } else {
+      val out_ready_R = RegInit(VecInit(Seq.fill(NumOuts.sum)(false.B)))
+      val fire_mask = (out_ready_R zip io.Out.elements.flatMap { case (_, vec) =>
+        vec.map(out => out.valid && out.ready)
+      }).map { case (a, b) => a | b }
+      fire_mask.reduce(_ && _)
+    }
+  }
+
+  when(IsOutReady()) {
+    if (log) {
+      for (lane <- 0 until NumLanes) {
+        printf(p"[LOG] [${module_name}] [TID: ${0}] [COMPUTE] [Name: ${node_name}] " +
+          p"[ID: ${ID}] [Lane: ${lane}] " +
+          p"[Pred: ${1}] " +
+          p"[In(0): 0x${Hexadecimal(io.LeftIO(lane).bits.data)}] " +
+          p"[In(1): 0x${Hexadecimal(io.RightIO(lane).bits.data)}] " +
+          p"[Out: 0x${Hexadecimal(FUs(lane).io.out)}] " +
+          p"[OpCode: ${opCode}] [Cycle: ${cycleCount}]\n")
+      }
+    }
+    Reset()
+  }
+
+}
+
 import java.io.PrintWriter
 object ComputeNodeGen extends App {
   implicit val p = new WithAccelConfig ++ new WithTestConfig

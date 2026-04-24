@@ -89,6 +89,72 @@ class ConstFastNode(value: BigInt, ID: Int)
 //   io.Out.bits := DataBundle(output_value, io.enable.bits.taskID, io.enable.bits.control)
 // }
 
+class ConstFastNodeWithVectorizationIO(NumLanes: Int)
+                                      (implicit p: Parameters) extends AccelBundle {
+  val enable = Flipped(Decoupled(new ControlBundle))
+  val Out = Vec(NumLanes, Decoupled(new DataBundle))
+}
+
+
+class ConstFastNodeWithVectorization(value: BigInt, NumLanes: Int, ID: Int)
+                                    (implicit val p: Parameters,
+                                     name: sourcecode.Name,
+                                     file: sourcecode.File)
+  extends Module with HasAccelParams with UniformPrintfs {
+
+  val io = IO(new ConstFastNodeWithVectorizationIO(NumLanes))
+
+  val enable_R = RegInit(ControlBundle.default)
+  val enable_valid_R = RegInit(false.B)
+
+  val taskID = Mux(enable_valid_R, enable_R.taskID, io.enable.bits.taskID)
+  val predicate = Mux(enable_valid_R, enable_R.control, io.enable.bits.control)
+
+  /*===============================================*
+   *            Latch inputs. Wire up output       *
+   *===============================================*/
+
+
+  val output_value = value.asSInt(xlen.W).asUInt
+  // val output_value = value.asSInt(16.W).asUInt
+  io.enable.ready := ~enable_valid_R
+  // io.Out.valid := enable_valid_R
+  io.Out.foreach(_.valid := enable_valid_R)
+  // io.Out.bits := DataBundle(output_value, taskID, predicate)
+  io.Out.foreach(_.bits := DataBundle(output_value, taskID, predicate))
+
+  /*============================================*
+   *            ACTIONS (possibly dangerous)    *
+   *============================================*/
+  val s_idle :: s_fire :: Nil = Enum(2)
+  val state = RegInit(s_idle)
+
+  switch(state) {
+    is(s_idle) {
+      when(io.enable.fire) {
+        // io.Out.valid := true.B
+        io.Out.foreach(_.valid := true.B)
+        when(io.Out(0).fire) {
+          state := s_idle
+        }.otherwise {
+          state := s_fire
+          enable_valid_R := true.B
+          enable_R <> io.enable.bits
+        }
+      }
+    }
+    is(s_fire) {
+      when(io.Out(0).fire) {
+        //Restart the registers
+        enable_R := ControlBundle.default
+        enable_valid_R := false.B
+        state := s_idle
+      }
+    }
+  }
+
+}
+
 import java.io.PrintWriter
 object ConstNodeGen extends App {
   implicit val p = new WithAccelConfig ++ new WithTestConfig

@@ -278,6 +278,134 @@ class SelectNodeWithoutStateSupportCarry(NumOuts: Int, ID: Int, Debug : Boolean 
 
 }
 
+
+class SelectNodeWithVectorizationIO(NumOuts: Seq[Int], NumLanes: Int)
+                                   (implicit p: Parameters) extends AccelBundle {
+  val InData1 = Vec(NumLanes, Flipped(Decoupled(new DataBundle())))
+  val InData2 = Vec(NumLanes, Flipped(Decoupled(new DataBundle())))
+  val Select = Vec(NumLanes, Flipped(Decoupled(new DataBundle())))
+
+  val Out = new VariableDecoupledVec(NumOuts)
+}
+
+class SelectNodeWithVectorization(NumOuts: Seq[Int], NumLanes: Int, ID: Int)
+                                 (implicit val p: Parameters,
+                                  name: sourcecode.Name,
+                                  file: sourcecode.File) extends Module with HasAccelParams with UniformPrintfs {
+
+  val io = IO(new SelectNodeWithVectorizationIO(NumOuts, NumLanes))
+
+  val node_name = name.value
+  val module_name = file.value.split("/").last.split("\\.").head.capitalize
+  val (cycleCount, _) = Counter(true.B, 32 * 1024)
+
+  /*===========================================*
+   *            Registers                      *
+   *===========================================*/
+
+  private val join = Module(new Join(NumLanes * 3))
+  private val oehb = Module(new OEHB())
+
+  for (lane <- 0 until NumLanes) {
+    join.pValid(lane * 3) := io.InData1(lane).valid
+    join.pValid(lane * 3 + 1) := io.InData2(lane).valid
+    join.pValid(lane * 3 + 2) := io.Select(lane).valid
+    io.InData1(lane).ready := join.ready(lane * 3)
+    io.InData2(lane).ready := join.ready(lane * 3 + 1)
+    io.Select(lane).ready := join.ready(lane * 3 + 2)
+  }
+
+  join.nReady := oehb.dataIn.ready
+  oehb.dataIn.bits := DontCare
+  oehb.dataIn.valid := join.valid
+
+  /*===========================================*
+   *            Validity and Output Logic      *
+   *===========================================*/
+
+  // def ValidOut(): Bool = {
+  //   io.Out.elements.map { case (_, vec) =>
+  //     vec.map(_.ready).reduce(_ && _)
+  //   }.reduce(_ && _)
+  // }
+
+  // oehb.dataOut.ready := ValidOut()
+  val allOutputsReady = io.Out.elements.values.flatMap(_.map(_.ready)).reduce(_ && _)
+  oehb.dataOut.ready := allOutputsReady
+
+
+  // for (i <- NumOuts.indices) {
+  //   io.Out.elements(s"field$i").foreach(_.valid := oehb.dataOut.valid)
+  // }
+  val outputValid = oehb.dataOut.valid
+  io.Out.elements.values.foreach(_.foreach(_.valid := outputValid))
+  // for (i <- NumOuts.indices) {
+  //   for (j <- 0 until NumOuts(i)) {
+  //     io.Out.elements(s"field$i")(j).valid := oehb.dataOut.valid
+  //   }
+  // }
+
+
+
+  val output_data = Wire(Vec(NumLanes, UInt(xlen.W)))
+
+  for (lane <- 0 until NumLanes) {
+    output_data(lane) := Mux(io.Select(lane).bits.data.orR,
+                            io.InData1(lane).bits.data,
+                            io.InData2(lane).bits.data)
+  }
+  /*===========================================*
+   *            Output Mapping and Logic       *
+   *===========================================*/
+
+  for (i <- 0 until NumOuts.length) {
+    for (j <- 0 until NumOuts(i)) {
+      io.Out.elements(s"field$i")(j).bits := DataBundle(output_data(i), 0.U, 1.U)
+      io.Out.elements(s"field$i")(j).valid := oehb.dataOut.valid
+    }
+  }
+
+  // def IsOutReady(): Bool = {
+  //   if (NumOuts.isEmpty) {
+  //     true.B
+  //   } else {
+  //     val out_ready_R = RegInit(VecInit(Seq.fill(NumOuts.sum)(false.B)))
+  //     val fire_mask = (out_ready_R zip io.Out.elements.flatMap { case (_, vec) =>
+  //       vec.map(out => out.valid && out.ready)
+  //     }).map { case (a, b) => a | b }
+  //     fire_mask.reduce(_ && _)
+  //   }
+  // }
+  def IsOutReady(): Bool = {
+    if (NumOuts.isEmpty) {
+      true.B
+    } else {
+      val fire_mask = io.Out.elements.values.flatMap(_.map(out => out.valid && out.ready))
+      if (fire_mask.isEmpty) {
+        false.B
+      } else {
+        RegNext(fire_mask.reduce(_ && _), false.B)
+      }
+    }
+  }
+
+  when(IsOutReady()) {
+    Reset()
+    if (log) {
+      // 输出调试信息
+      for (lane <- 0 until NumLanes) {
+        printf(p"[LOG] [${module_name}] [TID: 0] [SELECT] [${node_name}] [Lane: ${lane}] " +
+          p"[InData1: 0x${Hexadecimal(io.InData1(lane).bits.data)}] " +
+          p"[InData2: 0x${Hexadecimal(io.InData2(lane).bits.data)}] " +
+          p"[Select: 0x${Hexadecimal(io.Select(lane).bits.data)}] " +
+          p"[Out: 0x${Hexadecimal(output_data(lane))}] [Cycle: ${cycleCount}]\n")
+      }
+    }
+  }
+}
+
+
+
 //sbt "test:runMain heteacc.node.SelectNodeGen"
 import java.io.PrintWriter
 object SelectNodeGen extends App {
