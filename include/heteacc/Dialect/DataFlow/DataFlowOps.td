@@ -141,15 +141,15 @@ def ForOp : DataFlowOp<"for", [AutomaticAllocationScope, DeclareOpInterfaceMetho
 
   let results = (outs Variadic<AnyType>: $results);
   let regions = (region SizedRegion<1> : $region);
-  
+
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "Value" : $lowerBound, "Value" : $upperBound, "Value" : $step,
       CArg<"ValueRange", "llvm::None"> : $initArgs,
-      CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>", 
+      CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
         "nullptr">)>
   ];
-  
+
   let hasCustomAssemblyFormat = 1;
   let extraClassDeclaration = [{
 
@@ -180,7 +180,7 @@ def ForOp : DataFlowOp<"for", [AutomaticAllocationScope, DeclareOpInterfaceMetho
     }
   }];
 
-} 
+}
 
 
 def IfOp : DataFlowOp<"if", [DeclareOpInterfaceMethods<RegionBranchOpInterface, [
@@ -295,7 +295,7 @@ def MergeOp : DataFlowOp<"merge", [
   ] # ElementwiseMappable.traits> {
   let summary = "merge operation";
   let description = [{
-  
+
   }];
 
   let arguments = (ins AnyType:$true_value,
@@ -304,7 +304,7 @@ def MergeOp : DataFlowOp<"merge", [
 
 
   let assemblyFormat = [{
-  
+
      $true_value ` ` `or` $false_value  attr-dict `:` type($result)
   }];
 }
@@ -330,7 +330,7 @@ def EnableOp : DataFlowOp<"enable", []> {
   let results = (outs I1:$signal);
 // `(` $signal `)` attr-dict (`:` type($signal)^)?
   let assemblyFormat = [{
-  
+
     `(` $value `:` type($value) `)` attr-dict `:` type($signal)
   }];
 
@@ -340,7 +340,7 @@ def StateOp : DataFlowOp<"state", []> {
 
   let summary = "";
   let description = [{
- 
+
     ```mlir
       dataflow.state %13, "loop_exit" or "loop_back" {Exe = "Loop"} : i1
     ```
@@ -351,7 +351,7 @@ def StateOp : DataFlowOp<"state", []> {
     StrAttr:$instanceName,
     StrAttr:$primitiveName
   );
-  
+
 
   let assemblyFormat = [{
     $cond `,` $instanceName ` ` `or` $primitiveName attr-dict `:` type($cond)
@@ -360,7 +360,7 @@ def StateOp : DataFlowOp<"state", []> {
 
 
 //===----------------------------------------------------------------------===//
-// MemoryOp 
+// MemoryOp
 //===----------------------------------------------------------------------===//
 
 def AddressOp : DataFlowOp<"addr", []> {
@@ -369,10 +369,10 @@ def AddressOp : DataFlowOp<"addr", []> {
     AddressOp claculates address offset for access only.
   }];
 
-  let arguments = (ins 
+  let arguments = (ins
                     AnyType:$baseAddr,
                     Variadic<AnyTypeOf<[Index, VectorOf<[Index]>]>>:$dims,
-                    I64ArrayAttr:$memShape); 
+                    I64ArrayAttr:$memShape);
   let results = (outs AnyTypeOf<[AnyInteger, VectorOf<[AnyInteger]>]>:$result);
   let hasCustomAssemblyFormat = 1;
 
@@ -389,7 +389,7 @@ def LoadOp : DataFlowOp<"load", []> {
     non-linear Load
   }];
 
-  let arguments = (ins 
+  let arguments = (ins
                     AnyTypeOf<[AnyInteger, VectorOf<[AnyInteger]>]>:$address);
   let results = (outs AnyType:$result);
   let hasCustomAssemblyFormat = 1;
@@ -416,7 +416,7 @@ def VectorIndexLoadOp : DataFlowOp<"vector.load", []> {
   let assemblyFormat = [{
         $source `[` $indices `]` attr-dict `:` type($source) `[` type($indices) `]`  `->` type($vector)
   }];
-  
+
 
 }
 
@@ -433,7 +433,7 @@ def VectorIndexStoreOp : DataFlowOp<"vector.store", []> {
   let assemblyFormat = [{
       $valueToStore `,` $source `[` $indices `]` attr-dict `:` type($valueToStore) `->`  type($source) `[` type($indices) `]`
   }];
-  
+
 
 }
 
@@ -443,9 +443,9 @@ def InputOp : DataFlowOp<"input", []> {
     linear Load
   }];
 
-  let arguments = (ins 
+  let arguments = (ins
                     AnyType:$baseAddr,
-                    I64ArrayAttr:$AffineAttrs, 
+                    I64ArrayAttr:$AffineAttrs,
                     I64Attr:$TotalOffset
                     );
   let results = (outs AnyType:$result);
@@ -463,7 +463,7 @@ def StoreOp : DataFlowOp<"store", []> {
     non-linear Store
   }];
 
-  let arguments = (ins 
+  let arguments = (ins
                     AnyType:$value,
                     AnyTypeOf<[AnyInteger, VectorOf<[AnyInteger]>]>:$address);
   // let results = (outs AnyType:$result);
@@ -484,10 +484,10 @@ def OutputOp : DataFlowOp<"output", []> {
     linear Store
   }];
 
-  let arguments = (ins 
+  let arguments = (ins
                     AnyType:$value,
                     AnyType:$baseAddr,
-                    I64ArrayAttr:$AffineAttrs, 
+                    I64ArrayAttr:$AffineAttrs,
                     I64Attr:$TotalOffset
                     );
   // let results = (outs AnyType:$result);

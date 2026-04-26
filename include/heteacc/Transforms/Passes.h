@@ -1,8 +1,8 @@
 #ifndef VECTORIZATION_PASSES_H
 #define VECTORIZATION_PASSES_H
 
-#include "mlir/Pass/Pass.h"
 #include "heteacc/InitAllDialects.h"
+#include "mlir/Pass/Pass.h"
 #include <memory>
 namespace mlir {
 class Pass;
@@ -13,8 +13,7 @@ class FuncOp;
 
 namespace mlir::heteacc {
 
-
-//Loop
+// Loop
 
 std::unique_ptr<Pass> createAffineLoopPermutationPass();
 std::unique_ptr<Pass> createAffineLoopPerfectionPass();
@@ -23,15 +22,17 @@ std::unique_ptr<Pass> createGenerateDataflowPass();
 std::unique_ptr<Pass> createOptimizeDataflowPass();
 std::unique_ptr<Pass> createEnhancedCDFGPass();
 std::unique_ptr<Pass> createHybridBranchPredictionPass();
-//Vector
+// Vector
 std::unique_ptr<Pass> createOperationFusionPass();
 std::unique_ptr<Pass> createSimplifyVectorMemrefAccessPass();
+std::unique_ptr<Pass> createMemorySchedulingPass();
 std::unique_ptr<Pass> createHybridAnalysisPass(std::string output = "");
 
 std::unique_ptr<Pass> createGenerateGEPPass();
 std::unique_ptr<Pass> createAnalyzeMemrefAddressPass();
 
-std::unique_ptr<Pass> createEvaluationModelPass(std::string TargetSpec = "./config.json");
+std::unique_ptr<Pass>
+createEvaluationModelPass(std::string TargetSpec = "./config.json");
 
 std::unique_ptr<Pass> createGraphInitPass(std::string hlsTopFunc = "main");
 
@@ -41,7 +42,6 @@ std::unique_ptr<Pass> createGraphInitPass(std::string hlsTopFunc = "main");
 // #define GEN_PASS_DECL
 #include "heteacc/Transforms/Passes.h.inc"
 
-} // namespace 
+} // namespace mlir::heteacc
 
 #endif // VECTORIZATION_PASSES_H
-

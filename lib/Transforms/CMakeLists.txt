@@ -18,16 +18,13 @@ add_mlir_dialect_library(MLIRHLSTransforms
   Memory/SimplifyVectorMemrefAccess.cpp
   Memory/AnalyzeMemrefAddress.cpp
   Memory/GenerateGEP.cpp
+  Memory/MemoryScheduling.cpp
+
   Misc/Utils.cpp
   Misc/HybridAnalysis.cpp
   Misc/EvaluationModel.cpp
-  # Memory/ConvertMemrefStructure.cpp
-
-  # ADDITIONAL_HEADER_DIRS
-  # ${PROJECT_SOURCE_DIR}/include/hls/Recursion
 
   DEPENDS
   MLIRVectorizationOpsIncGen
   MLIRHETEACCTransformsIncGen
 )
-

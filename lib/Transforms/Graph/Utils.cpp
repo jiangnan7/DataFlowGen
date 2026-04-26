@@ -6,13 +6,26 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/Support/raw_ostream.h"
+#include <cstdlib>
 
 using namespace mlir;
 using namespace heteacc;
 
+namespace {
+
+void validateReplaceToken(const std::string &from) {
+  if (from.empty() || from.front() != '$') {
+    llvm::errs() << "Replace string should start with '$'\n";
+    std::abort();
+  }
+}
+
+} // namespace
+
 bool heteacc::strReplace(std::string &str, const std::string &from,
                          const std::string &to) {
-  assert(!from.compare(0, 1, "$") && "Replace string should start with $!");
+  validateReplaceToken(from);
   bool _ret = false;
   while (true) {
     size_t start_pos = str.find(from);
@@ -26,7 +39,7 @@ bool heteacc::strReplace(std::string &str, const std::string &from,
 
 bool heteacc::strReplace(std::string &str, const std::string &from,
                          const int to) {
-  assert(!from.compare(0, 1, "$") && "Replace string should start with $!");
+  validateReplaceToken(from);
   bool _ret = false;
   while (true) {
     size_t start_pos = str.find(from);
@@ -40,7 +53,7 @@ bool heteacc::strReplace(std::string &str, const std::string &from,
 #include <experimental/iterator>
 bool heteacc::strReplace(std::string &str, const std::string &from,
                          std::vector<uint32_t> to, const std::string &split) {
-  assert(!from.compare(0, 1, "$") && "Replace string should start with $!");
+  validateReplaceToken(from);
   bool _ret = false;
   std::stringstream test;
   std::copy(to.begin(), to.end(),

@@ -189,7 +189,7 @@ class LoadCacheIO(NumPredOps: Int,
                   NumOuts: Int,
                   Debug: Boolean = false)(implicit p: Parameters)
   extends HandShakingIOPS(NumPredOps, NumSuccOps, NumOuts, Debug)(new DataBundle) {
-  
+
   val GepAddr = Flipped(Decoupled(new DataBundle))
   val MemReq = Decoupled(new MemReq)
   val MemResp = Flipped(Valid(new MemResp))
@@ -249,7 +249,7 @@ class UnTypLoadCache(NumPredOps: Int,
 
 
   def isAddrFire(): Bool = {
-    enable_valid_R && addr_valid_R && enable_R.control && state === s_idle && io.MemReq.ready //&& address_value_ready
+    enable_valid_R && (addr_valid_R || io.GepAddr.valid) && enable_R.control && state === s_idle && io.MemReq.ready //&& address_value_ready
   }
 
   def complete(): Bool = {

@@ -1,24 +1,24 @@
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
-#include "mlir/Dialect/Affine/Analysis/Utils.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Tosa/IR/TosaOps.h"
-#include "mlir/IR/Dominance.h"
-#include "mlir/Transforms/Passes.h"
-#include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/Dialect/Vector/IR/VectorOps.h"
-#include "mlir/IR/IntegerSet.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "heteacc/Misc/Utils.h"
-#include "heteacc/Dialect/DataFlow/Utils.h"
-using namespace mlir;
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Tosa/IR/TosaOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/Dominance.h"
+#include "mlir/IR/IntegerSet.h"
+#include "mlir/Transforms/Passes.h"
 
+#include "heteacc/Dialect/DataFlow/Utils.h"
+#include "heteacc/Misc/Utils.h"
+using namespace mlir;
 
 /// Given a tiled loop band, return true and get the tile (tile-space) loop band
 /// and the point (intra-tile) loop band. If failed, return false.
 bool heteacc::getTileAndPointLoopBand(const AffineLoopBand &band,
-                                       AffineLoopBand &tileBand,
-                                       AffineLoopBand &pointBand) {
+                                      AffineLoopBand &tileBand,
+                                      AffineLoopBand &pointBand) {
   tileBand.clear();
   pointBand.clear();
   bool isPointLoop = false;
@@ -44,7 +44,7 @@ bool heteacc::getTileAndPointLoopBand(const AffineLoopBand &band,
 }
 
 void heteacc::getLoopBands(Block &block, AffineLoopBands &bands,
-                            bool allowHavingChilds) {
+                           bool allowHavingChilds) {
   bands.clear();
   block.walk([&](AffineForOp loop) {
     auto childNum = getChildLoopNum(loop);
@@ -60,7 +60,7 @@ void heteacc::getLoopBands(Block &block, AffineLoopBands &bands,
 /// Get the whole loop band given the outermost loop and return it in "band".
 /// Meanwhile, the return value is the innermost loop of this loop band.
 AffineForOp heteacc::getLoopBandFromOutermost(AffineForOp forOp,
-                                               AffineLoopBand &band) {
+                                              AffineLoopBand &band) {
   band.clear();
   auto currentLoop = forOp;
   while (true) {
@@ -74,9 +74,8 @@ AffineForOp heteacc::getLoopBandFromOutermost(AffineForOp forOp,
   return band.back();
 }
 
-
 AffineForOp heteacc::getLoopBandFromInnermost(AffineForOp forOp,
-                                               AffineLoopBand &band) {
+                                              AffineLoopBand &band) {
   band.clear();
   AffineLoopBand reverseBand;
 
@@ -97,8 +96,6 @@ AffineForOp heteacc::getLoopBandFromInnermost(AffineForOp forOp,
   band.append(reverseBand.rbegin(), reverseBand.rend());
   return band.front();
 }
-
-
 
 /// This is method for finding the number of child loops which immediatedly
 /// contained by the input operation.
@@ -177,34 +174,32 @@ heteacc::getBoundOfAffineMap(AffineMap map, ValueRange operands) {
   return std::pair<int64_t, int64_t>(*minmax.first, *minmax.second);
 }
 
-
 /// Collect all load and store operations in the block and return them in "map".
 void heteacc::getMemAccessesMap(Block &block, MemAccessesMap &map) {
   for (auto &op : block) {
-    op.dump();
-    if (auto load = dyn_cast<AffineReadOpInterface>(op)){
+    if (auto load = dyn_cast<AffineReadOpInterface>(op)) {
       map[load.getMemRef()].push_back(&op);
-    }
-    else if (auto store = dyn_cast<AffineWriteOpInterface>(op))
+    } else if (auto store = dyn_cast<AffineWriteOpInterface>(op))
       map[store.getMemRef()].push_back(&op);
 
     else if (auto read = dyn_cast<vector::TransferReadOp>(op)) {
-        map[read.getSource()].push_back(&op);
+      map[read.getSource()].push_back(&op);
 
     } else if (auto write = dyn_cast<vector::TransferWriteOp>(op)) {
-        map[write.getSource()].push_back(&op);
+      map[write.getSource()].push_back(&op);
 
     } else if (auto load = dyn_cast<memref::LoadOp>(op)) {
-        map[load.getMemRef()].push_back(&op);
+      map[load.getMemRef()].push_back(&op);
 
     } else if (auto store = dyn_cast<memref::StoreOp>(op)) {
-        map[store.getMemRef()].push_back(&op);
+      map[store.getMemRef()].push_back(&op);
 
     } else if (auto load = dyn_cast<heteacc::dataflow::VectorIndexLoadOp>(op)) {
-        map[load.getSource()].push_back(&op);
+      map[load.getSource()].push_back(&op);
 
-    } else if (auto store = dyn_cast<heteacc::dataflow::VectorIndexStoreOp>(op)) {
-        map[store.getSource()].push_back(&op);
+    } else if (auto store =
+                   dyn_cast<heteacc::dataflow::VectorIndexStoreOp>(op)) {
+      map[store.getSource()].push_back(&op);
 
     } else if (op.getNumRegions()) {
       // Recursively collect memory access operations in each block.

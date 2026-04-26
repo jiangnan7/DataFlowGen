@@ -13,7 +13,7 @@
 
 namespace mlir {
 namespace heteacc {
-   
+
 namespace {
 #define GEN_PASS_REGISTRATION
 #include "heteacc/Transforms/Passes.h.inc"
@@ -22,13 +22,12 @@ namespace {
 // Add all the passes.
 inline void registerAllPasses() {
 
-    mlir::registerAllPasses();
+  mlir::registerAllPasses();
 
-    registerPasses();
-
+  registerPasses();
 }
 
-} // namespace hls
+} // namespace heteacc
 } // namespace mlir
 
 #endif // HLS_INITALLPASSES_H

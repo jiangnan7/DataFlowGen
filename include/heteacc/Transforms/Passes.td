@@ -117,6 +117,10 @@ def GenerateGEP :
   let constructor = "mlir::heteacc::createGenerateGEPPass()";
 }
 
+def MemoryScheduling : Pass<"memory-scheduling", "func::FuncOp"> {
+  let summary = " ";
+  let constructor = "mlir::heteacc::createMemorySchedulingPass()";
+}
 
 // Reference the official pass example.
 def HybridAnalysis : Pass<"hybrid-analysis", "func::FuncOp"> {

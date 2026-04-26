@@ -69,4 +69,4 @@ We depend on _Berkeley Hardware Floating-Point Units_ for floating nodes. Theref
 $ ./build.sh
 ```
 
-This hardware library references the design ideas and implementation methods from the [muIR GitHub repository](https://github.com/sfu-arch/muir-lib). We acknowledge the valuable insights provided by the muIR project, which inspired and guided the development of some hardware units in this repository. 
+This hardware library references the design ideas and implementation methods from the [muIR GitHub repository](https://github.com/sfu-arch/muir-lib). We acknowledge the valuable insights provided by the muIR project, which inspired and guided the development of some hardware units in this repository.

@@ -8,10 +8,56 @@
 #include "heteacc/Graph/Visitor.h"
 #include "heteacc/Graph/GraphGen.h"
 #include "heteacc/Graph/Node.h"
+#include "llvm/Support/raw_ostream.h"
+#include <cstdlib>
 
 using namespace mlir;
 using namespace heteacc;
 #define DEBUG_TYPE "graph"
+
+namespace {
+
+[[noreturn]] void unsupportedPrintType() {
+  llvm::errs() << "Unknown print type\n";
+  std::abort();
+}
+
+[[noreturn]] void unsupportedDotPrintType() {
+  llvm::errs() << "Dot file format is not supported\n";
+  std::abort();
+}
+
+[[noreturn]] void unsupportedArgumentNodeType() {
+  llvm::errs() << "Unrecognized argument node type\n";
+  std::abort();
+}
+
+[[noreturn]] void unsupportedNodeType() {
+  llvm::errs() << "Unrecognized type of node\n";
+  std::abort();
+}
+
+[[noreturn]] void unsupportedDumpChiselOperation() {
+  llvm::errs() << "Operation is not supported in DumpChisel\n";
+  std::abort();
+}
+
+[[noreturn]] void unsupportedDumpChiselType() {
+  llvm::errs() << "Type is not supported in DumpChisel\n";
+  std::abort();
+}
+
+[[noreturn]] void missingControlEdge() {
+  llvm::errs() << "Couldn't find the control edge\n";
+  std::abort();
+}
+
+[[noreturn]] void invalidSelectNodeInputCount() {
+  llvm::errs() << "Select node cannot have more than three inputs\n";
+  std::abort();
+}
+
+} // namespace
 
 /**
  * Node
@@ -53,7 +99,7 @@ std::string ConstNode::printDefinition(PrintType _pt) {
       }
       break;
     }
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -70,7 +116,7 @@ std::string ConstNode::printOutputData(PrintType _pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -85,7 +131,7 @@ std::string ConstNode::printInputEnable(PrintType pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -125,8 +171,8 @@ std::string BitCastNode::printDefinition(PrintType _pt) {
 
     }
 
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -141,8 +187,8 @@ std::string BitCastNode::printInputEnable(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -158,8 +204,8 @@ std::string BitCastNode::printOutputData(PrintType _pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -174,8 +220,8 @@ std::string BitCastNode::printInputData(PrintType _pt, uint32_t _idx) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -220,7 +266,7 @@ std::string ComputeOperationNode::printDefinition(PrintType _pt) {
 
       break;
     }
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -235,7 +281,7 @@ std::string ComputeOperationNode::printInputEnable(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -251,7 +297,7 @@ std::string ComputeOperationNode::printOutputData(PrintType _pt, uint32_t _port_
       strReplace(_text, "$_port_id", _port_id);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   this->conflict_output_index.push_back(_port_id);
   return _text;
@@ -270,7 +316,7 @@ std::string ComputeOperationNode::printInputData(PrintType _pt, uint32_t _idx) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   this->conflict_input_index.push_back(_idx);
   return _text;
@@ -323,7 +369,7 @@ std::string CmpNode::printDefinition(PrintType _pt) {
       }
       break;
       }
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -338,7 +384,7 @@ std::string CmpNode::printInputEnable(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -356,7 +402,7 @@ std::string CmpNode::printInputData(PrintType _pt, uint32_t _idx) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -373,7 +419,7 @@ CmpNode::printOutputData(PrintType _pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -400,7 +446,7 @@ std::string ReductionNode::printDefinition(PrintType _pt) {
 
       break;
     }
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -415,7 +461,7 @@ std::string ReductionNode::printInputEnable(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -430,7 +476,7 @@ std::string ReductionNode::printOutputData(PrintType _pt, uint32_t _port_id) {
       strReplace(_text, "$_port_id", _port_id);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   this->conflict_output_index.push_back(_port_id);
   return _text;
@@ -444,7 +490,7 @@ std::string ReductionNode::printInputData(PrintType _pt, uint32_t _idx) {
       _text = "$name.io.Input";
       strReplace(_text, "$name", _name.c_str());
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   this->conflict_input_index.push_back(_idx);
   return _text;
@@ -505,7 +551,7 @@ std::string StateBranchNode::printDefinition(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$id", this->getID());
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -520,7 +566,7 @@ std::string StateBranchNode::printInputEnable(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -642,7 +688,7 @@ std::string SelectNode::printDefinition(PrintType _pt) {
       }
       break;
     }
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -657,7 +703,7 @@ std::string SelectNode::printInputEnable(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -675,14 +721,13 @@ std::string SelectNode::printInputData(PrintType _pt, uint32_t _id) {
       else if (_id == 2)
         _text = "$name.io.InData2";
       else
-        assert(!"Select nod can not have more than three inputs! (select, "
-                "input1, input2)");
+        invalidSelectNodeInputCount();
 
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$id", _id);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -698,7 +743,7 @@ std::string SelectNode::printOutputData(PrintType _pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -744,7 +789,7 @@ std::string ExecutionBlockNode::printDefinition(PrintType pt) {
       break;
 
     }
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -776,7 +821,7 @@ std::string ExecutionBlockNode::printInputEnable(PrintType pt, std::pair<Node*, 
       strReplace(_text, "$id", _node.second.getID());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -793,7 +838,7 @@ std::string ExecutionBlockNode::printOutputEnable(PrintType pt, uint32_t _id) {
 
       break;
 
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -810,7 +855,7 @@ std::string ExecutionBlockNode::printOutputEnable(PrintType pt, std::pair<Node*,
 
       break;
 
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -825,8 +870,8 @@ std::string ExecutionBlockNode::printMaskOutput(PrintType pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -852,8 +897,8 @@ std::string MergeNode::printDefinition(PrintType _pt) {
       strReplace(_text, "$id", this->getID());
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -868,8 +913,8 @@ std::string MergeNode::printInputEnable(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -885,8 +930,8 @@ std::string MergeNode::printInputData(PrintType _pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -902,8 +947,8 @@ std::string MergeNode::printOutputData(PrintType _pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -918,8 +963,8 @@ std::string MergeNode::printMaskInput(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -961,7 +1006,7 @@ std::string LoopNode::printDefinition(PrintType _pt) {
 
       break;
     }
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1057,8 +1102,8 @@ std::string LoopNode::printInputEnable(PrintType _pt, uint32_t _id) {
       strReplace(_text, "$id", _id - 2);
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1084,7 +1129,7 @@ std::string ReturnNode::printDefinition(PrintType _pt) {
                     ", ");
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1099,7 +1144,7 @@ std::string ReturnNode::printInputEnable(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1116,7 +1161,7 @@ std::string ReturnNode::printInputEnable(PrintType _pt, uint32_t _idx) {
       strReplace(_text, "$id", _idx);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1133,7 +1178,7 @@ std::string ReturnNode::printInputData(PrintType _pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1149,7 +1194,7 @@ std::string ReturnNode::printOutputData(PrintType _pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1164,7 +1209,7 @@ std::string ReturnNode::printOutputData(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1192,8 +1237,8 @@ std::string ArgumentNode::printDefinition(PrintType _pt) {
       strReplace(_text, "$type", "ArgumentNode");
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1242,12 +1287,12 @@ std::string ArgumentNode::printInputData(PrintType _pt, uint32_t _idx) {
           break;
         }
 
-        default: assert(!"Unrecognized argument node type!"); break;
+        default: unsupportedArgumentNodeType(); break;
       }
 
       break;
     }
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1329,12 +1374,12 @@ std::string ArgumentNode::printOutputData(PrintType _pt, uint32_t _idx) {
           strReplace(_text, "$id", _idx);
           break;
         }
-        default: assert(!"Unrecognized type of node\n"); break;
+        default: unsupportedNodeType(); break;
       }
 
       break;
     }
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1398,7 +1443,7 @@ std::string AddressGenNode::printDefinition(PrintType _pt) {
 
       break;
     }
-    default: assert(!"Don't support!");
+    default: unsupportedDumpChiselOperation();
   }
   return _text;
 }
@@ -1414,8 +1459,8 @@ std::string AddressGenNode::printInputEnable(PrintType pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    case PrintType::Dot: assert(!"Dot file format is not supported!");
-    default: assert(!"Uknown print type!");
+    case PrintType::Dot: unsupportedDotPrintType();
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1430,7 +1475,7 @@ std::string AddressGenNode::printInputEnable(PrintType pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1446,7 +1491,7 @@ std::string AddressGenNode::printOutputData(PrintType _pt, uint32_t _idx) {
       strReplace(_text, "$id", _idx);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1508,7 +1553,7 @@ std::string LSNode::printDefinition(PrintType _pt) {
 
       break;
     }
-    default: assert(!"Don't support!");
+    default: unsupportedDumpChiselOperation();
   }
   return _text;
 }
@@ -1523,7 +1568,7 @@ std::string LSNode::printInputEnable(PrintType pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1540,7 +1585,7 @@ std::string LSNode::printInputEnable(PrintType pt, uint32_t _id) {
       strReplace(_text, "$id", _id - 1);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1556,7 +1601,7 @@ std::string LSNode::printOutputData(PrintType _pt, uint32_t _idx) {
       strReplace(_text, "$id", _idx);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   this->conflict_output_index.push_back(_idx);
   return _text;
@@ -1630,7 +1675,7 @@ std::string LSNode::printOutputEnable(PrintType pt, uint32_t _id) {
       strReplace(_text, "$id", _id);
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1645,7 +1690,7 @@ std::string LSNode::printOutputEnable(PrintType pt) {
       strReplace(_text, "$name", _name.c_str());
 
       break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1715,7 +1760,7 @@ std::string MemoryNode::printDefinition(PrintType pt) {
       strReplace(_text, "$num_wr", this->numWriteDataInputPort());
 
     } break;
-    default: assert(!"Uknown print type!");
+    default: unsupportedPrintType();
   }
   return _text;
 }
@@ -1828,7 +1873,7 @@ std::string FineArgCallNode::printDefinition(PrintType _pt) {
 
             break;
         }
-        default: assert(!"Don't support!");
+        default: unsupportedDumpChiselOperation();
     }
     return _text;
 }
@@ -1858,7 +1903,7 @@ std::string FineArgCallNode::printOutputData(PrintType _pt, uint32_t id){
 
         break;
 
-        default: assert(!"Uknown print type!");
+        default: unsupportedPrintType();
     }
     return _text;
 }
@@ -1893,7 +1938,7 @@ void Graph::dumpGraph(PrintType _pt, std::string json_path) {
 
         break;
 
-        default: assert(!"Uknown print type!");
+        default: unsupportedPrintType();
     }
 }
 
@@ -2050,7 +2095,7 @@ void Graph::printOperations(PrintType _pt) {
           this->outputHardware << node->printDefinition(PrintType::Scala);
         }
         break;
-    default: assert(!"We don't support the other types right now");
+    default: unsupportedDumpChiselType();
   }
 
 }
@@ -2387,7 +2432,7 @@ void Graph::printConnection(PrintType _pt) {
                 operation_node->inputControl_end(),
                 [&exe](auto& arg) -> bool { return exe.get() == &*arg.first; });
             if (ff == operation_node->inputControl_end())
-              assert(!"Couldn't find the control edge\n");
+              missingControlEdge();
             this->outputHardware
               << "  " << operation_node->printInputEnable(PrintType::Scala) << " <> "
               << exe->printOutputEnable(

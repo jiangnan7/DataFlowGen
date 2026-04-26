@@ -1,13 +1,11 @@
 #ifndef GRAPH_VISITOR_H
 #define GRAPH_VISITOR_H
 
-
 #include "heteacc/InitAllDialects.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 namespace mlir {
 namespace heteacc {
-
 
 /// This class is a or for SSACFG operation nodes.
 template <typename ConcreteType, typename ResultType, typename... ExtraArgs>
@@ -19,13 +17,13 @@ public:
         .template Case<
 
             dataflow::EnableOp, dataflow::ForOp, dataflow::StateOp,
-            dataflow::SelectOp, dataflow::ExecutionBlockOp,dataflow::IfOp,
+            dataflow::SelectOp, dataflow::ExecutionBlockOp, dataflow::IfOp,
             dataflow::LaunchOp, dataflow::YieldOp, dataflow::TaskOp,
             dataflow::AddressOp, dataflow::LoadOp, dataflow::InputOp,
             dataflow::StoreOp, dataflow::OutputOp, dataflow::MergeOp,
             dataflow::VectorIndexLoadOp, dataflow::VectorIndexStoreOp,
             // Function operations.
-            func::CallOp, func::ReturnOp, 
+            func::CallOp, func::ReturnOp,
 
             // SCF statements.
             scf::ForOp, scf::IfOp, scf::ParallelOp, scf::ReduceOp,
@@ -43,7 +41,8 @@ public:
 
             // Memref statements.
             memref::AllocOp, memref::AllocaOp, memref::LoadOp, memref::StoreOp,
-            memref::DeallocOp, memref::CopyOp, memref::GlobalOp, memref::GetGlobalOp,
+            memref::DeallocOp, memref::CopyOp, memref::GlobalOp,
+            memref::GetGlobalOp,
 
             // Unary expressions.
             math::AbsIOp, math::AbsFOp, math::CeilOp, math::CosOp, math::SinOp,
@@ -153,7 +152,7 @@ public:
   HANDLE(memref::CopyOp);
   HANDLE(memref::GlobalOp);
   HANDLE(memref::GetGlobalOp);
-  
+
   // Unary expressions.
   HANDLE(math::AbsIOp);
   HANDLE(math::AbsFOp);
@@ -215,14 +214,9 @@ public:
   HANDLE(arith::FPToUIOp);
   HANDLE(arith::FPToSIOp);
 #undef HANDLE
-
 };
 
-
-
-}
-}
-
-
+} // namespace heteacc
+} // namespace mlir
 
 #endif // GRAPH_VISITOR_H

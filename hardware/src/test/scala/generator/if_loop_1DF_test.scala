@@ -26,7 +26,7 @@ class if_loop_main(implicit p: Parameters) extends AccelIO(List(32), List(32))(p
   memModel.io.init.valid := false.B
   cache.io.cpu.abort := false.B
   // cache.io.cpu.flush := DontCare
-  
+
   // Wire up the cache and modules under test.
   val test13 = Module(new if_loop_1DF())
 
@@ -86,9 +86,9 @@ class if_looptest01[T <: AccelIO](c: T)
     time += 1
     step(1)
     val data = peek(c.io.out.bits.data("field0").data)
-    println(Console.RED + s"*** Got $data. Hoping for 9870" + Console.RESET) 
+    println(Console.RED + s"*** Got $data. Hoping for 9870" + Console.RESET)
 
-    
+
     if (peek(c.io.out.valid) == 1) {
       result = true
       println(Console.BLUE + s"*** Bgemm finished. Run time: $time cycles." + Console.RESET)
@@ -127,7 +127,7 @@ class if_loop_1DF_test extends FlatSpec with Matchers {
         "-td", s"test_run_dir/if_loop_1DF",
         "-tts", "0001",
         "--generate-vcd-output", "on"),
-        
+
       () => new if_loop_main()(p)) {
       c => new if_looptest01(c)(inAddrVec, inDataVec, outAddrVec, outDataVec)
     } should be(true)

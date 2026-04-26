@@ -61,7 +61,7 @@ class dropout_test01[T <: AccelIO](c: T)
                                        outAddrVec: List[Int], outDataVec: List[Int])
   extends AccelTesterLocal(c)(inAddrVec, inDataVec, outAddrVec, outDataVec) {
 
- 
+
   poke(c.io.in.valid, false)
   poke(c.io.in.bits.data("field0").data, 0.U)
   // poke(c.io.in.bits.data("field0").taskID, 0.U)
@@ -70,7 +70,7 @@ class dropout_test01[T <: AccelIO](c: T)
   poke(c.io.in.bits.data("field1").data, 1024.U)
   // poke(c.io.in.bits.data("field1").taskID, 0)
   poke(c.io.in.bits.data("field1").predicate, false)
- 
+
   step(1)
   poke(c.io.in.bits.enable.control, true)
   poke(c.io.in.valid, true)
@@ -79,7 +79,7 @@ class dropout_test01[T <: AccelIO](c: T)
   poke(c.io.out.ready, true.B)
   poke(c.io.in.bits.data("field1").data, 1024) // Array b[] base address
   poke(c.io.in.bits.data("field1").predicate, true)
-  
+
 
 
   var time = 0 //Cycle counter
@@ -89,7 +89,7 @@ class dropout_test01[T <: AccelIO](c: T)
     step(1)
     val data = peek(c.io.out.bits.data("field0").data)
 
-    println(Console.RED + s"*** Got $data. Hoping for 522880" + Console.RESET) 
+    println(Console.RED + s"*** Got $data. Hoping for 522880" + Console.RESET)
 
     if (peek(c.io.out.valid) == 1) {// && peek(c.io.out.bits.data("field0").predicate) == 1
       result = true
@@ -129,7 +129,7 @@ class dropoutDF_test extends FlatSpec with Matchers {
         "-td", s"test_run_dir/dropoutDF",
         "-tts", "0001",
         "--generate-vcd-output", "on"),
-        
+
       () => new dropout_main()(p)) {
       c => new dropout_test01(c)(inAddrVec, inDataVec, outAddrVec, outDataVec)
     } should be(true)

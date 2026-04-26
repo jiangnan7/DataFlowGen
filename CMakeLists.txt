@@ -78,5 +78,5 @@ endif()
 
 add_subdirectory(include/heteacc)
 add_subdirectory(lib)
-add_subdirectory(heteacc-opt)
+add_subdirectory(tools)
 add_subdirectory(test)

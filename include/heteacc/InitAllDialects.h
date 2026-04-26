@@ -1,12 +1,14 @@
 //===----------------------------------------------------------------------===//
 //
-// 
+//
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef  HLS_INITALLDIALECTS_H
-#define  HLS_INITALLDIALECTS_H
+#ifndef HLS_INITALLDIALECTS_H
+#define HLS_INITALLDIALECTS_H
 
+#include "heteacc/Dialect/DataFlow/DataFlow.h"
+#include "heteacc/Dialect/Vectorization/Vectorization.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
@@ -21,8 +23,6 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
-#include "heteacc/Dialect/Vectorization/Vectorization.h"
-#include "heteacc/Dialect/DataFlow/DataFlow.h"
 
 namespace mlir {
 namespace heteacc {

@@ -88,7 +88,7 @@ class doitgenTripleDF01[T <: AccelIO](c: T)
   poke(c.io.out.ready, true.B)
   poke(c.io.in.bits.data("field1").data, 1.U) // Array b[] base address
   poke(c.io.in.bits.data("field1").predicate, true)
-  
+
   poke(c.io.in.bits.data("field2").data, 17.U) // Array b[] base address
   poke(c.io.in.bits.data("field2").predicate, true)
 
@@ -103,7 +103,7 @@ class doitgenTripleDF01[T <: AccelIO](c: T)
 
     if (peek(c.io.out.valid) == 1) {
       result = true
-      println(Console.BLUE + s"*** BdoitgenTriple finished. Run time: $time cycles." + Console.RESET)
+      println(Console.BLUE + s"*** doitgenTriple finished. Run time: $time cycles." + Console.RESET)
     }
   }
 
@@ -140,7 +140,7 @@ class doitgenTripleDF_test extends FlatSpec with Matchers {
         "-td", s"test_run_dir/doitgenTriple",
         "-tts", "0001",
         "--generate-vcd-output", "on"),
-        
+
       () => new doitgenTriple_main()(p)) {
       c => new doitgenTripleDF01(c)(inAddrVec, inDataVec, outAddrVec, outDataVec)
     } should be(true)

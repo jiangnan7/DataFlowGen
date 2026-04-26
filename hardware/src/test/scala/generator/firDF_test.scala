@@ -64,7 +64,7 @@ class fir_test01[T <: AccelIO](c: T)
   extends AccelTesterLocal(c)(inAddrVec, inDataVec, outAddrVec, outDataVec) {
 
   // initMemory()
-  
+
   poke(c.io.in.bits.enable.control, false)
   // poke(c.io.in.bits.enable.taskID, 0)
   poke(c.io.in.valid, false)
@@ -76,7 +76,7 @@ class fir_test01[T <: AccelIO](c: T)
   // poke(c.io.in.bits.data("field1").taskID, 0)
   poke(c.io.in.bits.data("field1").predicate, false)
 
-  
+
   step(1)
   poke(c.io.in.bits.enable.control, true)
   poke(c.io.in.valid, true)
@@ -85,8 +85,8 @@ class fir_test01[T <: AccelIO](c: T)
   poke(c.io.out.ready, true.B)
   poke(c.io.in.bits.data("field1").data, 100.U) // Array b[] base address
   poke(c.io.in.bits.data("field1").predicate, true)
-  
-  
+
+
 
   var time = 0 //Cycle counter
   var result = false
@@ -94,9 +94,9 @@ class fir_test01[T <: AccelIO](c: T)
     time += 1
     step(1)
     val data = peek(c.io.out.bits.data("field0").data)
-    println(Console.RED + s"*** Got $data. Hoping for 161700" + Console.RESET) 
- 
-    
+    println(Console.RED + s"*** Got $data. Hoping for 161700" + Console.RESET)
+
+
     if (peek(c.io.out.valid) == 1) {
       result = true
       println(Console.BLUE + s"*** Bgemm finished. Run time: $time cycles." + Console.RESET)
@@ -135,7 +135,7 @@ class firDF_test extends FlatSpec with Matchers {
         "-td", s"test_run_dir/firDF",
         "-tts", "0001",
         "--generate-vcd-output", "on"),
-        
+
       () => new fir_main()(p)) {
       c => new fir_test01(c)(inAddrVec, inDataVec, outAddrVec, outDataVec)
     } should be(true)

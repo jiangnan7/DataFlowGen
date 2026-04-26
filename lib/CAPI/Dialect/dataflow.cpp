@@ -5,10 +5,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "heteacc-c/Dialect/DataFlow.h"
-#include "mlir/CAPI/Registration.h"
 #include "heteacc/Dialect/DataFlow/DataFlow.h"
+#include "mlir/CAPI/Registration.h"
 
 using namespace mlir;
 using namespace heteacc;
 
-MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(DataFlow, dataflow, mlir::heteacc::dataflow::DataFlowDialect)
+MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(DataFlow, dataflow,
+                                      mlir::heteacc::dataflow::DataFlowDialect)

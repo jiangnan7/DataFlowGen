@@ -155,7 +155,7 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
   val loop_exit_R = Seq.fill(NumExits)(RegInit(ControlBundle.default))
   val loop_exit_valid_R = Seq.fill(NumExits)(RegInit(false.B))
   val loop_exit_fire_R = Seq.fill(NumExits)(RegInit(false.B))
-  
+
   /**
     * Latch all the inputs to the circuite
     */
@@ -426,8 +426,6 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
 
   val s_idle :: s_active :: s_end :: Nil = Enum(3)
   val state = RegInit(s_idle)
-
-
   switch(state) {
     is(s_idle) {
       /**
@@ -554,6 +552,466 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
 
         loop_finish_R foreach (_ := ControlBundle.default)
         loop_finish_valid_R foreach (_ := false.B)
+
+        in_live_in_R.foreach(_ := DataBundle.default)
+        in_live_in_valid_R.foreach(_ := false.B)
+
+        in_live_out_valid_R.foreach(_ := false.B)
+
+        in_carry_in_valid_R.foreach(_ := false.B)
+
+
+        state := s_idle
+      }
+    }
+  }
+}
+
+class EagerFork_RegisterBlock extends MultiIOModule {
+  val p_valid = IO(Input(Bool()))
+  val n_stop = IO(Input(Bool()))
+  val p_valid_and_fork_stop = IO(Input(Bool()))
+  val valid = IO(Output(Bool()))
+  val block_stop = IO(Output(Bool()))
+
+  private val reg = RegInit(true.B)
+
+  private val block_stop_internal = n_stop & reg
+  block_stop := block_stop_internal
+  reg := block_stop_internal | (!p_valid_and_fork_stop)
+  valid := reg & p_valid
+}
+
+class LoopBlockNodeExperimentalIO(NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[Int],
+                     NumExits: Int, Debug: Boolean)
+                     (implicit p: Parameters) extends AccelBundle {
+
+  // INPUT from outside of the loop head
+  // Predicate enable
+  val enable = Flipped(Decoupled(new ControlBundle))
+  // Live-in values
+  val InLiveIn = Vec(NumIns.length, Flipped(Decoupled(new DataBundle())))
+
+  // OUTPUT to internal part of the loop
+  // Ouput live-in values
+  val OutLiveIn = new VariableDecoupledVec(NumIns)
+  // Output control signal to fire loop
+  val activate_loop_start = Decoupled(new ControlBundle())
+  val activate_loop_back = Decoupled(new ControlBundle())
+
+  // Carry dependencies
+  val CarryDepenIn = Vec(NumCarry.length, Flipped(Decoupled(new DataBundle())))
+  val CarryDepenOut = new VariableDecoupledVec(NumCarry)
+
+  // Live-out values
+  val InLiveOut = Vec(NumOuts.length, Flipped(Decoupled(new DataBundle())))
+  val OutLiveOut = new VariableDecoupledVec(NumOuts)
+
+  // OUTPUT to outside of the loop
+  //Output control signal
+  val loopExit = Vec(NumExits, Decoupled(new ControlBundle()))
+
+}
+
+class LoopBlockNodeExperimental(ID: Int,
+                    NumIns: Seq[Int],
+                    NumCarry: Seq[Int],
+                    NumOuts: Seq[Int],
+                    NumExits: Int,
+                    LoopCounterMax: Int = 100,
+                    LoopCounterStep: Int = 1,
+                    Debug: Boolean = false)
+                   (implicit val p: Parameters,
+                    name: sourcecode.Name,
+                    file: sourcecode.File) extends Module with HasAccelParams with UniformPrintfs {
+
+  // Instantiate TaskController I/O signals
+  val io = IO(new LoopBlockNodeExperimentalIO(NumIns, NumCarry, NumOuts, NumExits, Debug))
+
+  // Printf debugging
+  val node_name = name.value
+  val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
+  val (cycleCount, _) = Counter(true.B, 32 * 1024)
+  override val printfSigil = "[" + module_name + "] " + node_name + ": " + ID + " "
+  require(LoopCounterMax >= 0, "LoopCounterMax must be non-negative")
+  require(LoopCounterStep > 0, "LoopCounterStep must be positive")
+  val loopcounter=RegInit(0.U(32.W))
+  val loopcounterMAX = LoopCounterMax.U(32.W)
+  val loopcounterSTEP = LoopCounterStep.U(32.W)
+  /**
+    * Input signals and their latches
+    */
+  val enable_R = RegInit(ControlBundle.default)
+  val enable_valid_R = RegInit(false.B)
+
+  val in_live_in_R = Seq.fill(NumIns.length)(RegInit(DataBundle.default))
+  val in_live_in_valid_R = Seq.fill(NumIns.length)(RegInit(false.B))
+
+  val in_carry_in_R = Seq.fill(NumCarry.length)(RegInit(DataBundle.active()))
+  val in_carry_in_valid_R = Seq.fill(NumCarry.length)(RegInit(false.B))
+
+  val in_live_out_R = Seq.fill(NumOuts.length)(RegInit(DataBundle.default))
+  val in_live_out_valid_R = Seq.fill(NumOuts.length)(RegInit(false.B))
+
+  /**
+    * Output signals and their valid and latch signals
+    */
+  val out_live_in_valid_R = for (i <- NumIns.indices) yield {
+    val validReg = Seq.fill(NumIns(i))(RegInit(false.B))
+    validReg
+  }
+  val out_live_in_fire_R = for (i <- NumIns.indices) yield {
+    val validReg = Seq.fill(NumIns(i))(RegInit(false.B))
+    validReg
+  }
+
+
+  val out_live_out_valid_R = for (i <- NumOuts.indices) yield {
+    val liveout = Seq.fill(NumOuts(i))(RegInit(false.B))
+    liveout
+  }
+  val out_live_out_fire_R = for (i <- NumOuts.indices) yield {
+    val liveout = Seq.fill(NumOuts(i))(RegInit(false.B))
+    liveout
+  }
+
+
+  val out_carry_out_valid_R = for (i <- NumCarry.indices) yield {
+    val Reg = Seq.fill(NumCarry(i))(RegInit(false.B))
+    Reg
+  }
+  val out_carry_out_fire_R = for (i <- NumCarry.indices) yield {
+    val Reg = Seq.fill(NumCarry(i))(RegInit(false.B))
+    Reg
+  }
+
+  val active_loop_start_R = RegInit(ControlBundle.default)
+  val active_loop_start_valid_R = RegInit(false.B)
+
+  val active_loop_back_R = RegInit(ControlBundle.default)
+  val active_loop_back_valid_R = RegInit(false.B)
+
+  val loop_exit_R = Seq.fill(NumExits)(RegInit(ControlBundle.default))
+  val loop_exit_valid_R = Seq.fill(NumExits)(RegInit(false.B))
+  val loop_exit_fire_R = Seq.fill(NumExits)(RegInit(false.B))
+
+  /**
+    * Latch all the inputs to the circuite
+    */
+  io.enable.ready := ~enable_valid_R
+  when(io.enable.fire) {
+    enable_R <> io.enable.bits
+    enable_valid_R := true.B
+  }
+
+  // Latch the block inputs when they fire to drive the liveIn I/O.
+  for (i <- 0 until NumIns.length) {
+    io.InLiveIn(i).ready := ~in_live_in_valid_R(i)
+    when(io.InLiveIn(i).fire) {
+      in_live_in_R(i) <> io.InLiveIn(i).bits
+      in_live_in_valid_R(i) := true.B
+    }
+  }
+
+  // Latch the liveOut inputs when they fire to drive the Out I/O
+  for (i <- 0 until NumOuts.length) {
+    io.InLiveOut(i).ready := ~in_live_out_valid_R(i)
+    when(io.InLiveOut(i).fire) {
+      in_live_out_R(i) <> io.InLiveOut(i).bits
+      in_live_out_valid_R(i) := true.B
+    }
+  }
+  // Latch the exit signals
+  for (i <- 0 until NumCarry.length) {
+    io.CarryDepenIn(i).ready := ~in_carry_in_valid_R(i)
+    when(io.CarryDepenIn(i).fire) {
+      in_carry_in_R(i) <> io.CarryDepenIn(i).bits
+      in_carry_in_valid_R(i) := true.B
+    }
+  }
+
+  /**
+    * Connecting outputs
+    */
+  // Connect LiveIn registers to I/O
+  for (i <- NumIns.indices) {
+    for (j <- 0 until NumIns(i)) {
+      io.OutLiveIn.elements(s"field$i")(j).bits <> in_live_in_R(i)
+      io.OutLiveIn.elements(s"field$i")(j).valid := out_live_in_valid_R(i)(j)
+    }
+  }
+
+  // Connect LiveIn registers to I/O
+  for (i <- NumOuts.indices) {
+    for (j <- 0 until NumOuts(i)) {
+      io.OutLiveOut.elements(s"field$i")(j).bits <> in_live_out_R(i) //this apperantly is the output
+      io.OutLiveOut.elements(s"field$i")(j).valid := out_live_out_valid_R(i)(j)
+    }
+  }
+
+  // Connect LiveIn registers to I/O
+  for (i <- NumCarry.indices) {
+    for (j <- 0 until NumCarry(i)) {
+      io.CarryDepenOut.elements(s"field$i")(j).bits <> in_carry_in_R(i)
+      io.CarryDepenOut.elements(s"field$i")(j).valid := out_carry_out_valid_R(i)(j)
+    }
+  }
+
+  /**
+    * Connecting control output signals
+    */
+  io.activate_loop_start.bits <> active_loop_start_R
+  io.activate_loop_start.valid := active_loop_start_valid_R
+
+  io.activate_loop_back.bits <> active_loop_back_R
+  io.activate_loop_back.valid := active_loop_back_valid_R
+
+  for (i <- 0 until NumExits) {
+    io.loopExit(i).bits <> loop_exit_R(i)
+    io.loopExit(i).valid <> loop_exit_valid_R(i)
+  }
+
+
+  /**
+    * Connecting output handshake signals
+    */
+
+  when(io.activate_loop_start.fire) {
+    active_loop_start_valid_R := false.B
+  }
+
+  when(io.activate_loop_back.fire) {
+    active_loop_back_valid_R := false.B
+  }
+
+  for (i <- 0 until NumExits) {
+    when(io.loopExit(i).fire) {
+      loop_exit_valid_R(i) := false.B
+      loop_exit_fire_R(i) := true.B
+    }
+  }
+
+  // Connect LiveIn registers to I/O
+  for (i <- NumIns.indices) {
+    for (j <- 0 until NumIns(i)) {
+      when(io.OutLiveIn.elements(s"field$i")(j).fire) {
+        out_live_in_valid_R(i)(j) := false.B
+        out_live_in_fire_R(i)(j) := true.B
+      }
+    }
+  }
+
+  // Connect LiveOut registers to I/O
+  for (i <- NumOuts.indices) {
+    for (j <- 0 until NumOuts(i)) {
+      when(io.OutLiveOut.elements(s"field$i")(j).fire) {
+        out_live_out_valid_R(i)(j) := false.B
+        out_live_out_fire_R(i)(j) := true.B
+      }
+    }
+  }
+
+  // Connect LiveIn registers to I/O
+  for (i <- NumCarry.indices) {
+    for (j <- 0 until NumCarry(i)) {
+      when(io.CarryDepenOut.elements(s"field$i")(j).fire) {
+        out_carry_out_valid_R(i)(j) := false.B
+        out_carry_out_fire_R(i)(j) := true.B
+      }
+    }
+  }
+
+  /**
+    * Helper functions
+    */
+
+  def IsEnableValid(): Bool = {
+    enable_valid_R
+  }
+
+  def IsEnable(): Bool = {
+    enable_R.control
+  }
+
+  def IsLiveInValid(): Bool = {
+    if (NumIns.length == 0) {
+      return true.B
+    } else {
+      in_live_in_valid_R.reduce(_ && _)
+    }
+  }
+
+  // Live outs are ready if all have fired
+  def IsLiveOutValid(): Bool = {
+    if (NumOuts.length == 0) {
+      return true.B
+    } else {
+      in_live_out_valid_R.reduceLeft(_ && _)
+    }
+  }
+
+  // Live outs are ready if all have fired
+  def IsCarryDepenValid(): Bool = {
+    if (NumCarry.length == 0) {
+      return true.B
+    } else {
+      in_carry_in_valid_R.reduceLeft(_ && _)
+    }
+  }
+
+  def ValidOut(): Unit = {
+    for (i <- NumOuts.indices) {
+      out_live_out_valid_R(i).foreach(_ := true.B)
+    }
+  }
+
+  def IsExitsFired(): Bool = {
+    loop_exit_fire_R.reduce(_ & _)
+  }
+
+  def IsLiveOutFired(): Bool = {
+    if (NumOuts.length == 0) {
+      return true.B
+    }
+    else {
+      val fire_mask = for (i <- NumOuts.indices) yield {
+        val fire_mask_live_out = out_live_out_fire_R(i) reduce (_ & _)
+        fire_mask_live_out
+      }
+      fire_mask.reduce(_ & _)
+    }
+
+  }
+
+  def IsLiveInFired(): Bool = {
+  if (NumIns.length == 0) {
+    true.B
+  } else {
+      val fire_masks = VecInit(NumIns.indices.map(i => out_live_in_fire_R(i).reduce(_ & _)))
+      fire_masks.reduceTree(_ & _)
+    }
+  }
+
+  /**
+    * State machines
+    */
+
+  val s_idle :: s_active :: s_end :: Nil = Enum(3)
+  val state = RegInit(s_idle)
+
+
+  switch(state) {
+    is(s_idle) {
+      /**
+        * Init values for registers
+        **/
+      //Wait for all the inputs and enable signal to latch
+      when(IsLiveInValid() && IsEnableValid()) {
+        when(IsEnable()) {
+          //If loop is in the if(true) path go to active state
+          // Set the loop liveIN data as valid
+
+          in_carry_in_R.foreach(_ := DataBundle.default)
+          out_live_in_valid_R.foreach(_.foreach(_ := true.B))
+          out_carry_out_valid_R.foreach(_.foreach(_ := true.B))
+
+          active_loop_start_R := ControlBundle.active(enable_R.taskID)
+          active_loop_start_valid_R := true.B
+
+          active_loop_back_R := ControlBundle.deactivate(enable_R.taskID)
+          active_loop_back_valid_R := true.B
+
+          //Change state
+          state := s_active
+          if (log) {
+            printf(p"[LOG] [${module_name}] [TID: ${io.activate_loop_start.bits.taskID}]" +
+              p" [LOOP] [${node_name}] [RESTARTED] [Cycle: ${loopcounter}] [LoopCycle: ${cycleCount}]\n")
+          }
+
+        }.otherwise {
+          //If loop is in the if(false) path, put some garbage value on handshaking
+          // Fire live-outs
+          in_live_out_R.foreach(_ := DataBundle.deactivate())
+          out_live_out_valid_R.foreach(_.foreach(_ := true.B))
+
+          // Fire Loop exists
+          loop_exit_R.foreach(_ := ControlBundle.deactivate())
+          loop_exit_valid_R.foreach(_ := true.B)
+
+          //Change state
+          state := s_end
+
+        }
+      }
+    }
+    is(s_active) {
+      when((loopcounter < loopcounterMAX)
+        && IsLiveInFired()
+        && IsLiveOutValid()
+        && IsCarryDepenValid()) {
+          //When loop needs to repeat itself
+          //Drive loop internal output signals
+          loopcounter := loopcounter + loopcounterSTEP
+          active_loop_start_R := ControlBundle.deactivate(enable_R.taskID)
+          active_loop_start_valid_R := true.B
+
+          active_loop_back_R := ControlBundle.active(enable_R.taskID)
+          active_loop_back_valid_R := true.B
+
+          out_live_in_fire_R.foreach(_.foreach(_ := false.B))
+          out_carry_out_fire_R.foreach(_.foreach(_ := false.B))
+          out_live_in_valid_R.foreach(_.foreach(_ := true.B))
+          out_carry_out_valid_R.foreach(_.foreach(_ := true.B))
+
+
+
+          in_live_out_valid_R.foreach(_ := false.B)
+          in_carry_in_valid_R.foreach(_ := false.B)
+
+          state := s_active
+
+          if (log) {
+            printf(p"[LOG] [${module_name}] [TID: ${io.activate_loop_start.bits.taskID}]" +
+              p" [LOOP] [${node_name}] [RESTARTED] [Cycle: ${loopcounter}] [LoopCycle: ${cycleCount}]\n")
+          }
+
+
+        }.elsewhen((loopcounter >= loopcounterMAX)
+          && IsLiveOutValid()
+          && IsCarryDepenValid()) {
+          // Fire live-outs and loop exit control signal
+
+          out_live_out_valid_R.foreach(_.foreach(_ := true.B))
+          loop_exit_valid_R.foreach(_ := true.B)
+
+          active_loop_start_R := ControlBundle.default
+          active_loop_back_R := ControlBundle.default
+          in_carry_in_R.foreach(_ := DataBundle.default)
+          // Fire Loop exists
+          loop_exit_R.foreach(_ := ControlBundle.active(true.B))
+          loop_exit_valid_R.foreach(_ := true.B)
+
+          //Change state
+          if (log) {
+            printf(p"[LOG] [${module_name}] [TID: ${io.activate_loop_start.bits.taskID}] [LOOP]" +
+              p" [${node_name}] [FIRED] [Cycle: ${cycleCount}]\n")
+            for (i <- 0 until NumOuts.size) {
+              printf(p"\tOut[${i.U}] [Val: 0x${Hexadecimal(in_live_out_R(i).data)}]\n")
+            }
+            //if(NumOuts.size > 0) printf("\n")
+          }
+          state := s_end
+
+      }
+
+    }
+    is(s_end) {
+      when(IsExitsFired() && IsLiveOutFired()) {
+
+        //Restart to initial state
+
+        enable_R := ControlBundle.default
+        enable_valid_R := false.B
 
         in_live_in_R.foreach(_ := DataBundle.default)
         in_live_in_valid_R.foreach(_ := false.B)

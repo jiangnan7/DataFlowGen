@@ -83,4 +83,3 @@ lazy val chipSettings = Seq(
     s"make -C $makeDir  -j $jobs $target".!
   }
 )
-

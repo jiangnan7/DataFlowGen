@@ -72,7 +72,7 @@ class ComputeNode(NumOuts: Int, ID: Int, opCode: String)
   // val predicate = Mux(enable_valid_R, enable_R.control, io.enable.bits.control)
   // val taskID = Mux(enable_valid_R, enable_R.taskID, io.enable.bits.taskID)
 
- 
+
   /*===============================================*
    *            Latch inputs. Wire up output       *
    *===============================================*/
@@ -194,7 +194,7 @@ class OEHB(size: Int = 32) extends MultiIOModule {
 
 class ComputeNodeWithoutStateIO(NumOuts: Int, Debug: Boolean)
                    (implicit p: Parameters)
-  extends HandShakingIONPS(NumOuts, Debug)(new DataBundle) {
+  extends HandShakingDynIO(NumOuts, Debug)(new DataBundle) {
   val LeftIO = Flipped(Decoupled(new DataBundle()))
   val RightIO = Flipped(Decoupled(new DataBundle()))
 }
@@ -204,7 +204,7 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
                  (implicit p: Parameters,
                   name: sourcecode.Name,
                   file: sourcecode.File)
-  extends HandShakingNPS(NumOuts, ID, Debug)(new DataBundle())(p)
+  extends HandShakingDyn(NumOuts, ID, Debug)(new DataBundle())(p)
     with HasAccelShellParams{
   override lazy val io = IO(new ComputeNodeWithoutStateIO(NumOuts, Debug))
   val node_name = name.value
@@ -213,7 +213,7 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
   /*===========================================*
    *            Registers                      *
    *===========================================*/
-  
+
   // val left_R = RegInit(DataBundle.default)
   // val left_valid_R = RegInit(false.B)
 
@@ -240,36 +240,125 @@ class ComputeNodeWithoutState(NumOuts: Int, ID: Int, opCode: String)
     io.Out(i).valid := oehb.dataOut.valid
   }
 
-  
+
   //Instantiate ALU with selected code
   val FU = Module(new UALU(xlen, opCode, issign = sign))
 
-  val out_data_R = RegNext(Mux(enable_R.control, FU.io.out, 0.U), init = 0.U)
-  val predicate = io.enable.bits.control
-  val taskID = io.enable.bits.taskID
+  // val out_data_R = RegNext(Mux(enable_R.control, FU.io.out, 0.U), init = 0.U)
+  // val predicate = io.enable.bits.control
+  // val taskID = io.enable.bits.taskID
 
   FU.io.in1 := io.LeftIO.bits.data
   FU.io.in2 := io.RightIO.bits.data
 
   private val buffer = ShiftRegister(FU.io.out, 1)
-  // io.RightIO.ready := true.B  
-  // io.LeftIO.ready := true.B  
+  // io.RightIO.ready := true.B
+  // io.LeftIO.ready := true.B
   // io.Out.foreach(_.bits := DataBundle(out_data_R ))
-  io.Out.foreach(_.bits := DataBundle(buffer, taskID, predicate))
+  io.Out.foreach(_.bits := DataBundle(buffer, true.B, true.B))
   when(IsOutReady()) {
     if (log) {
-          printf(p"[LOG] [${module_name}] [TID: ${taskID}] [COMPUTE] [Name: ${node_name}] " +
+          printf(p"[LOG] [${module_name}] [COMPUTE] [Name: ${node_name}] " +
             p"[ID: ${ID}] " +
-            p"[Pred: ${enable_R.control}] " +
+            p"[Pred: ${true.B}] " +
             p"[In(0): 0x${Hexadecimal(io.LeftIO.bits.data)}] " +
             p"[In(1) 0x${Hexadecimal(io.RightIO.bits.data)}] " +
             p"[Out: 0x${Hexadecimal(FU.io.out)}] " +
             p"[OpCode: ${opCode}] " +
             p"[Cycle: ${cycleCount}]\n")
-        } 
+        }
     Reset()
   }
 }
+
+
+
+class ComputeNodeWithoutStateSupportCarryIO(NumOuts: Int, Debug: Boolean)
+                   (implicit p: Parameters)
+  extends HandShakingDynIO(NumOuts, Debug)(new DataBundle) {
+  // val LeftIO = Flipped(Decoupled(new DataBundle()))
+  val RightIO = Flipped(Decoupled(new DataBundle()))
+}
+
+class ComputeNodeWithoutStateSupportCarry(NumOuts: Int, ID: Int, opCode: String)
+                 (sign: Boolean, Debug: Boolean = false)
+                 (implicit p: Parameters,
+                  name: sourcecode.Name,
+                  file: sourcecode.File)
+  extends HandShakingDyn(NumOuts, ID, Debug)(new DataBundle())(p)
+    with HasAccelShellParams{
+  override lazy val io = IO(new ComputeNodeWithoutStateSupportCarryIO(NumOuts, Debug))
+  val node_name = name.value
+  val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
+  val (cycleCount, _) = Counter(true.B, 32 * 1024)
+  /*===========================================*
+   *            Registers                      *
+   *===========================================*/
+
+  // val left_R = RegInit(DataBundle.default)
+  // val left_valid_R = RegInit(false.B)
+
+  // // Right Input
+  // val right_R = RegInit(DataBundle.default)
+  // val right_valid_R = RegInit(false.B)
+  val valueReg = RegInit(0.U(32.W))
+  private val join = Module(new Join(1))
+  private val oehb = Module(new OEHB(0))
+
+  // join.pValid(0) := io.LeftIO.valid
+  join.pValid(0) := io.RightIO.valid
+  // io.LeftIO.ready := join.ready(0)
+  io.RightIO.ready := join.ready(0)
+  join.nReady := oehb.dataIn.ready
+
+  oehb.dataIn.bits := DontCare
+  // oehb.dataOut.ready := io.Out(0).ready
+  oehb.dataIn.valid := join.valid
+  // io.Out(0).valid := oehb.dataOut.valid
+
+  //   val nReadyReg = RegInit(false.B)
+  // nReadyReg := io.Out.map(_.ready).reduce(_ && _)
+
+  // join.nReady := nReadyReg//io.Out(0).ready
+
+  oehb.dataOut.ready := io.Out.map(_.ready).reduce(_ && _)
+  for (i <- 0 until NumOuts) {
+    io.Out(i).valid := oehb.dataOut.valid
+  }
+
+
+  //Instantiate ALU with selected code
+  val FU = Module(new UALU(xlen, opCode, issign = sign))
+
+  // val out_data_R = RegNext(Mux(enable_R.control, FU.io.out, 0.U), init = 0.U)
+  // val predicate = io.enable.bits.control
+  // val taskID = io.enable.bits.taskID
+
+  FU.io.in1 := valueReg
+  FU.io.in2 := io.RightIO.bits.data
+
+  private val buffer = ShiftRegister(FU.io.out, 1)
+  // io.RightIO.ready := true.B
+  // io.LeftIO.ready := true.B
+  // io.Out.foreach(_.bits := DataBundle(out_data_R ))
+  io.Out.foreach(_.bits := DataBundle(buffer, true.B, true.B))
+
+  when(IsOutReady()) {
+
+    if (log) {
+          printf(p"[LOG] [${module_name}] [COMPUTE] [Name: ${node_name}] " +
+            p"[ID: ${ID}] " +
+            p"[In(0): 0x${Hexadecimal(valueReg)}] " +
+            p"[In(1) 0x${Hexadecimal(io.RightIO.bits.data)}] " +
+            p"[Out: 0x${Hexadecimal(FU.io.out)}] " +
+            p"[OpCode: ${opCode}] " +
+            p"[Cycle: ${cycleCount}]\n")
+        }
+    Reset()
+    valueReg := FU.io.out
+  }
+}
+
 
 class ComputeNodeWithVectorizationIO(NumOuts: Seq[Int], NumLanes: Int, Debug: Boolean)
     (implicit p: Parameters) extends AccelBundle {
@@ -370,7 +459,7 @@ class ComputeNodeWithVectorization(NumOuts: Seq[Int], NumLanes: Int, ID: Int, op
       fire_mask.reduce(_ && _)
     }
   }
-  
+
   when(IsOutReady()) {
     if (Debug) {
       for (lane <- 0 until NumLanes) {
@@ -387,16 +476,130 @@ class ComputeNodeWithVectorization(NumOuts: Seq[Int], NumLanes: Int, ID: Int, op
   }
 
 }
+
+class MulNodeWithVectorization(NumOuts: Seq[Int], NumLanes: Int, ID: Int, opCode: String)
+                              (sign: Boolean, Debug: Boolean = false)
+                              (implicit val p: Parameters,
+                    name: sourcecode.Name,
+                    file: sourcecode.File) extends Module with HasAccelParams with UniformPrintfs {
+
+
+  val io = IO(new ComputeNodeWithVectorizationIO(NumOuts, NumLanes, Debug))
+
+  val node_name = name.value
+  val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
+  val (cycleCount, _) = Counter(true.B, 32 * 1024)
+
+  /*===========================================*
+   *            Registers                      *
+   *===========================================*/
+
+  private val join = Module(new Join(NumLanes*2))
+  private val oehb = Module(new OEHB())
+
+
+  for (lane <- 0 until NumLanes) {
+    join.pValid(lane * 2) := io.LeftIO(lane).valid
+    join.pValid(lane * 2 + 1) := io.RightIO(lane).valid
+    io.LeftIO(lane).ready := join.ready(lane * 2)
+    io.RightIO(lane).ready := join.ready(lane * 2 + 1)
+  }
+
+  join.nReady := oehb.dataIn.ready
+
+  oehb.dataIn.bits := DontCare
+  oehb.dataIn.valid := join.valid
+
+  val in_live_in_valid_R = Seq.fill(NumOuts.length)(RegInit(false.B))
+
+  def ValidOut(): Bool = {
+    io.Out.elements.map { case (_, vec) =>
+      vec.map(_.ready).reduce(_ && _)
+    }.reduce(_ && _)
+  }
+
+  // for (i <- 0 until NumOuts.length) {
+  //   in_live_in_valid_R(i) := io.Out.elements.map(_.ready).reduce(_ && _)
+  // }
+
+
+  oehb.dataOut.ready := ValidOut()
+
+
+  for (i <- NumOuts.indices) {
+    for (j <- 0 until NumOuts(i)) {
+        io.Out.elements(s"field$i")(j).valid := oehb.dataOut.valid
+    }
+  }
+
+
+
+  val FUs = Seq.fill(NumLanes)(Module(new UALU(xlen, opCode, issign = sign)))
+
+  for (lane <- 0 until NumLanes) {
+      val left_R = RegInit(0.U(32.W))
+      val right_R =RegInit(0.U(32.W))
+      left_R <> io.LeftIO(lane).bits.data
+      right_R <> io.RightIO(lane).bits.data
+      FUs(lane).io.in1 :=left_R
+      FUs(lane).io.in2 := right_R
+  }
+
+  // for (lane <- 0 until NumLanes) {
+  //     FUs(lane).io.in1 := io.LeftIO(lane).bits.data
+  //     FUs(lane).io.in2 := io.RightIO(lane).bits.data
+  // }
+
+  private val buffer = FUs.map(FU => ShiftRegister(FU.io.out, 1))
+
+
+
+  for (i <- NumOuts.indices) {
+    for (j <- 0 until NumOuts(i)) {
+      io.Out.elements(s"field$i")(j).bits := DataBundle(buffer(i), 1.U, 1.U)
+      io.Out.elements(s"field$i")(j).valid := oehb.dataOut.valid
+    }
+  }
+
+  def IsOutReady(): Bool = {
+    if (NumOuts.isEmpty) {
+      true.B
+    } else {
+      val out_ready_R = RegInit(VecInit(Seq.fill(NumOuts.sum)(false.B)))
+      val fire_mask = (out_ready_R zip io.Out.elements.flatMap { case (_, vec) =>
+        vec.map(out => out.valid && out.ready)
+      }).map { case (a, b) => a | b }
+      fire_mask.reduce(_ && _)
+    }
+  }
+
+  when(IsOutReady()) {
+    if (log) {
+      for (lane <- 0 until NumLanes) {
+        printf(p"[LOG] [${module_name}] [TID: ${0}] [COMPUTE] [Name: ${node_name}] " +
+          p"[ID: ${ID}] [Lane: ${lane}] " +
+          p"[Pred: ${1}] " +
+          p"[In(0): 0x${Hexadecimal(io.LeftIO(lane).bits.data)}] " +
+          p"[In(1): 0x${Hexadecimal(io.RightIO(lane).bits.data)}] " +
+          p"[Out: 0x${Hexadecimal(FUs(lane).io.out)}] " +
+          p"[OpCode: ${opCode}] [Cycle: ${cycleCount}]\n")
+      }
+    }
+    Reset()
+  }
+
+}
+
 import java.io.PrintWriter
 object ComputeNodeGen extends App {
   implicit val p = new WithAccelConfig ++ new WithTestConfig
   // sbt "test:runMain heteacc.node.ComputeNodeGen  -td ./test_run_dir"
   // println(getVerilogString(new ComputeNode(NumOuts = 1, ID = 0, opCode = "Add")(sign = false, Debug = false)))
   val opCodes = Seq(
-    ("Add", 1), ("Sub", 2), ("And", 3), ("Or", 4), ("Xor", 5), 
-    ("Xnor", 6), ("ShiftLeft", 7), ("ShiftRight", 8), ("ShiftRightLogical", 9), 
-    ("ShiftRightArithmetic", 10), ("EQ", 11), ("NE", 12), ("LT", 13), 
-    ("GT", 14), ("LTE", 15), ("GTE", 16), ("PassA", 17), ("PassB", 18), 
+    ("Add", 1), ("Sub", 2), ("And", 3), ("Or", 4), ("Xor", 5),
+    ("Xnor", 6), ("ShiftLeft", 7), ("ShiftRight", 8), ("ShiftRightLogical", 9),
+    ("ShiftRightArithmetic", 10), ("EQ", 11), ("NE", 12), ("LT", 13),
+    ("GT", 14), ("LTE", 15), ("GTE", 16), ("PassA", 17), ("PassB", 18),
     ("Mul", 19), ("Udiv", 20), ("Max", 21), ("Min", 22)
   )
 
@@ -413,4 +616,4 @@ object ComputeNodeGen extends App {
   }
   // (new chisel3.stage.ChiselStage).emitVerilog(new ComputeNode(NumOuts = 1, ID = 0, opCode = "Add")(sign = false, Debug = false))
 
-} 
+}

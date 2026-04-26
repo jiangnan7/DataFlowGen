@@ -58,34 +58,33 @@ class getTanhDF01[T <: AccelIO](c: T)
                                        outAddrVec: List[Int], outDataVec: List[Int])
   extends AccelTesterLocal(c)(inAddrVec, inDataVec, outAddrVec, outDataVec) {
 
- 
+
   poke(c.io.in.valid, false)
   poke(c.io.in.bits.data("field0").data, 0.U)
   poke(c.io.in.bits.data("field0").taskID, 0.U)
   poke(c.io.in.bits.data("field0").predicate, false.B)
   poke(c.io.out.ready, false.B)
-  
-  
+
+
   step(1)
   poke(c.io.in.bits.enable.control, true)
   poke(c.io.in.valid, true)
   poke(c.io.in.bits.data("field0").data, 0.U) // Array a[] base address
   poke(c.io.in.bits.data("field0").predicate, true)
-  
+
   var time = 0 //Cycle counter
   var result = false
   while (time < 50000 && !result) {
     time += 1
     step(1)
     val data = peek(c.io.out.bits.data("field0").data)
-    println(Console.RED + s"*** Got $data. Hoping for 100" + Console.RESET) 
 
     if (peek(c.io.out.valid) == 1) {
       result = true
       println(Console.BLUE + s"*** Bgemm finished. Run time: $time cycles." + Console.RESET)
     }
   }
- 
+
 
   if (!result) {
     println(Console.RED + "*** Timeout." + Console.RESET)
@@ -102,7 +101,7 @@ class getTanhDF_test extends FlatSpec with Matchers {
 
   val outAddrVec = List.range(32 * inDataVec.length, 32 * inDataVec.length + (32 * 1), 32)
   val outDataVec = List()
-  
+
   implicit val p = new WithAccelConfig(HeteaccAccelParams())
   // iotester flags:
   // -ll  = log level <Error|Warn|Info|Debug|Trace>
@@ -118,7 +117,7 @@ class getTanhDF_test extends FlatSpec with Matchers {
         "-td", s"test_run_dir/getTanhDF",
         "-tts", "0001",
         "--generate-vcd-output", "on"),
-        
+
       () => new getTanhDF_main()(p)) {
       c => new getTanhDF01(c)(inAddrVec, inDataVec, outAddrVec, outDataVec)
     } should be(true)

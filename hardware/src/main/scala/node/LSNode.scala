@@ -59,10 +59,11 @@ class TEHB(size: Int = 32)(implicit val p: Parameters) extends MultiIOModule {
   dataIn.ready := !full_reg
   reg_en := dataIn.ready & dataIn.valid & (!dataOut.ready)
   mux_sel := full_reg
-  dataOut.bits.predicate <> DontCare
-  dataOut.bits.taskID <> DontCare
+  dataOut.bits.predicate := DontCare
+  dataOut.bits.taskID := DontCare
   full_reg := dataOut.valid & (!dataOut.ready)
 
+  // Ensure initialization of dataOut.bits
   when(reg_en) {
     data_reg := dataIn.bits.data
   }
@@ -72,16 +73,11 @@ class TEHB(size: Int = 32)(implicit val p: Parameters) extends MultiIOModule {
   }.otherwise {
     dataOut.bits := dataIn.bits
   }
-  //  def apply(size : Int = 32)(in : DecoupledIO[UInt]) = {
-  //    val tehb = Module(new TEHB(size))
-  //    tehb.dataIn := in
-  //    tehb.dataOut
-  //  }
 }
 
 
 class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val p: Parameters) extends MultiIOModule  {
-    
+
     val io = IO(new Bundle {
 
     val load_address  = Vec(NumRead, Flipped(DecoupledIO(new DataBundle)))
@@ -90,7 +86,7 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
 
     val store_address  = Vec(NumWrite, Flipped(DecoupledIO(new DataBundle)))
     val store_data = Vec(NumWrite, Flipped(DecoupledIO(new DataBundle)))
-    
+
   })
   for (i <- 0 until NumRead) {
     io.load_data(i).valid := false.B
@@ -101,7 +97,32 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
   def initMem(memoryFile: String) = mem.initMem(memoryFile)
 
 
-  if (NumWrite == 0) {
+  if (NumRead == 1 && NumWrite == 0) {
+    mem.addr := DontCare
+    mem.r_en := false.B
+    mem.w_data := DontCare
+    mem.w_en := false.B
+
+    val buffer = Module(new TEHB())
+    buffer.dataIn.bits := DontCare
+    buffer.dataIn.valid := false.B
+    buffer.dataOut <> io.load_data(0)
+
+    val req_fire = io.load_address(0).valid && buffer.dataIn.ready
+    val resp_valid = RegNext(req_fire, false.B)
+
+    io.load_address(0).ready := buffer.dataIn.ready
+
+    when(req_fire) {
+      mem.r_en := true.B
+      mem.addr := io.load_address(0).bits.data
+    }
+
+    buffer.dataIn.valid := resp_valid
+    when(resp_valid) {
+      buffer.dataIn.bits.data := mem.r_data
+    }
+  } else if (NumWrite == 0) {
     mem.addr := DontCare
     mem.r_en := false.B
     mem.w_data := DontCare
@@ -166,7 +187,7 @@ class MemoryEngine(Size: Int, ID: Int, NumRead: Int, NumWrite: Int)(implicit val
     mem.r_en := !finish
 
     when(finish) {
-      mem.addr := 32.U 
+      mem.addr := 32.U
       mem.w_en := false.B
       mem.w_data := DontCare
     }.otherwise {
@@ -230,8 +251,7 @@ class Load(NumOuts: Int, ID: Int, RouteID: Int)
           (implicit p: Parameters,
                      name: sourcecode.Name,
                      file: sourcecode.File)
-                extends HandShakingNPS(NumOuts, ID)(new DataBundle)(p)
-
+                extends HandShakingDyn(NumOuts, ID)(new DataBundle)(p)
 {
 
   val node_name = name.value
@@ -258,8 +278,8 @@ class Load(NumOuts: Int, ID: Int, RouteID: Int)
   when(IsOutReady()){
     Reset()
     if (log) {
-      printf("[LOG] " + "[" + module_name + "] [TID->%d] [LOAD] " + node_name + ": Output fired @ %d, Address:%d, Value: %d\n",
-        enable_R.taskID, cycleCount, GepAddr.bits.data, data_in.bits.data)
+      printf("[LOG] " + "[" + module_name + "] [LOAD] " + node_name + ": Output fired @ %d, Address:%d, Value: %d\n",
+        cycleCount, GepAddr.bits.data, data_in.bits.data)
     }
   }
 
@@ -272,7 +292,7 @@ class Store(NumOuts: Int, ID: Int, RouteID: Int)
           (implicit p: Parameters,
                       name: sourcecode.Name,
                       file: sourcecode.File)
-                extends HandShakingNPS(NumOuts, ID)(new DataBundle)(p)
+                extends HandShakingDyn(NumOuts, ID)(new DataBundle)(p)
     with HasAccelShellParams  with HasDebugCodes {
 
   val node_name = name.value
@@ -300,7 +320,7 @@ class Store(NumOuts: Int, ID: Int, RouteID: Int)
 
   address_out.bits := GepAddr.bits
 
-  
+
   for (i <- 0 until NumOuts) {
     io.Out(i) <> inData
 
@@ -312,13 +332,13 @@ class Store(NumOuts: Int, ID: Int, RouteID: Int)
   when(IsOutReady()){
     Reset()
     if (log) {
-      printf(p"[LOG] [${module_name}] [TID: ${enable_R.taskID}] [STORE] " +
-            p"[${node_name}] "+ 
+      printf(p"[LOG] [${module_name}]  [STORE] " +
+            p"[${node_name}] "+
             p"[Addr: ${Decimal(GepAddr.bits.data)}] " +
             p"[Data: ${Decimal(inData.bits.data)}] " +
             p"[Cycle: ${cycleCount}]\n")
     }
   }
-       
+
 
 }

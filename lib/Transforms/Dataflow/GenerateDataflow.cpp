@@ -1,8 +1,9 @@
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
-#include "mlir/IR/Dominance.h"
+
 #include "heteacc/Dialect/DataFlow/Utils.h"
 #include "heteacc/Misc/Utils.h"
 #include "heteacc/Transforms/Passes.h"
@@ -10,13 +11,12 @@ using namespace mlir;
 using namespace heteacc;
 using namespace dataflow;
 
-
 namespace {
 struct TaskPartition : public OpRewritePattern<LaunchOp> {
   using OpRewritePattern<LaunchOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(LaunchOp launch,
-                                PatternRewriter &rewriter) const override { 
+                                PatternRewriter &rewriter) const override {
     if (llvm::any_of(launch.getOps(), [](Operation &op) {
           return isa<bufferization::BufferizationDialect, tosa::TosaDialect,
                      tensor::TensorDialect, linalg::LinalgDialect>(
@@ -36,7 +36,7 @@ struct TaskPartition : public OpRewritePattern<LaunchOp> {
         // Memory allocs are moved to the begining and skipped.
         op.moveBefore(&block, block.begin());
 
-      } else if (isa<AffineForOp, scf::ForOp>(op)) {//, dataflow::ForOp, scf::IfOp
+      } else if (isa<AffineForOp, scf::ForOp>(op)) {
         // We always take loop as root operation and fuse all the collected
         // operations so far.
         opsToFuse.push_back(&op);
@@ -62,9 +62,7 @@ struct TaskPartition : public OpRewritePattern<LaunchOp> {
 };
 } // namespace
 
-
-struct GenerateDataflow
-    : public GenerateDataflowBase<GenerateDataflow> {
+struct GenerateDataflow : public GenerateDataflowBase<GenerateDataflow> {
   void runOnOperation() override {
     auto func = getOperation();
     auto context = func.getContext();
@@ -74,10 +72,10 @@ struct GenerateDataflow
     getLoopBands(func.front(), targetBands, /*allowHavingChilds=*/true);
 
     int loop_band = 0;
-    for (auto &band : llvm::reverse(targetBands)){
+    for (auto &band : llvm::reverse(targetBands)) {
       int loop_level = 0;
       // executionBlock(band.back().getBody());
-      for(auto &loop : band){
+      for (auto &loop : band) {
         OpBuilder b(loop);
         loop->setAttr("Loop_Band", b.getI32IntegerAttr(loop_band));
         loop->setAttr("Loop_Level", b.getI32IntegerAttr(loop_level));
@@ -85,18 +83,12 @@ struct GenerateDataflow
       }
       loop_band++;
     }
-      
 
     mlir::RewritePatternSet patterns(context);
     patterns.add<TaskPartition>(context);
     (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
   }
 };
-
-
-
-
-
 
 std::unique_ptr<Pass> heteacc::createGenerateDataflowPass() {
   return std::make_unique<GenerateDataflow>();

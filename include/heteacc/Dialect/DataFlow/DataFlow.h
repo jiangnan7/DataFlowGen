@@ -8,6 +8,8 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "llvm/ADT/StringRef.h"
+
 #include "heteacc/Dialect/DataFlow/DataFlowOpsDialect.h.inc"
 #include "heteacc/Dialect/DataFlow/DataFlowOpsEnums.h.inc"
 
@@ -18,21 +20,16 @@
 #include "heteacc/Dialect/DataFlow/DataFlowOpsAttributes.h.inc"
 
 namespace mlir {
-namespace heteacc{
-namespace dataflow{
+namespace heteacc {
+namespace dataflow {
 
 #include "heteacc/Dialect/DataFlow/DataFlowOpsInterfaces.h.inc"
 
-} 
 }
-}
-
-
-
+} // namespace heteacc
+} // namespace mlir
 
 #define GET_OP_CLASSES
 #include "heteacc/Dialect/DataFlow/DataFlowOps.h.inc"
-
-
 
 #endif // DIALECT_DATAFLOW_IR_TD
