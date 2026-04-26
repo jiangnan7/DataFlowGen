@@ -3,15 +3,10 @@ package heteacc.node
 import chisel3._
 import chisel3.util._
 import chipsalliance.rocketchip.config._
-import chisel3.util.experimental.BoringUtils
 import heteacc.interfaces._
 import utility.Constants._
-
-import org.scalatest.{FlatSpec, Matchers}
 import heteacc.config._
-import chisel3.Module
 import util._
-import chipsalliance.rocketchip.config._
 
 class LoadIO(NumPredOps: Int,
              NumSuccOps: Int,
@@ -48,7 +43,7 @@ class MemLoad(NumPredOps: Int,
   // Printf debugging
   val node_name = name.value
   val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
-  val (cycleCount, _) = Counter(true.B, 32 * 1024)
+  val cycleCount = if (log) Some(Counter(true.B, 32 * 1024)._1) else None
   override val printfSigil = "[" + module_name + "] " + node_name + ": " + ID + " "
 
 
@@ -61,7 +56,6 @@ class MemLoad(NumPredOps: Int,
 
   // Memory Response
   val data_R = RegInit(DataBundle.default)
-  val data_valid_R = RegInit(false.B)
 
   // State machine
   val s_idle :: s_RECEIVING :: s_Done :: Nil = Enum(3)
@@ -78,19 +72,6 @@ class MemLoad(NumPredOps: Int,
     addr_R := io.GepAddr.bits
     addr_valid_R := true.B
   }
-
-  //**********************************************************************
-  var log_id = WireInit(ID.U((6).W))
-  var GuardFlag = WireInit(0.U(1.W))
-
-  var log_out_reg = RegInit(0.U((xlen-7).W))
-  val writeFinish = RegInit(false.B)
-  //log_id := ID.U
-  //test_value := Cat(GuardFlag,log_id, log_out)
-  val log_value = WireInit(0.U(xlen.W))
-  log_value := Cat(GuardFlag, log_id, log_out_reg)
-
-
 
   /*============================================
   =            Predicate Evaluation            =
@@ -166,16 +147,13 @@ class MemLoad(NumPredOps: Int,
         // Reset address
         // addr_R := DataBundle.default
         addr_valid_R := false.B
-        // Reset data
-        // data_R := DataBundle.default
-        data_valid_R := false.B
         // Reset state.
         Reset()
         // Reset state.
         state := s_idle
         if (log) {
           printf("[LOG] " + "[" + module_name + "] [TID->%d] [LOAD] " + node_name + ": Output fired @ %d, Address:%d, Value: %d\n",
-            enable_R.taskID, cycleCount, addr_R.data, data_R.data)
+            enable_R.taskID, cycleCount.get, addr_R.data, data_R.data)
         }
       }
     }
@@ -219,7 +197,7 @@ class UnTypLoadCache(NumPredOps: Int,
 
   val node_name = name.value
   val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
-  val (cycleCount, _) = Counter(true.B, 32 * 1024)
+  val cycleCount = if (log) Some(Counter(true.B, 32 * 1024)._1) else None
   /**
    * Registers
    */
@@ -229,7 +207,6 @@ class UnTypLoadCache(NumPredOps: Int,
 
   // Memory Response
   val data_R = RegInit(DataBundle.default)
-  val data_valid_R = RegInit(false.B)
 
   // State machine
   val s_idle :: s_RECEIVING :: s_Done :: Nil = Enum(3)
@@ -326,16 +303,13 @@ class UnTypLoadCache(NumPredOps: Int,
         // Clear all the valid states.
         // addr_R := DataBundle.default
         addr_valid_R := false.B
-        // Reset data
-        // data_R := DataBundle.default
-        data_valid_R := false.B
         // Reset state.
         Reset()
         // Reset state.
         state := s_idle
         if (log) {
           printf("[LOG] " + "[" + module_name + "] [TID->%d] [LOAD] " + node_name + ": Output fired @ %d, Address:%d, Value: %d\n",
-            enable_R.taskID, cycleCount, addr_R.data, data_R.data)
+            enable_R.taskID, cycleCount.get, addr_R.data, data_R.data)
         }
       }
     }

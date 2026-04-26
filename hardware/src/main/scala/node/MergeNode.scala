@@ -62,7 +62,7 @@ class MergeNode(NumInputs: Int = 2, NumOutputs: Int = 1, ID: Int, Res: Boolean =
   val mask_valid_R = RegInit(false.B)
 
   //Output register
-  val s_idle :: s_fire :: s_not_predicated :: Nil = Enum(3)
+  val s_idle :: s_fire :: Nil = Enum(2)
   val state = RegInit(s_idle)
 
 
@@ -103,18 +103,6 @@ class MergeNode(NumInputs: Int = 2, NumOutputs: Int = 1, ID: Int, Res: Boolean =
       OHToUInt(Reverse(mask_R))
     }
 
-  // when(sel === 0.U){
-  //   io.InData(1).ready := true.B
-  //   in_data_R(1).data := 0.U
-  //   in_data_valid_R(1) := true.B
-  // }
-  val select_input = in_data_R(sel).data
-  val select_predicate = in_data_R(sel).predicate
-
-  val enable_input = enable_R.control
-
-  val task_input = (io.enable.bits.taskID | enable_R.taskID)
-
   for (i <- 0 until NumOutputs) {
     when(io.Out(i).fire) {
       fire_R(i) := true.B
@@ -133,14 +121,10 @@ class MergeNode(NumInputs: Int = 2, NumOutputs: Int = 1, ID: Int, Res: Boolean =
     enable_valid_R && IsInputValid() && enable_R.control && state === s_idle
   }
 
-  //***************************BORE Connection*************************************
-
-
+  val selectedOutput = Mux(enable_R.control, in_data_R(sel), DataBundle(0.U, enable_R.taskID, false.B))
 
   for (i <- 0 until NumOutputs) {
-    //TODO: enable for comapring
-
-    io.Out(i).bits := in_data_R(sel)
+    io.Out(i).bits := selectedOutput
     io.Out(i).valid := out_valid_R(i)
   }
 
@@ -150,24 +134,16 @@ class MergeNode(NumInputs: Int = 2, NumOutputs: Int = 1, ID: Int, Res: Boolean =
       when(enable_valid_R && IsInputValid()) {
         //Make outputs valid
         out_valid_R.foreach(_ := true.B)
+        state := s_fire
         when(enable_R.control) {
-          //*********************************
-          state := s_fire
-          //********************************
-          //Print output
-
-
-          //*****************************************************************
           if (log) {
             printf(p"[LOG] [${module_name}] [sel: ${sel}] [PHI] " +
               p"[${node_name}] [Pred: ${enable_R.control}] [Out: ${in_data_R(sel).data}] [Cycle: ${cycleCount}]\n")
-          }
+            }
         }.otherwise {
-          state := s_not_predicated
-          //Print output
           if (log) {
-            printf(p"[LOG] [${module_name}] [TID: ${io.InData(sel).bits.taskID}] [PHI] " +
-              p"[${node_name}] [Pred: ${enable_R.control}] [Out: ${in_data_R(sel).data}] [Cycle: ${cycleCount}]\n")
+            printf(p"[LOG] [${module_name}] [TID: ${enable_R.taskID}] [PHI] " +
+              p"[${node_name}] [Pred: ${enable_R.control}] [Out: 0] [Cycle: ${cycleCount}]\n")
           }
         }
       }
@@ -196,31 +172,9 @@ class MergeNode(NumInputs: Int = 2, NumOutputs: Int = 1, ID: Int, Res: Boolean =
 
         state := s_idle
         if (log) {
-            printf(p"[LOG] [${module_name}] [TID: ${io.InData(sel).bits.taskID}] [PHI] " +
-              p"[${node_name}] [Pred: ${enable_R.control}] [Out: ${in_data_R(sel).data}] [Cycle: ${cycleCount}]\n")
+          printf(p"[LOG] [${module_name}] [TID: ${selectedOutput.taskID}] [PHI] " +
+            p"[${node_name}] [Pred: ${enable_R.control}] [Out: ${selectedOutput.data}] [Cycle: ${cycleCount}]\n")
         }
-      }
-
-    }
-    is(s_not_predicated) {
-      io.Out.map(_.bits) foreach (_.data := 0.U)
-      io.Out.map(_.bits) foreach (_.predicate := false.B)
-      io.Out.map(_.bits) foreach (_.taskID := task_input)
-
-      when(fire_mask.reduce(_ & _)) {
-        in_data_R.foreach(_ := DataBundle.default)
-        in_data_valid_R.foreach(_ := false.B)
-
-        mask_R := 0.U
-        mask_valid_R := false.B
-
-        enable_R := ControlBundle.default
-        enable_valid_R := false.B
-
-        fire_R.foreach(_ := false.B)
-
-        state := s_idle
-
       }
     }
   }

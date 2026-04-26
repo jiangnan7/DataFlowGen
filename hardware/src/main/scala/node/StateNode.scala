@@ -37,10 +37,6 @@ class UBranchNode(NumPredOps: Int = 0,
   val s_idle :: s_OUTPUT :: Nil = Enum(2)
   val state = RegInit(s_idle)
 
-  /*==========================================*
-   *           Predicate Evaluation           *
-   *==========================================*/
-
   /*===============================================*
    *            Latch inputs. Wire up output       *
    *===============================================*/
@@ -87,7 +83,6 @@ class UBranchNode(NumPredOps: Int = 0,
       }
     }
   }
-
 }
 
 
@@ -257,15 +252,11 @@ class CBranchNodeVariable(val NumTrue: Int = 1, val NumFalse: Int = 1, val NumPr
   val enable_R = RegInit(ControlBundle.default)
   val enable_valid_R = RegInit(false.B)
 
-
-  val predecessor_R = Seq.fill(NumPredecessor)(RegInit(ControlBundle.default))
   val predecessor_valid_R = Seq.fill(NumPredecessor)(RegInit(false.B))
 
-  val output_true_R = RegInit(ControlBundle.default)
   val output_true_valid_R = Seq.fill(NumTrue)(RegInit(false.B))
   val fire_true_R = Seq.fill(NumTrue)(RegInit(false.B))
 
-  val output_false_R = RegInit(ControlBundle.default)
   val output_false_valid_R = Seq.fill(NumFalse)(RegInit(false.B))
   val fire_false_R = Seq.fill(NumFalse)(RegInit(false.B))
 
@@ -283,7 +274,6 @@ class CBranchNodeVariable(val NumTrue: Int = 1, val NumFalse: Int = 1, val NumPr
   for (i <- 0 until NumPredecessor) {
     io.PredOp(i).ready := ~predecessor_valid_R(i)
     when(io.PredOp(i).fire) {
-      predecessor_R(i) := io.PredOp(i).bits
       predecessor_valid_R(i) := true.B
     }
   }
@@ -309,12 +299,9 @@ class CBranchNodeVariable(val NumTrue: Int = 1, val NumFalse: Int = 1, val NumPr
   val true_output = enable_R.control & cmp_R.control
   val false_output = enable_R.control && (~cmp_R.control)
 
-  output_true_R.control := true_output
-  output_true_R.taskID := task_id
-
   for (i <- 0 until NumTrue) {
-    io.TrueOutput(i).bits <> output_true_R
-    io.TrueOutput(i).valid <> output_true_valid_R(i)
+    io.TrueOutput(i).bits := ControlBundle.default(true_output, task_id)
+    io.TrueOutput(i).valid := output_true_valid_R(i)
   }
 
   for (i <- 0 until NumTrue) {
@@ -323,14 +310,9 @@ class CBranchNodeVariable(val NumTrue: Int = 1, val NumFalse: Int = 1, val NumPr
       output_true_valid_R(i) := false.B
     }
   }
-
-
-  output_false_R.control := false_output
-  output_false_R.taskID := task_id
-
   for (i <- 0 until NumFalse) {
-    io.FalseOutput(i).bits <> output_false_R
-    io.FalseOutput(i).valid <> output_false_valid_R(i)
+    io.FalseOutput(i).bits := ControlBundle.default(false_output, task_id)
+    io.FalseOutput(i).valid := output_false_valid_R(i)
   }
 
   for (i <- 0 until NumFalse) {
@@ -391,11 +373,9 @@ class CBranchNodeVariable(val NumTrue: Int = 1, val NumFalse: Int = 1, val NumPr
         enable_valid_R := false.B
         predecessor_valid_R foreach (_ := false.B)
 
-        output_true_R := ControlBundle.default
         output_true_valid_R.foreach(_ := false.B)
         fire_true_R.foreach(_ := false.B)
 
-        output_false_R := ControlBundle.default
         output_false_valid_R.foreach(_ := false.B)
         fire_false_R.foreach(_ := false.B)
 
@@ -404,4 +384,3 @@ class CBranchNodeVariable(val NumTrue: Int = 1, val NumFalse: Int = 1, val NumPr
     }
   }
 }
-

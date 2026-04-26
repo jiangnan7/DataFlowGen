@@ -122,10 +122,6 @@ class HandShakingCtrlNPS(val NumOuts: Int,
   /*=================================
   =            Registers            =
   =================================*/
-  // Extra information
-  val token    = RegInit(0.U)
-  val nodeID_R = RegInit(ID.U)
-
   // Enable
   val enable_R       = RegInit(ControlBundle.default)
   val enable_valid_R = RegInit(false.B)
@@ -226,10 +222,6 @@ class HandShakingCtrlMask(val NumInputs: Int,
   /*=================================
   =            Registers            =
   =================================*/
-  // Extra information
-  val token    = RegInit(0.U)
-  val nodeID_R = RegInit(BID.U)
-
   // Output Handshaking
   val out_ready_R = RegInit(VecInit(Seq.fill(NumOuts)(false.B)))
   val out_valid_R = RegInit(VecInit(Seq.fill(NumOuts)(false.B)))
@@ -421,10 +413,6 @@ class HandShakingNPS[T <: Data](val NumOuts: Int,
   /*=================================
   =            Registers            =
   =================================*/
-  // Extra information
-  val token    = RegInit(0.U)
-  val nodeID_R = RegInit(ID.U)
-
   // Enable
   val enable_R       = RegInit(ControlBundle.default)
   val enable_valid_R = RegInit(false.B)
@@ -522,10 +510,6 @@ class HandShakingFused[T <: PredicateT](val NumIns: Int, val NumOuts: Int,
   /*=================================
   =            Registers            =
   =================================*/
-  // Extra information
-  val token    = RegInit(0.U)
-  val nodeID_R = RegInit(ID.U)
-
   // Enable
   val enable_R       = RegInit(ControlBundle.default)
   val enable_valid_R = RegInit(false.B)

@@ -55,7 +55,7 @@ class MemStore(NumPredOps: Int,
   val node_name = name.value
   val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
   override val printfSigil = "[" + module_name + "] " + node_name + ": " + ID + " "
-  val (cycleCount, _) = Counter(true.B, 32 * 1024)
+  val cycleCount = if (log) Some(Counter(true.B, 32 * 1024)._1) else None
 
   /*=============================================
   =            Register declarations            =
@@ -70,23 +70,6 @@ class MemStore(NumPredOps: Int,
   // State machine
   val s_idle :: s_RECEIVING :: s_Done :: Nil = Enum(3)
   val state = RegInit(s_idle)
-
-  val ReqValid = RegInit(false.B)
-
-  //------------------------------
-  var log_id = WireInit(ID.U((6).W))
-  var GuardFlag = WireInit(0.U(1.W))
-
-  var log_data_reg = RegInit(0.U((xlen-26).W))
-  var log_addr_reg = RegInit(0.U(15.W))
-
-  val log_value = WireInit(0.U(xlen.W))
-  log_value := Cat(GuardFlag, log_id, log_data_reg, log_addr_reg)
-
-
-
-
-
 
   /*============================================
   =            Predicate Evaluation            =
@@ -151,16 +134,8 @@ class MemStore(NumPredOps: Int,
 
             if (Debug) {
               when(data_R.data =/= GuardValData.U || addr_R.data =/= GuardValAddr.U ) {
-                GuardFlag := 1.U
-                log_data_reg :=  data_R.data
-                log_addr_reg := addr_R.data
                 data_R.data := GuardValData.U
                 addr_R.data := GuardValAddr.U
-
-              }.otherwise {
-                GuardFlag := 0.U
-                log_data_reg :=  data_R.data
-                log_addr_reg := addr_R.data
               }
             }
             when(io.MemReq.ready) {
@@ -197,7 +172,7 @@ class MemStore(NumPredOps: Int,
         state := s_idle
         if (log) {
           printf("[LOG] " + "[" + module_name + "] [TID->%d] [STORE]" + node_name + ": Fired @ %d Mem[%d] = %d\n",
-            enable_R.taskID, cycleCount, addr_R.data, data_R.data)
+            enable_R.taskID, cycleCount.get, addr_R.data, data_R.data)
           //printf("DEBUG " + node_name + ": $%d = %d\n", addr_R.data, data_R.data)
         }
       }
@@ -264,9 +239,8 @@ class UnTypStoreCache(NumPredOps: Int,
   val node_name = name.value
   val module_name = file.value.split("/").tail.last.split("\\.").head.capitalize
   override val printfSigil = "[" + module_name + "] " + node_name + ": " + ID + " "
-  val (cycleCount, _) = Counter(true.B, 32 * 1024)
-
-  val iter_counter = Counter(32 * 1024)
+  val cycleCount = if (log) Some(Counter(true.B, 32 * 1024)._1) else None
+  val iter_counter = if (log) Some(Counter(32 * 1024)) else None
 
   /*=============================================
   =            Register declarations            =
@@ -281,8 +255,6 @@ class UnTypStoreCache(NumPredOps: Int,
   // State machine
   val s_idle :: s_RECEIVING :: s_Done :: Nil = Enum(3)
   val state = RegInit(s_idle)
-
-  val ReqValid = RegInit(false.B)
 
   /*================================================
   =            Latch inputs. Set output            =
@@ -332,34 +304,45 @@ class UnTypStoreCache(NumPredOps: Int,
     IsSuccReady() && IsOutReady()
   }
 
-
-  val (guard_address_index, _) = Counter(isAddrFire(), GuardAddress.length)
   val is_address_buggy = WireInit(false.B)
-  val guard_address_values = if (Debug) Some(VecInit(GuardAddress.map(_.U(xlen.W)))) else None
-  val log_address_data = WireInit(0.U((dbgParams.packetLen).W))
-  val log_address_packet = DebugPacket(gflag = 0.U, id = ID.U, code = DbgStoreAddress, iteration = guard_address_index, data = addr_R.data)(dbgParams)
-
-  log_address_data := log_address_packet.packet
-
-  if (Debug) {
-    BoringUtils.addSource(log_address_data, s"data${ID}")
-    BoringUtils.addSource(address_value_valid, s"valid${ID}")
-    BoringUtils.addSink(address_value_ready, s"Buffer_ready${ID}")
-
-    address_value_valid := isAddrFire()
-  }
-
-  val correctVal = RegNext(if (Debug) guard_address_values.get(guard_address_index) else 0.U)
 
   // Outgoing Address Req ->
   //here
-  io.MemReq.bits.addr := Mux(is_address_buggy, correctVal, addr_R.data)
+  io.MemReq.bits.addr := addr_R.data
   io.MemReq.bits.data := data_R.data
   io.MemReq.bits.tag := RouteID.U
   io.MemReq.bits.taskID := data_R.taskID | addr_R.taskID | enable_R.taskID
   io.MemReq.bits.mask := "hFF".U
   io.MemReq.bits.iswrite := true.B
   io.MemReq.valid := false.B
+
+  if (Debug) {
+    val (guard_address_index, _) = Counter(isAddrFire(), GuardAddress.length)
+    val guard_address_values = VecInit(GuardAddress.map(_.U(xlen.W)))
+    val log_address_packet = DebugPacket(gflag = 0.U, id = ID.U, code = DbgStoreAddress, iteration = guard_address_index, data = addr_R.data)(dbgParams)
+    val log_address_data = WireInit(log_address_packet.packet)
+    val correctVal = RegNext(guard_address_values(guard_address_index))
+
+    BoringUtils.addSource(log_address_data, s"data${ID}")
+    BoringUtils.addSource(address_value_valid, s"valid${ID}")
+    BoringUtils.addSink(address_value_ready, s"Buffer_ready${ID}")
+
+    address_value_valid := isAddrFire()
+    io.MemReq.bits.addr := Mux(is_address_buggy, correctVal, addr_R.data)
+
+    when(io.MemReq.ready && enable_valid_R && data_valid_R && addr_valid_R && enable_R.control && mem_req_fire) {
+      when(addr_R.data =/= guard_address_values(guard_address_index)) {
+        log_address_packet.gFlag := 1.U
+        is_address_buggy := true.B
+
+        if (log) {
+          printf("[DEBUG] [" + module_name + "] [TID->%d] [STORE] " + node_name +
+            " Sent address value: %d, correct value: %d\n",
+            addr_R.taskID, addr_R.data, guard_address_values(guard_address_index))
+        }
+      }
+    }
+  }
 
   /*=============================================
   =            ACTIONS (possibly dangerous)     =
@@ -373,24 +356,6 @@ class UnTypStoreCache(NumPredOps: Int,
             io.MemReq.valid := true.B
             when(io.MemReq.ready) {
               state := s_RECEIVING
-
-              /** 
-               * This is where we fire memory request
-               */
-              if (Debug) {
-                when(addr_R.data =/= guard_address_values.get(guard_address_index)) {
-                  log_address_packet.gFlag := 1.U
-                  is_address_buggy := true.B
-
-                  if (log) {
-                    printf("[DEBUG] [" + module_name + "] [TID->%d] [STORE] " + node_name +
-                      " Sent address value: %d, correct value: %d\n",
-                      addr_R.taskID, addr_R.data, guard_address_values.get(guard_address_index))
-                  }
-                }
-              }
-
-
             }
           }.otherwise {
             ValidSucc()
@@ -422,14 +387,14 @@ class UnTypStoreCache(NumPredOps: Int,
         Reset()
         // Reset state.
         state := s_idle
-        iter_counter.inc()
         if (log) {
+          iter_counter.get.inc()
           printf(p"[LOG] [${module_name}] [TID: ${enable_R.taskID}] [STORE] " +
             p"[${node_name}] [Pred: ${enable_R.control}] " +
-            p"[Iter: ${iter_counter.value}] " +
+            p"[Iter: ${iter_counter.get.value}] " +
             p"[Addr: ${Decimal(addr_R.data)}] " +
             p"[Data: ${Decimal(data_R.data)}] " +
-            p"[Cycle: ${cycleCount}]\n")
+            p"[Cycle: ${cycleCount.get}]\n")
         }
       }
     }
