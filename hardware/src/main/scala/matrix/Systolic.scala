@@ -64,6 +64,8 @@ class PE[T <: Data : MAC.OperatorMAC](gen: T, left_delay: Int, top_delay: Int, v
 
 class SystolicSquareBuffered[T <: Data : MAC.OperatorMAC](gen: T, val N: Int)(implicit val p: Parameters)
   extends Module with HasAccelParams with UniformPrintfs {
+  private val enableDebugPrint = false
+
   val io = IO(new Bundle {
     val left        = Input(Vec(N * N, UInt(xlen.W)))
     val right       = Input(Vec(N * N, UInt(xlen.W)))
@@ -165,23 +167,32 @@ class SystolicSquareBuffered[T <: Data : MAC.OperatorMAC](gen: T, val N: Int)(im
     }
   }
 
-  printf("\nGrid  %d \n", input_steps.value)
+  if (enableDebugPrint) {
+    printf("\nGrid  %d \n", input_steps.value)
+    for (i <- 0 until N) {
+      for (j <- 0 until N) {
+        printf(p"  0x${Hexadecimal(PEs(i)(j).io.Out.bits)}")
+      }
+      printf(p"\n")
+    }
+  }
+
   for (i <- 0 until N) {
     for (j <- 0 until N) {
       io.output.bits(i * (N) + j) <> PEs(i)(j).io.Out.bits
-      printf(p"  0x${Hexadecimal(PEs(i)(j).io.Out.bits)}")
 
       when(state === s_idle) {
         PEs(i)(j).reset := true.B
       }
     }
-    printf(p"\n")
   }
 }
 
 
 class SystolicSquareWrapper[T <: Data : MAC.OperatorMAC](gen: T, val N: Int)(implicit val p: Parameters)
   extends Module with HasAccelParams with UniformPrintfs {
+  private val enableDebugPrint = false
+
   val io = IO(new Bundle {
     val input_data = Flipped(Decoupled(UInt(xlen.W)))
     val input_sop  = Input(Bool( ))
@@ -195,11 +206,12 @@ class SystolicSquareWrapper[T <: Data : MAC.OperatorMAC](gen: T, val N: Int)(imp
   val s_idle :: s_read :: s_execute :: s_write :: Nil = Enum(4)
   val state                                           = RegInit(s_idle)
 
-  val ScratchPad_input  = RegInit(VecInit(Seq.fill(2 * N * N)(0.U(xlen.W))))
-  val ScratchPad_output = RegInit(VecInit(Seq.fill(N * N)((0.U(xlen.W)))))
+  val ScratchPad_input = RegInit(VecInit(Seq.fill(2 * N * N)(0.U(xlen.W))))
 
-  val input_counter  = Counter(2 * N * N)
-  val output_counter = Counter(N * N)
+  val input_counter  = RegInit(0.U(log2Ceil(2 * N * N).W))
+  val output_counter = RegInit(0.U(log2Ceil(N * N).W))
+  val last_input_idx = (2 * N * N - 1).U(input_counter.getWidth.W)
+  val last_output_idx = (N * N - 1).U(output_counter.getWidth.W)
 
   val PE = Module(new SystolicSquareBuffered(UInt(xlen.W), N))
 
@@ -212,10 +224,8 @@ class SystolicSquareWrapper[T <: Data : MAC.OperatorMAC](gen: T, val N: Int)(imp
     }
   }
 
-  (ScratchPad_output zip PE.io.output.bits).foreach { case (mem, pe_out) => mem := Mux(PE.io.output.valid, pe_out, mem) }
-
   io.input_data.ready := ((state === s_idle) || (state === s_read))
-  PE.io.activate := Mux(input_counter.value === ((2 * N * N) - 1).U, true.B, false.B)
+  PE.io.activate := ((state === s_idle) || (state === s_read)) && io.input_data.fire && (input_counter === last_input_idx)
   PE.io.async_reset := false.B
   io.output.bits := 0.U
   io.output.valid := false.B
@@ -226,50 +236,67 @@ class SystolicSquareWrapper[T <: Data : MAC.OperatorMAC](gen: T, val N: Int)(imp
   switch(state) {
     is(s_idle) {
       when(io.input_data.fire) {
-        state := s_read
+        ScratchPad_input(0) := io.input_data.bits
+        output_counter := 0.U
+        when(last_input_idx === 0.U) {
+          input_counter := 0.U
+          state := s_execute
+        }.otherwise {
+          input_counter := 1.U
+          state := s_read
+        }
       }
     }
     is(s_read) {
-      when(input_counter.value === ((2 * N * N) - 1).U) {
-        state := s_execute
-      }.otherwise {
-        ScratchPad_input(input_counter.value) := io.input_data.bits
-        input_counter.inc( )
+      when(io.input_data.fire) {
+        ScratchPad_input(input_counter) := io.input_data.bits
+        when(input_counter === last_input_idx) {
+          input_counter := 0.U
+          output_counter := 0.U
+          state := s_execute
+        }.otherwise {
+          input_counter := input_counter + 1.U
+        }
       }
     }
     is(s_execute) {
       when(PE.io.output.valid) {
+        output_counter := 0.U
         state := s_write
       }
     }
     is(s_write) {
       io.output.valid := true.B
-      io.output.bits := ScratchPad_output(output_counter.value)
+      io.output.bits := PE.io.output.bits(output_counter)
       //io.output.bits := output_counter.value
       //end-of-packet signal
-      when(output_counter.value === ((N * N) - 1).U) {
+      when(output_counter === last_output_idx) {
         io.output_eop := true.B
       }.otherwise {
         io.output_eop := false.B
       }
 
       //start-of-packet signal
-      when(output_counter.value === 0.U) {
+      when(output_counter === 0.U) {
         io.output_sop := true.B
       }.otherwise {
         io.output_sop := false.B
       }
-      when(output_counter.value === ((N * N) - 1).U) {
-        state := s_idle
-      }.otherwise {
-        when(io.output.fire) {
-          output_counter.inc( )
+      when(io.output.fire) {
+        when(output_counter === last_output_idx) {
+          input_counter := 0.U
+          output_counter := 0.U
+          state := s_idle
+        }.otherwise {
+          output_counter := output_counter + 1.U
         }
       }
     }
   }
 
-  printf(p"[DEBUG] State: ${state}\n")
+  if (enableDebugPrint) {
+    printf(p"[DEBUG] State: ${state}\n")
+  }
 }
 
 
