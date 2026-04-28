@@ -1,72 +1,74 @@
 package heteacc.node
 
-import chisel3.iotesters.PeekPokeTester
+import chisel3._
+import chiseltest._
 import chipsalliance.rocketchip.config._
 import heteacc.config._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class VectorConstTester(df: ConstFastNodeWithVectorization)
-                       (implicit p: Parameters) extends PeekPokeTester(df) {
-  val numLanes = df.io.Out.length
+class ConstNodeTests extends AnyFlatSpec with ChiselScalatestTester with Matchers {
+  implicit val p: Parameters = new WithAccelConfig ++ new WithTestConfig
 
-  private def printInput(): Unit = {
-    val taskID = peek(df.io.enable.bits.taskID)
-    val control = peek(df.io.enable.bits.control)
-    println(s"Enable: taskID = $taskID, control = $control, valid = ${peek(df.io.enable.valid)}")
-  }
+  behavior of "Const nodes"
 
-  private def printOutputs(): Unit = {
-    for (lane <- 0 until numLanes) {
-      val outData = peek(df.io.Out(lane).bits.data)
-      val outPred = peek(df.io.Out(lane).bits.predicate)
-      val outValid = peek(df.io.Out(lane).valid)
-      println(s"Output[$lane]: Data = $outData, Pred = $outPred, Valid = $outValid")
+  it should "emit the scalar constant with enable metadata" in {
+    test(new ConstFastNode(value = 42, ID = 0)) { c =>
+      c.io.enable.valid.poke(false.B)
+      c.io.enable.bits.control.poke(false.B)
+      c.io.enable.bits.taskID.poke(0.U)
+      c.io.enable.bits.debug.poke(false.B)
+      c.io.Out.ready.poke(false.B)
+
+      c.clock.step()
+      c.io.enable.ready.expect(true.B)
+      c.io.Out.valid.expect(false.B)
+
+      c.io.enable.valid.poke(true.B)
+      c.io.enable.bits.control.poke(true.B)
+      c.io.enable.bits.taskID.poke(7.U)
+      c.io.Out.ready.poke(true.B)
+
+      c.clock.step()
+      c.io.Out.valid.expect(true.B)
+      c.io.Out.bits.data.expect(42.U)
+      c.io.Out.bits.taskID.expect(7.U)
+      c.io.Out.bits.predicate.expect(true.B)
+
+      c.io.enable.valid.poke(false.B)
+      c.clock.step()
+      c.io.Out.valid.expect(false.B)
     }
   }
 
-  poke(df.io.enable.valid, 0)
-  poke(df.io.enable.bits.taskID, 0)
-  poke(df.io.enable.bits.control, 0)
-  for (lane <- 0 until numLanes) {
-    poke(df.io.Out(lane).ready, 1)
-  }
+  it should "broadcast the vector constant to all lanes" in {
+    test(new ConstFastNodeWithVectorization(value = 42, NumLanes = 4, ID = 0)) { c =>
+      c.io.enable.valid.poke(false.B)
+      c.io.enable.bits.control.poke(false.B)
+      c.io.enable.bits.taskID.poke(0.U)
+      c.io.enable.bits.debug.poke(false.B)
+      c.io.Out.foreach(_.ready.poke(false.B))
 
-  println("=== Initial State ===")
-  printInput()
-  printOutputs()
+      c.clock.step()
+      c.io.enable.ready.expect(true.B)
+      c.io.Out.foreach(_.valid.expect(false.B))
 
-  step(1)
+      c.io.enable.valid.poke(true.B)
+      c.io.enable.bits.control.poke(true.B)
+      c.io.enable.bits.taskID.poke(9.U)
+      c.io.Out.foreach(_.ready.poke(true.B))
 
-  poke(df.io.enable.bits.taskID, 10)
-  poke(df.io.enable.bits.control, 1)
-  poke(df.io.enable.valid, 1)
+      c.clock.step()
+      c.io.Out.foreach { out =>
+        out.valid.expect(true.B)
+        out.bits.data.expect(42.U)
+        out.bits.taskID.expect(9.U)
+        out.bits.predicate.expect(true.B)
+      }
 
-  println("=== After Enabling Inputs and Outputs ===")
-  printInput()
-  printOutputs()
-
-  step(1)
-  println("=== Outputs After One Cycle ===")
-  printOutputs()
-
-  step(2)
-  println("=== Outputs After Three Cycles ===")
-  printOutputs()
-}
-
-class VectorConstTests extends FlatSpec with Matchers {
-  implicit val p = new WithAccelConfig ++ new WithTestConfig
-
-  it should "test vectorized ConstFastNodeWithVectorization" in {
-    chisel3.iotesters.Driver.execute(
-      Array("--target-dir", "generated_dut/",
-        "--generate-vcd-output", "on",
-        "-X", "verilog"),
-      () => new ConstFastNodeWithVectorization(
-        value = 42,
-        NumLanes = 4,
-        ID = 0
-      )
-    ) { c => new VectorConstTester(c) } should be(true)
+      c.io.enable.valid.poke(false.B)
+      c.clock.step()
+      c.io.Out.foreach(_.valid.expect(false.B))
+    }
   }
 }
