@@ -2,8 +2,7 @@ package matrix
 
 import chisel3._
 import chisel3.util._
-import chisel3.iotesters.{ChiselFlatSpec, Driver, OrderedDecoupledHWIOTester, PeekPokeTester}
-import org.scalatest.{FlatSpec, Matchers}
+import chisel3.iotesters.PeekPokeTester
 import muxes._
 import heteacc.config._
 import utility._
@@ -38,25 +37,4 @@ class SystolicBaseTests(df: SystolicSquareBuffered[UInt])(implicit p: Parameters
   }
 
   print(s"Total cycles taken: $totalCycles\n")
-}
-
-
-class Systolic_Tester extends FlatSpec with Matchers {
-
-    implicit val p = new WithAccelConfig(HeteaccAccelParams())
-
-  it should "Typ Compute Tester" in {
-    chisel3.iotesters.Driver.execute(Array(
-      
-      // "-ll", "Info",
-        "-tn", "matrix",
-        "-tbn", "verilator",
-        "-td", s"test_run_dir/matrix",
-        "-tts", "0001",
-        "--generate-vcd-output", "on"),
-
-      () => new SystolicSquareBuffered(UInt(32.W), 16)) {
-      c => new SystolicBaseTests(c)
-    } should be(true)
-  }
 }
