@@ -68,7 +68,6 @@ class ExecutionBlockNode(BID: Int, val NumInputs: Int = 1, val NumOuts: Int, val
   val in_data_R = Seq.fill(NumInputs)(RegInit(ControlBundle.default))
   val in_data_valid_R = Seq.fill(NumInputs)(RegInit(false.B))
 
-  val output_R = RegInit(ControlBundle.default)
   val output_valid_R = Seq.fill(NumOuts)(RegInit(false.B))
   val output_fire_R = Seq.fill(NumOuts)(RegInit(false.B))
 
@@ -100,13 +99,9 @@ class ExecutionBlockNode(BID: Int, val NumInputs: Int = 1, val NumOuts: Int, val
   //   val ret = Mux(io.predicateIn(i).fire, true.B, in_data_valid_R(i))
   //   ret
   // }
-
-
-
-  output_R := ControlBundle.default
   //Connecting output signals
   for (i <- 0 until NumOuts) {
-    io.Out(i).bits <> output_R
+    io.Out(i).bits := ControlBundle.default
     io.Out(i).valid <> output_valid_R(i)
   }
 
@@ -170,8 +165,9 @@ class BasicBlockNode(NumInputs: Int,
    *            Registers                      *
    *===========================================*/
   // OP Inputs
-  val predicate_in_R = Seq.fill(NumInputs)(RegInit(ControlBundle.default))
-  val predicate_control_R = RegInit(VecInit(Seq.fill(NumInputs)(false.B)))
+  val predicate_control_R = Seq.fill(NumInputs)(RegInit(false.B))
+  val predicate_task_R = Seq.fill(NumInputs)(RegInit(0.U(tlen.W)))
+  val predicate_debug_R = Seq.fill(NumInputs)(RegInit(false.B))
   val predicate_valid_R = Seq.fill(NumInputs)(RegInit(false.B))
 
   val s_IDLE :: s_LATCH :: Nil = Enum(2)
@@ -181,18 +177,21 @@ class BasicBlockNode(NumInputs: Int,
    *            Valids                         *
    *===========================================*/
 
-  val predicate = predicate_in_R.map(_.control).reduce(_ | _)
-  val predicate_task = predicate_in_R.map(_.taskID).reduce(_ | _)
-  val predicate_debug = predicate_in_R.map(_.debug).reduce(_ | _)
+  val predicate = predicate_control_R.reduce(_ | _)
+  val predicate_task = predicate_task_R.reduce(_ | _)
+  val predicate_debug = predicate_debug_R.reduce(_ | _)
 
   val start = (io.predicateIn.map(_.fire) zip predicate_valid_R) map { case (a, b) => a | b } reduce (_ & _)
-  val predicate_bits = predicate_in_R.indices.map { i =>
-    Mux(predicate_valid_R(i), predicate_in_R(i), io.predicateIn(i).bits)
+  val fast_predicate_control = predicate_control_R.indices.map { i =>
+    Mux(predicate_valid_R(i), predicate_control_R(i), io.predicateIn(i).bits.control)
   }
-  val predicate_control = predicate_bits.map(_.control)
-  val fast_predicate = predicate_control.reduce(_ | _)
-  val fast_predicate_task = predicate_bits.map(_.taskID).reduce(_ | _)
-  val fast_predicate_debug = predicate_bits.map(_.debug).reduce(_ | _)
+  val fast_predicate = fast_predicate_control.reduce(_ | _)
+  val fast_predicate_task = predicate_task_R.indices.map { i =>
+    Mux(predicate_valid_R(i), predicate_task_R(i), io.predicateIn(i).bits.taskID)
+  }.reduce(_ | _)
+  val fast_predicate_debug = predicate_debug_R.indices.map { i =>
+    Mux(predicate_valid_R(i), predicate_debug_R(i), io.predicateIn(i).bits.debug)
+  }.reduce(_ | _)
   val out_ready_now = if (NumOuts == 0) true.B else io.Out.map(_.ready).reduce(_ && _)
   val mask_ready_now = if (NumPhi == 0) true.B else io.MaskBB.map(_.ready).reduce(_ && _)
   val fire_now = state === s_IDLE && start && out_ready_now && mask_ready_now
@@ -205,8 +204,9 @@ class BasicBlockNode(NumInputs: Int,
   for (i <- 0 until NumInputs) {
     io.predicateIn(i).ready := ~predicate_valid_R(i)
     when(io.predicateIn(i).fire) {
-      predicate_in_R(i) <> io.predicateIn(i).bits
-      predicate_control_R(i) <> io.predicateIn(i).bits.control
+      predicate_control_R(i) := io.predicateIn(i).bits.control
+      predicate_task_R(i) := io.predicateIn(i).bits.taskID
+      predicate_debug_R(i) := io.predicateIn(i).bits.debug
       predicate_valid_R(i) := true.B
     }
   }
@@ -221,7 +221,7 @@ class BasicBlockNode(NumInputs: Int,
 
   // Wire up mask output
   for (i <- 0 until NumPhi) {
-    io.MaskBB(i).bits := Mux(fire_now, VecInit(predicate_control).asUInt, predicate_control_R.asUInt)
+    io.MaskBB(i).bits := Mux(fire_now, VecInit(fast_predicate_control).asUInt, VecInit(predicate_control_R).asUInt)
     io.MaskBB(i).valid := mask_valid_R(i) || fire_now
   }
 
@@ -250,7 +250,7 @@ class BasicBlockNode(NumInputs: Int,
         when(predicate) {
           if (log) {
             printf(p"[LOG] [${module_name}] [TID: ${predicate_task}] [BB] " +
-              p"${node_name}] [Mask: 0x${Hexadecimal(predicate_control_R.asUInt)}]\n")
+              p"${node_name}] [Mask: 0x${Hexadecimal(VecInit(predicate_control_R).asUInt)}]\n")
           }
         }.otherwise {
           if (log) {
