@@ -49,7 +49,6 @@ class RetNode2(retTypes: Seq[Int], ID: Int , Debug: Boolean = false, NumBores : 
 
   // Output registers
   val output_R = RegInit(0.U.asTypeOf(io.Out.bits))
-  val out_ready_R = RegInit(false.B)
   val out_valid_R = RegInit(false.B)
 
   def IsInValid(): Bool = {
@@ -81,21 +80,14 @@ class RetNode2(retTypes: Seq[Int], ID: Int , Debug: Boolean = false, NumBores : 
   io.Out.valid := out_valid_R
 
 
-  //**********************************************************************
-  val RunFinish = RegInit(false.B)
-  val RunFinishBoring = WireInit(false.B)
-  RunFinishBoring := RunFinish
   if (Debug) {
-    for (i <- 0 until NumBores) {
-      BoringUtils.addSource(RunFinishBoring, "RunFinished" + i)
+    val runFinish = RegInit(false.B)
+    when(io.Out.fire) {
+      runFinish := true.B
     }
-  }
-  //*******************************************************************
-
-  when(io.Out.fire) {
-    RunFinish := true.B
-    out_ready_R := io.Out.ready
-    out_valid_R := false.B
+    for (i <- 0 until NumBores) {
+      BoringUtils.addSource(runFinish, "RunFinished" + i)
+    }
   }
 
   switch(state) {
@@ -108,14 +100,13 @@ class RetNode2(retTypes: Seq[Int], ID: Int , Debug: Boolean = false, NumBores : 
       }
     }
     is(s_COMPUTE) {
-      when(out_ready_R) {
+      when(io.Out.fire) {
         for (i <- retTypes.indices) {
           in_data_valid_R(i) := false.B
         }
 
         out_valid_R := false.B
         enable_valid_R := false.B
-        out_ready_R := false.B
 
         state := s_IDLE
         if (log) {

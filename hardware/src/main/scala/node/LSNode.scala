@@ -266,17 +266,25 @@ class Load(NumOuts: Int, ID: Int, RouteID: Int)
   val data_in = IO(Flipped(DecoupledIO(new DataBundle)))
 
 
-  GepAddr <> address_out
+  address_out.valid := GepAddr.valid
+  address_out.bits := GepAddr.bits
+  GepAddr.ready := address_out.ready
 
-  // io.data_in <> io.Out
-   for (i <- 0 until NumOuts) {
-    io.Out(i) <> data_in
-    // io.Out(i).valid := io.data_in.valid
+  val allOutReady =
+    if (NumOuts == 0) {
+      true.B
+    } else {
+      io.Out.map(_.ready).reduce(_ && _)
+    }
+
+  data_in.ready := allOutReady
+
+  for (i <- 0 until NumOuts) {
+    io.Out(i).valid := data_in.valid
+    io.Out(i).bits := data_in.bits
   }
-  ValidOut()
 
-  when(IsOutReady()){
-    Reset()
+  when(data_in.fire) {
     if (log) {
       printf("[LOG] " + "[" + module_name + "] [LOAD] " + node_name + ": Output fired @ %d, Address:%d, Value: %d\n",
         cycleCount, GepAddr.bits.data, data_in.bits.data)
@@ -310,27 +318,29 @@ class Store(NumOuts: Int, ID: Int, RouteID: Int)
   join.pValid(0) := GepAddr.valid
   join.pValid(1) := inData.valid
 
-  join.nReady := address_out.ready & io.Out(0).ready
+  val allOutReady =
+    if (NumOuts == 0) {
+      true.B
+    } else {
+      io.Out.map(_.ready).reduce(_ && _)
+    }
+
+  join.nReady := address_out.ready & allOutReady
 
   GepAddr.ready := join.ready(0)
   inData.ready := join.ready(1)
 
   address_out.valid := join.valid
-  io.Out(0).valid := join.valid
 
   address_out.bits := GepAddr.bits
 
 
   for (i <- 0 until NumOuts) {
-    io.Out(i) <> inData
-
+    io.Out(i).valid := join.valid
+    io.Out(i).bits := inData.bits
   }
 
-
-  ValidOut()
-
-  when(IsOutReady()){
-    Reset()
+  when(join.valid && address_out.ready && allOutReady) {
     if (log) {
       printf(p"[LOG] [${module_name}]  [STORE] " +
             p"[${node_name}] "+
