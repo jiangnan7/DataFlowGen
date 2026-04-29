@@ -26,7 +26,6 @@
 
 namespace mlir {
 using affine::AffineApplyOp;
-using affine::AffineDialect;
 using affine::AffineForOp;
 using affine::AffineIfOp;
 using affine::AffineLoadOp;

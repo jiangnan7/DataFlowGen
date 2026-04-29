@@ -209,6 +209,8 @@ void ForOp::build(OpBuilder &builder, OperationState &result, Value lb,
   }
 }
 
+SmallVector<Region *> ForOp::getLoopRegions() { return {&getRegion()}; }
+
 //===----------------------------------------------------------------------===//
 // IfOp
 //===----------------------------------------------------------------------===//

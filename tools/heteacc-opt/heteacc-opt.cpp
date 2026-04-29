@@ -25,6 +25,6 @@ int main(int argc, char **argv) {
   mlir::heteacc::registerAllDialects(registry);
   mlir::heteacc::registerAllPasses();
 
-  return mlir::failed(mlir::MlirOptMain(
-      argc, argv, "HETEACC Optimization Tool", registry, true));
+  return mlir::asMainReturnCode(
+      mlir::MlirOptMain(argc, argv, "HETEACC Optimization Tool", registry));
 }
