@@ -25,10 +25,10 @@ def Vector_FMAOp :
   Vec_Op<"fma", [
        Pure, AllTypesMatch<["lhs", "rhs", "acc", "result"]>
      ] # ElementwiseMappable.traits>,
-    Arguments<(ins AnyVector:$lhs,
-                   AnyVector:$rhs,
-                   AnyVector:$acc)>,
-    Results<(outs AnyVector:$result)> {
+    Arguments<(ins AnyVectorOfAnyRank:$lhs,
+                   AnyVectorOfAnyRank:$rhs,
+                   AnyVectorOfAnyRank:$acc)>,
+    Results<(outs AnyVectorOfAnyRank:$result)> {
   let summary = "vector fused multiply-add";
   let description = [{
     Multiply-add expressions operate on n-D vectors and compute a fused
@@ -47,7 +47,7 @@ def Vector_FMAOp :
   }];
   let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` type($lhs)";
   let extraClassDeclaration = [{
-    VectorType getVectorType() { return getLhs().getType().cast<VectorType>(); }
+    VectorType getVectorType() { return getLhs().getType(); }
   }];
 }
 

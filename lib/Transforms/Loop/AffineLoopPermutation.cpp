@@ -35,7 +35,7 @@ bool heteacc::applyAffineLoopPermutation(AffineLoopBand &band,
   // and calculate the number of common surrouding loops for later uses.
   MemAccessesMap loadStoresMap;
   getMemAccessesMap(loopBlock, loadStoresMap);
-  auto commonLoopDepth = getNumCommonSurroundingLoops(
+  auto commonLoopDepth = affine::getNumCommonSurroundingLoops(
       *loopBlock.begin(), *std::next(loopBlock.begin()));
 
   // A map of dependency distances indexed by the loop in the band.
@@ -56,16 +56,16 @@ bool heteacc::applyAffineLoopPermutation(AffineLoopBand &band,
       int64_t dstIndex = 1;
       for (auto dstOp : loadStores) {
         for (auto srcOp : llvm::drop_begin(loadStores, dstIndex)) {
-          MemRefAccess dstAccess(dstOp);
-          MemRefAccess srcAccess(srcOp);
+          affine::MemRefAccess dstAccess(dstOp);
+          affine::MemRefAccess srcAccess(srcOp);
 
-          FlatAffineValueConstraints depConstrs;
-          SmallVector<DependenceComponent, 2> depComps;
+          affine::FlatAffineValueConstraints depConstrs;
+          SmallVector<affine::DependenceComponent, 2> depComps;
 
-          DependenceResult result = checkMemrefAccessDependence(
+          affine::DependenceResult result = affine::checkMemrefAccessDependence(
               srcAccess, dstAccess, depth, &depConstrs, &depComps);
 
-          if (hasDependence(result)) {
+          if (affine::hasDependence(result)) {
             auto depComp = depComps[depth - 1];
             assert(loop == depComp.op && "unexpected dependency");
 

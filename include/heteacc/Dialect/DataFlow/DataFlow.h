@@ -20,6 +20,9 @@
 #include "heteacc/Dialect/DataFlow/DataFlowOpsAttributes.h.inc"
 
 namespace mlir {
+using affine::AffineForOp;
+using affine::AffineIfOp;
+
 namespace heteacc {
 namespace dataflow {
 

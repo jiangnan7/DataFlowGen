@@ -209,31 +209,13 @@ void ForOp::build(OpBuilder &builder, OperationState &result, Value lb,
   }
 }
 
-Region &ForOp::getLoopBody() { return getRegion(); }
-
-std::optional<Value> ForOp::getSingleInductionVar() {
-  return getInductionVar();
-}
-
-std::optional<OpFoldResult> ForOp::getSingleLowerBound() {
-  return OpFoldResult(getLowerBound());
-}
-
-std::optional<OpFoldResult> ForOp::getSingleStep() {
-  return OpFoldResult(getStep());
-}
-
-std::optional<OpFoldResult> ForOp::getSingleUpperBound() {
-  return OpFoldResult(getUpperBound());
-}
-
 //===----------------------------------------------------------------------===//
 // IfOp
 //===----------------------------------------------------------------------===//
 
 void IfOp::build(OpBuilder &builder, OperationState &result, Value cond,
                  bool withElseRegion) {
-  build(builder, result, /*resultTypes=*/llvm::None, cond, withElseRegion);
+  build(builder, result, /*resultTypes=*/TypeRange{}, cond, withElseRegion);
 }
 void IfOp::build(OpBuilder &builder, OperationState &result,
                  TypeRange resultTypes, Value cond, bool withElseRegion) {
@@ -321,41 +303,39 @@ void IfOp::print(OpAsmPrinter &p) {
   p.printOptionalAttrDict((*this)->getAttrs());
 }
 
-void IfOp::getSuccessorRegions(Optional<unsigned> index,
-                               ArrayRef<Attribute> operands,
+void IfOp::getSuccessorRegions(RegionBranchPoint point,
                                SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
-  if (index) {
+  if (!point.isParent()) {
     regions.push_back(RegionSuccessor(getResults()));
     return;
   }
 
+  getEntrySuccessorRegions({}, regions);
+}
+
+void IfOp::getEntrySuccessorRegions(
+    ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
   // Don't consider the else region if it is empty.
   Region *elseRegion = &this->getElseRegion();
-  if (elseRegion->empty())
-    elseRegion = nullptr;
+  FoldAdaptor adaptor(operands, *this);
+  auto boolAttr = llvm::dyn_cast_or_null<BoolAttr>(adaptor.getCondition());
+  if (!boolAttr || boolAttr.getValue())
+    regions.emplace_back(&getThenRegion());
 
-  // Otherwise, the successor is dependent on the condition.
-  bool condition;
-  if (auto condAttr = operands.front().dyn_cast_or_null<IntegerAttr>()) {
-    condition = condAttr.getValue().isOneValue();
-  } else {
-    // If the condition isn't constant, both regions may be executed.
-    regions.push_back(RegionSuccessor(&getThenRegion()));
-    // If the else region does not exist, it is not a viable successor.
-    if (elseRegion)
-      regions.push_back(RegionSuccessor(elseRegion));
-    return;
+  if (!boolAttr || !boolAttr.getValue()) {
+    if (!elseRegion->empty())
+      regions.emplace_back(elseRegion);
+    else
+      regions.emplace_back(getResults());
   }
-
-  // Add the successor regions using the condition.
-  regions.push_back(RegionSuccessor(condition ? &getThenRegion() : elseRegion));
 }
 
 void IfOp::getRegionInvocationBounds(
     ArrayRef<Attribute> operands,
     SmallVectorImpl<InvocationBounds> &invocationBounds) {
-  if (auto cond = operands[0].dyn_cast_or_null<BoolAttr>()) {
+  if (auto cond = llvm::dyn_cast_or_null<BoolAttr>(operands[0])) {
     // If the condition is known, then one region is known to be executed once
     // and the other zero times.
     invocationBounds.emplace_back(0, cond.getValue() ? 1 : 0);
@@ -512,7 +492,7 @@ void dataflow::SelectOp::print(OpAsmPrinter &p) {
 
 void dataflow::SelectOp::inferResultRanges(
     ArrayRef<ConstantIntRanges> argRanges, SetIntRangeFn setResultRange) {
-  Optional<APInt> mbCondVal = argRanges[0].getConstantValue();
+  std::optional<APInt> mbCondVal = argRanges[0].getConstantValue();
 
   if (mbCondVal) {
     if (mbCondVal->isZero())

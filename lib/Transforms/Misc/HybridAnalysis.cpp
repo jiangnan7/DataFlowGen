@@ -31,8 +31,7 @@ struct HybridAnalysis : public HybridAnalysisBase<HybridAnalysis> {
     if (!outputPath.empty()) {
       finalPath = outputPath;
     } else {
-      auto fileName =
-          func->getLoc().dyn_cast<FileLineColLoc>().getFilename().str();
+      auto fileName = llvm::cast<FileLineColLoc>(func->getLoc()).getFilename().str();
       finalPath = std::regex_replace(fileName, std::regex("\\.mlir$"), ".json");
     }
 
@@ -51,10 +50,10 @@ struct HybridAnalysis : public HybridAnalysisBase<HybridAnalysis> {
     func.walk([&](dataflow::ForOp forOp) {
       int loopLevel = -1;
       if (auto loopBandAttr = forOp->getAttr("Loop_Band")) {
-        loopBand = loopBandAttr.cast<IntegerAttr>().getInt();
+        loopBand = llvm::cast<IntegerAttr>(loopBandAttr).getInt();
       }
       if (auto loopLevelAttr = forOp->getAttr("Loop_Level")) {
-        loopLevel = loopLevelAttr.cast<IntegerAttr>().getInt();
+        loopLevel = llvm::cast<IntegerAttr>(loopLevelAttr).getInt();
       }
 
       if (loopBand != -1) {
@@ -84,18 +83,18 @@ struct HybridAnalysis : public HybridAnalysisBase<HybridAnalysis> {
 
       loopInfo["lower_bound"] = maxLevelOp.getLowerBound()
                                     .getDefiningOp<mlir::arith::ConstantOp>()
-                                    .getValue()
-                                    .cast<mlir::IntegerAttr>()
+                                    .getValueAttr()
+                                    .dyn_cast<mlir::IntegerAttr>()
                                     .getInt();
       loopInfo["upper_bound"] = maxLevelOp.getUpperBound()
                                     .getDefiningOp<mlir::arith::ConstantOp>()
-                                    .getValue()
-                                    .cast<mlir::IntegerAttr>()
+                                    .getValueAttr()
+                                    .dyn_cast<mlir::IntegerAttr>()
                                     .getInt();
       loopInfo["step"] = maxLevelOp.getStep()
                              .getDefiningOp<mlir::arith::ConstantOp>()
-                             .getValue()
-                             .cast<mlir::IntegerAttr>()
+                             .getValueAttr()
+                             .dyn_cast<mlir::IntegerAttr>()
                              .getInt();
 
       int maxUnrollFactor =
@@ -138,7 +137,7 @@ struct HybridAnalysis : public HybridAnalysisBase<HybridAnalysis> {
 
     func.walk([&](mlir::Operation *op) {
       nlohmann::json opJson;
-      auto loc = op->getLoc().dyn_cast<mlir::FileLineColLoc>();
+      auto loc = llvm::dyn_cast<mlir::FileLineColLoc>(op->getLoc());
       if (loc) {
         opJson["line"] = loc.getLine();
       } else {

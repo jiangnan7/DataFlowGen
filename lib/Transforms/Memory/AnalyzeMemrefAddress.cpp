@@ -21,7 +21,7 @@ namespace {
 using mlir::func::FuncOp;
 
 inline bool isConstant(AffineExpr affineExpr) {
-  if (auto constExpr = affineExpr.dyn_cast<mlir::AffineConstantExpr>()) {
+  if (auto constExpr = llvm::dyn_cast<mlir::AffineConstantExpr>(affineExpr)) {
     return true;
   } else {
     return false;
@@ -33,7 +33,7 @@ std::vector<unsigned> affineExprAnalysis(
     std::pair<std::map<unsigned, int64_t>, int64_t> &factorTable) {
   std::vector<unsigned> effectedPositions;
 
-  if (auto binExpr = affineExpr.dyn_cast<mlir::AffineBinaryOpExpr>()) {
+  if (auto binExpr = llvm::dyn_cast<mlir::AffineBinaryOpExpr>(affineExpr)) {
     // llvm::errs() << "AffineBinaryOpExpr: " ; binExpr.dump();
     auto LHS = binExpr.getLHS();
     auto RHS = binExpr.getRHS();
@@ -49,10 +49,10 @@ std::vector<unsigned> affineExprAnalysis(
         effectedPositions.insert(effectedPositions.end(), RightDims.begin(),
                                  RightDims.end());
       } else if (isConstant(LHS)) {
-        ConstVal = LHS.dyn_cast<mlir::AffineConstantExpr>().getValue();
+        ConstVal = llvm::cast<mlir::AffineConstantExpr>(LHS).getValue();
         effectedPositions = affineExprAnalysis(RHS, factorTable);
       } else {
-        ConstVal = RHS.dyn_cast<mlir::AffineConstantExpr>().getValue();
+        ConstVal = llvm::cast<mlir::AffineConstantExpr>(RHS).getValue();
         effectedPositions = affineExprAnalysis(LHS, factorTable);
       }
       factorTable.second += ConstVal;
@@ -63,16 +63,16 @@ std::vector<unsigned> affineExprAnalysis(
       // llvm::errs() << "MUL\n";
       int64_t ConstVal;
       if (!isConstant(LHS) && !isConstant(RHS)) {
-        ConstVal = LHS.dyn_cast<mlir::AffineConstantExpr>().getValue();
+        ConstVal = llvm::cast<mlir::AffineConstantExpr>(LHS).getValue();
         effectedPositions = affineExprAnalysis(LHS, factorTable);
         auto RightDims = affineExprAnalysis(LHS, factorTable);
         effectedPositions.insert(effectedPositions.end(), RightDims.begin(),
                                  RightDims.end());
       } else if (isConstant(LHS)) {
-        ConstVal = LHS.dyn_cast<mlir::AffineConstantExpr>().getValue();
+        ConstVal = llvm::cast<mlir::AffineConstantExpr>(LHS).getValue();
         effectedPositions = affineExprAnalysis(RHS, factorTable);
       } else {
-        ConstVal = RHS.dyn_cast<mlir::AffineConstantExpr>().getValue();
+        ConstVal = llvm::cast<mlir::AffineConstantExpr>(RHS).getValue();
         effectedPositions = affineExprAnalysis(LHS, factorTable);
       }
       for (int dim : effectedPositions) {
@@ -94,7 +94,7 @@ std::vector<unsigned> affineExprAnalysis(
     }
   }
 
-  if (auto dimExpr = affineExpr.dyn_cast<mlir::AffineDimExpr>()) {
+  if (auto dimExpr = llvm::dyn_cast<mlir::AffineDimExpr>(affineExpr)) {
     unsigned dimIndex = dimExpr.getPosition();
     if (factorTable.first.find(dimIndex) == factorTable.first.end()) {
       factorTable.first[dimIndex] = 1;
@@ -102,7 +102,7 @@ std::vector<unsigned> affineExprAnalysis(
     effectedPositions.push_back(dimIndex);
     return effectedPositions;
   }
-  if (auto symExpr = affineExpr.dyn_cast<mlir::AffineSymbolExpr>()) {
+  if (auto symExpr = llvm::dyn_cast<mlir::AffineSymbolExpr>(affineExpr)) {
 
     unsigned symIndex = symExpr.getPosition();
 

@@ -113,11 +113,11 @@ unsigned heteacc::getChildLoopNum(Operation *op) {
 /// Returns true if the provided value is the induction variable of a
 /// AffineForOp.
 bool heteacc::isForInductionVar(Value val) {
-  return getForInductionVarOwner(val) != AffineForOp();
+  return affine::getForInductionVarOwner(val) != AffineForOp();
 }
 
 /// Calculate the lower and upper bound of the affine map if possible.
-Optional<std::pair<int64_t, int64_t>>
+std::optional<std::pair<int64_t, int64_t>>
 heteacc::getBoundOfAffineMap(AffineMap map, ValueRange operands) {
   if (map.isSingleConstant()) {
     auto constBound = map.getSingleConstantResult();
@@ -126,7 +126,7 @@ heteacc::getBoundOfAffineMap(AffineMap map, ValueRange operands) {
 
   // For now, we can only handle one result value map.
   if (map.getNumResults() != 1)
-    return Optional<std::pair<int64_t, int64_t>>();
+    return std::nullopt;
 
   auto context = map.getContext();
   SmallVector<int64_t, 4> lbs;
@@ -135,17 +135,17 @@ heteacc::getBoundOfAffineMap(AffineMap map, ValueRange operands) {
     // Only if the affine map operands are induction variable, the calculation
     // is possible.
     if (!isForInductionVar(operand))
-      return Optional<std::pair<int64_t, int64_t>>();
+      return std::nullopt;
 
     // Only if the owner for op of the induction variable has constant bound,
     // the calculation is possible.
-    auto forOp = getForInductionVarOwner(operand);
+    auto forOp = affine::getForInductionVarOwner(operand);
     if (!forOp.hasConstantBounds())
-      return Optional<std::pair<int64_t, int64_t>>();
+      return std::nullopt;
 
     auto lb = forOp.getConstantLowerBound();
     auto ub = forOp.getConstantUpperBound();
-    auto step = forOp.getStep();
+    auto step = forOp.getStepAsInt();
 
     lbs.push_back(lb);
     ubs.push_back(ub - 1 - (ub - 1 - lb) % step);
@@ -164,10 +164,10 @@ heteacc::getBoundOfAffineMap(AffineMap map, ValueRange operands) {
     }
     auto newExpr = map.getResult(0).replaceDimsAndSymbols(replacements, {});
 
-    if (auto constExpr = newExpr.dyn_cast<AffineConstantExpr>())
+    if (auto constExpr = llvm::dyn_cast<AffineConstantExpr>(newExpr))
       results.push_back(constExpr.getValue());
     else
-      return Optional<std::pair<int64_t, int64_t>>();
+      return std::nullopt;
   }
 
   auto minmax = std::minmax_element(results.begin(), results.end());
@@ -177,9 +177,9 @@ heteacc::getBoundOfAffineMap(AffineMap map, ValueRange operands) {
 /// Collect all load and store operations in the block and return them in "map".
 void heteacc::getMemAccessesMap(Block &block, MemAccessesMap &map) {
   for (auto &op : block) {
-    if (auto load = dyn_cast<AffineReadOpInterface>(op)) {
+    if (auto load = dyn_cast<affine::AffineReadOpInterface>(op)) {
       map[load.getMemRef()].push_back(&op);
-    } else if (auto store = dyn_cast<AffineWriteOpInterface>(op))
+    } else if (auto store = dyn_cast<affine::AffineWriteOpInterface>(op))
       map[store.getMemRef()].push_back(&op);
 
     else if (auto read = dyn_cast<vector::TransferReadOp>(op)) {

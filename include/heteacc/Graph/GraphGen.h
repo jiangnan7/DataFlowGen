@@ -172,7 +172,7 @@ public:
 
   void buildEnhancedControlDataFlowGraph(func::FuncOp func);
 
-  using GraphVisitorBase::visitOp;
+  using GraphVisitorBase<GraphGen, void>::visitOp;
 
   void visitOp(func::CallOp op) {
     // assert(!"wait...");
@@ -199,7 +199,7 @@ public:
 
   void visitOp(arith::ShRUIOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto shr_node = this->dependency_graph->insertShrUINode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -217,7 +217,7 @@ public:
 
   void visitOp(arith::ShRSIOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto shr_node = this->dependency_graph->insertShrNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -235,7 +235,7 @@ public:
 
   void visitOp(arith::ShLIOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto shl_node = this->dependency_graph->insertShlNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -253,7 +253,7 @@ public:
 
   void visitOp(arith::AddIOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto add_node = this->dependency_graph->insertAddNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -271,7 +271,7 @@ public:
 
   void visitOp(arith::AddFOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto add_node = this->dependency_graph->insertAddNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -289,7 +289,7 @@ public:
 
   void visitOp(arith::SubIOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto sub_node = this->dependency_graph->insertSubNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -307,7 +307,7 @@ public:
 
   void visitOp(arith::SubFOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto sub_node = this->dependency_graph->insertSubNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -325,7 +325,7 @@ public:
 
   void visitOp(arith::AndIOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto and_node = this->dependency_graph->insertAndiNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -343,7 +343,7 @@ public:
 
   void visitOp(arith::OrIOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto or_node = this->dependency_graph->insertOriNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -361,7 +361,7 @@ public:
 
   void visitOp(arith::DivSIOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto div_node = this->dependency_graph->insertDivsiNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -379,7 +379,7 @@ public:
 
   void visitOp(arith::MulIOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto mul_node = this->dependency_graph->insertMulNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -397,7 +397,7 @@ public:
 
   void visitOp(arith::MulFOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto mul_node = this->dependency_graph->insertMulNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -415,7 +415,7 @@ public:
 
   void visitOp(arith::CmpIOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto cmp_node = this->dependency_graph->insertCmpNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -433,7 +433,7 @@ public:
 
   void visitOp(arith::CmpFOp op) {
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       auto cmp_node = this->dependency_graph->insertCmpNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -468,14 +468,14 @@ public:
   }
 
   void visitOp(memref::AllocaOp op) {
-    MemRefType memRefType = op.getResult().getType().dyn_cast<MemRefType>();
+    MemRefType memRefType = llvm::dyn_cast<MemRefType>(op.getResult().getType());
     Type elementType = memRefType.getElementType();
-    ArrayRef<int64_t> shape = op.getType().cast<MemRefType>().getShape();
+    ArrayRef<int64_t> shape = llvm::cast<MemRefType>(op.getType()).getShape();
     int64_t totalElements = std::accumulate(shape.begin(), shape.end(), 1,
                                             std::multiplies<int64_t>());
     int64_t elementByte = elementType.getIntOrFloatBitWidth() / 8;
 
-    if (elementType.isa<mlir::IntegerType>()) {
+    if (llvm::isa<mlir::IntegerType>(elementType)) {
 
       auto alloca_node = this->dependency_graph->insertAllocaNode(
           op.getResult(), OperationNode::OperationType::AllocaType,
@@ -485,7 +485,7 @@ public:
       this->memory_buffer_map[op] = this->dependency_graph->createBufferMemory(
           alloca_node, totalElements, elementByte);
 
-    } else if (elementType.isa<mlir::FloatType>()) {
+    } else if (llvm::isa<mlir::FloatType>(elementType)) {
       auto alloca_node = this->dependency_graph->insertAllocaNode(
           op.getResult(), OperationNode::OperationType::AllocaType,
           totalElements, elementByte);
@@ -501,17 +501,17 @@ public:
   void visitOp(dataflow::LoadOp op) {
     auto valueType = op.getResult().getType();
 
-    if (valueType.isa<mlir::IntegerType>()) {
+    if (llvm::isa<mlir::IntegerType>(valueType)) {
       auto load_node = this->dependency_graph->insertLoadNode(
           op.getResult(), DataType::IntegerType);
       this->map_value_node[op.getResult()] = load_node;
       this->map_op_node[op.getOperation()] = load_node;
-    } else if (valueType.isa<mlir::FloatType>()) {
+    } else if (llvm::isa<mlir::FloatType>(valueType)) {
       auto load_node = this->dependency_graph->insertLoadNode(
           op.getResult(), DataType::FloatType);
       this->map_value_node[op.getResult()] = load_node;
       this->map_op_node[op.getOperation()] = load_node;
-    } else if (valueType.isa<mlir::VectorType>()) {
+    } else if (llvm::isa<mlir::VectorType>(valueType)) {
       auto load_node = this->dependency_graph->insertLoadNode(
           op.getResult(), DataType::VectorType);
       unsigned laneSize =
@@ -529,17 +529,17 @@ public:
   void visitOp(dataflow::StoreOp op) {
     auto valueType = op.getValue().getType();
 
-    if (valueType.isa<mlir::IntegerType>()) {
+    if (llvm::isa<mlir::IntegerType>(valueType)) {
       auto store_node = this->dependency_graph->insertStoreNode(
           op.getValue(), DataType::IntegerType, op.getOperation());
       // this->map_value_node[op.getMemRef()] = store_node;
       this->map_op_node[op.getOperation()] = store_node;
-    } else if (valueType.isa<mlir::FloatType>()) {
+    } else if (llvm::isa<mlir::FloatType>(valueType)) {
       auto store_node = this->dependency_graph->insertStoreNode(
           op.getValue(), DataType::FloatType, op.getOperation());
       // this->map_value_node[op.getMemRef()] = store_node;
       this->map_op_node[op.getOperation()] = store_node;
-    } else if (valueType.isa<mlir::VectorType>()) {
+    } else if (llvm::isa<mlir::VectorType>(valueType)) {
       auto store_node = this->dependency_graph->insertStoreNode(
           op.getValue(), DataType::VectorType, op.getOperation());
       // this->map_value_node[op.getMemRef()] = store_node;
@@ -582,7 +582,7 @@ public:
   void visitOp(dataflow::SelectOp op) {
     auto select_node = this->dependency_graph->insertSelectNode(op);
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       unsigned laneSize =
           getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
       select_node->setLaneNums(laneSize);
@@ -593,7 +593,7 @@ public:
   void visitOp(arith::SelectOp op) {
     auto select_node = this->dependency_graph->insertSelectNode(op);
     auto valueType = op.getResult().getType();
-    if (valueType.isa<mlir::VectorType>()) {
+    if (llvm::isa<mlir::VectorType>(valueType)) {
       unsigned laneSize =
           getVectorLaneSize(dyn_cast<mlir::VectorType>(valueType));
       select_node->setLaneNums(laneSize);
@@ -609,7 +609,7 @@ public:
   void visitOp(dataflow::AddressOp op) {
     auto address_node = this->dependency_graph->insertAddressGenNode(op);
     if (auto lane = op->getAttr("laneNums")) {
-      address_node->setLaneNums(lane.cast<IntegerAttr>().getInt());
+      address_node->setLaneNums(llvm::cast<IntegerAttr>(lane).getInt());
     }
     if (op->hasAttr("loadNums"))
       address_node->setStaticFlag(true);

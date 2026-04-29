@@ -450,14 +450,12 @@ public:
 
     } else {
       if (isInt)
-        value = dyn_cast<arith::ConstantOp>(op)
-                    .getValue()
-                    .cast<IntegerAttr>()
+        value = llvm::cast<IntegerAttr>(dyn_cast<arith::ConstantOp>(op)
+                                            .getValue())
                     .getInt();
       else
-        value_f = dyn_cast<arith::ConstantOp>(op)
-                      .getValue()
-                      .cast<FloatAttr>()
+        value_f = llvm::cast<FloatAttr>(dyn_cast<arith::ConstantOp>(op)
+                                            .getValue())
                       .getValueAsDouble();
     }
   }

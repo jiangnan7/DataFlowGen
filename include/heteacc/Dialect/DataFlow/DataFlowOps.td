@@ -17,7 +17,7 @@ include "mlir/Interfaces/InferIntRangeInterface.td"
 
 def LaunchOp : DataFlowOp<"launch", [RecursiveMemoryEffects,
       SingleBlockImplicitTerminator<"YieldOp">,
-      ParentOneOf<["func::FuncOp", "AffineForOp", "ForOp"]>]> {
+      ParentOneOf<["func::FuncOp", "affine::AffineForOp", "ForOp"]>]> {
   let summary = "Represent a dataflow dispatch";
   let description = [{
     Dispatch op has a transparent region that contains a list of task ops to be
@@ -73,7 +73,7 @@ def TaskOp : DataFlowOp<"task", [
 
 def ExecutionBlockOp : DataFlowOp<"execution", [
       SingleBlock,
-      ParentOneOf<["func::FuncOp", "ForOp", "AffineForOp","IfOp"]>]> {
+      ParentOneOf<["func::FuncOp", "ForOp", "affine::AffineForOp","IfOp"]>]> {
   let summary = "Represent a dataflow schedule";
   let description = [{
     Schedule op has an isolated region to contain a list of dataflow node ops to
@@ -145,7 +145,7 @@ def ForOp : DataFlowOp<"for", [AutomaticAllocationScope, DeclareOpInterfaceMetho
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "Value" : $lowerBound, "Value" : $upperBound, "Value" : $step,
-      CArg<"ValueRange", "llvm::None"> : $initArgs,
+      CArg<"ValueRange", "{}"> : $initArgs,
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
         "nullptr">)>
   ];
@@ -156,17 +156,17 @@ def ForOp : DataFlowOp<"for", [AutomaticAllocationScope, DeclareOpInterfaceMetho
     using BodyBuilderFn = function_ref<void(OpBuilder &, Location, Value, ValueRange)>;
     unsigned getNumInductionVars() { return 1; }
     unsigned getNumControlOperands() { return 3; }
-    Value getInductionVar() { return getBody()->getArgument(0); }
+    Value getInductionVar() { return getRegion().getArgument(0); }
     Block::BlockArgListType getRegionIterArgs() {
-      return getBody()->getArguments().drop_front(getNumInductionVars());
+      return getRegion().getArguments().drop_front(getNumInductionVars());
     }
     unsigned getNumRegionIterArgs() {
-      return getBody()->getNumArguments() - getNumInductionVars();
+      return getRegion().getNumArguments() - getNumInductionVars();
     }
     BlockArgument getRegionIterArg(unsigned index) {
       assert(index < getNumRegionIterArgs() &&
         "expected an index less than the number of region iter args");
-      return getBody()->getArguments().drop_front(getNumInductionVars())[index];
+      return getRegion().getArguments().drop_front(getNumInductionVars())[index];
     }
     Operation::operand_range getIterOperands() {
       return getOperands().drop_front(getNumControlOperands());
@@ -224,6 +224,8 @@ def IfOp : DataFlowOp<"if", [DeclareOpInterfaceMethods<RegionBranchOpInterface, 
     YieldOp thenYield();
     Block* elseBlock();
     YieldOp elseYield();
+    void getEntrySuccessorRegions(ArrayRef<Attribute> operands,
+                                  SmallVectorImpl<RegionSuccessor> &regions);
   }];
 
   let hasCustomAssemblyFormat = 1;
@@ -238,7 +240,7 @@ def YieldOp : DataFlowOp<"yield", [Pure, ReturnLike, Terminator,
   let arguments = (ins Variadic<AnyType>:$results);
   let assemblyFormat = [{  attr-dict ($results^ `:` type($results))? }];
 
-  let builders = [OpBuilder<(ins), "build($_builder, $_state, llvm::None);">];
+  let builders = [OpBuilder<(ins), "build($_builder, $_state, ValueRange{});">];
 }
 
 //===----------------------------------------------------------------------===//
@@ -277,6 +279,10 @@ def SelectOp : DataFlowOp<"select", [
     // Full vector selection.
     %vx = arith.select %cond, %vtrue, %vfalse : vector<42xf32>
     ```
+  }];
+  let extraClassDeclaration = [{
+    void inferResultRanges(ArrayRef<ConstantIntRanges> argRanges,
+                           SetIntRangeFn setResultRange);
   }];
 
   let arguments = (ins AnyType:$condition,
@@ -371,9 +377,9 @@ def AddressOp : DataFlowOp<"addr", []> {
 
   let arguments = (ins
                     AnyType:$baseAddr,
-                    Variadic<AnyTypeOf<[Index, VectorOf<[Index]>]>>:$dims,
+                    Variadic<AnyTypeOf<[Index, VectorOfAnyRankOf<[Index]>]>>:$dims,
                     I64ArrayAttr:$memShape);
-  let results = (outs AnyTypeOf<[AnyInteger, VectorOf<[AnyInteger]>]>:$result);
+  let results = (outs AnyTypeOf<[AnyInteger, VectorOfAnyRankOf<[AnyInteger]>]>:$result);
   let hasCustomAssemblyFormat = 1;
 
   let assemblyFormat = [{
@@ -390,7 +396,7 @@ def LoadOp : DataFlowOp<"load", []> {
   }];
 
   let arguments = (ins
-                    AnyTypeOf<[AnyInteger, VectorOf<[AnyInteger]>]>:$address);
+                    AnyTypeOf<[AnyInteger, VectorOfAnyRankOf<[AnyInteger]>]>:$address);
   let results = (outs AnyType:$result);
   let hasCustomAssemblyFormat = 1;
 
@@ -465,7 +471,7 @@ def StoreOp : DataFlowOp<"store", []> {
 
   let arguments = (ins
                     AnyType:$value,
-                    AnyTypeOf<[AnyInteger, VectorOf<[AnyInteger]>]>:$address);
+                    AnyTypeOf<[AnyInteger, VectorOfAnyRankOf<[AnyInteger]>]>:$address);
   // let results = (outs AnyType:$result);
   let hasCustomAssemblyFormat = 1;
 

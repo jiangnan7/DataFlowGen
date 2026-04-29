@@ -39,9 +39,9 @@ public:
     auto resultType = op.getResult().getType();
 
     if (affineCoeff && support_linear_memory) {
-      auto newOp = rewriter.replaceOpWithNewOp<dataflow::InputOp>(
-          op, resultType, op.getMemRef(), affineCoeff.dyn_cast<ArrayAttr>(),
-          affineOffset.dyn_cast<IntegerAttr>());
+      rewriter.replaceOpWithNewOp<dataflow::InputOp>(
+          op, resultType, op.getMemRef(), llvm::dyn_cast<ArrayAttr>(affineCoeff),
+          llvm::dyn_cast<IntegerAttr>(affineOffset));
     } else {
       llvm::SmallVector<Value, 8> dims;
       for (auto a : Indices) {
@@ -76,9 +76,9 @@ public:
     auto memRefShape = op.getMemRefType().getShape();
 
     if (affineCoeff && support_linear_memory) {
-      auto newOp = rewriter.replaceOpWithNewOp<dataflow::OutputOp>(
-          op, op.getValue(), op.getMemRef(), affineCoeff.dyn_cast<ArrayAttr>(),
-          affineOffset.dyn_cast<IntegerAttr>());
+      rewriter.replaceOpWithNewOp<dataflow::OutputOp>(
+          op, op.getValue(), op.getMemRef(), llvm::dyn_cast<ArrayAttr>(affineCoeff),
+          llvm::dyn_cast<IntegerAttr>(affineOffset));
     } else {
       llvm::SmallVector<Value, 8> dims;
       for (auto a : Indices) {
@@ -105,12 +105,12 @@ struct vectorTransferReadLowering
   LogicalResult matchAndRewrite(vector::TransferReadOp op,
                                 PatternRewriter &rewriter) const override {
 
-    auto vecTy = op.getType().dyn_cast<VectorType>();
+    auto vecTy = llvm::dyn_cast<VectorType>(op.getType());
     if (!vecTy) {
       return failure();
     }
 
-    auto memRefShape = op.getSource().getType().getShape();
+    auto memRefShape = op.getSource().getMemRefType().getShape();
     unsigned laneCount = vecTy.getNumElements();
 
     llvm::SmallVector<Value, 8> dims;
@@ -138,14 +138,14 @@ struct vectorTransferWriteLowering
   LogicalResult matchAndRewrite(vector::TransferWriteOp op,
                                 PatternRewriter &rewriter) const override {
 
-    auto vecTy = op.getVector().getType().dyn_cast<VectorType>();
+    auto vecTy = llvm::dyn_cast<VectorType>(op.getVector().getType());
     if (!vecTy) {
       return failure();
     }
 
     unsigned laneCount = vecTy.getNumElements();
 
-    auto memRefShape = op.getSource().getType().getShape();
+    auto memRefShape = op.getSource().getMemRefType().getShape();
 
     bool static_flag = true;
     llvm::SmallVector<Value, 8> dims;
@@ -191,7 +191,7 @@ struct GenerateGEP : GenerateGEPBase<GenerateGEP> {
     // patterns.add<vectorIndexStoreLowering>(context, /*benefit=*/1);
 
     ConversionTarget target(*context);
-    target.addIllegalDialect<mlir::AffineDialect, scf::SCFDialect>();
+    target.addIllegalDialect<mlir::affine::AffineDialect, scf::SCFDialect>();
     target.addIllegalOp<memref::LoadOp, memref::StoreOp>();
     target.addIllegalOp<vector::TransferReadOp, vector::TransferWriteOp>();
     target.addLegalDialect<arith::ArithDialect,

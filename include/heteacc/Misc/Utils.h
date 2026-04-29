@@ -7,11 +7,13 @@
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 
+#include <optional>
+
 namespace mlir {
 
 namespace heteacc {
 
-using AffineLoopBand = llvm::SmallVector<AffineForOp, 6>;
+using AffineLoopBand = llvm::SmallVector<affine::AffineForOp, 6>;
 using AffineLoopBands = std::vector<AffineLoopBand>;
 using FactorList = SmallVector<unsigned, 8>;
 
@@ -64,10 +66,12 @@ bool hasNoInterveningEffect(Operation *start, Operation *memOp, Value memref) {
 
       // If the side effect comes from an affine read or write, try to prove the
       // side effecting `op` cannot reach `memOp`.
-      if (isa<AffineReadOpInterface, AffineWriteOpInterface>(op) &&
-          isa<AffineReadOpInterface, AffineWriteOpInterface>(memOp)) {
-        MemRefAccess srcAccess(op);
-        MemRefAccess destAccess(memOp);
+      if (isa<affine::AffineReadOpInterface, affine::AffineWriteOpInterface>(
+              op) &&
+          isa<affine::AffineReadOpInterface, affine::AffineWriteOpInterface>(
+              memOp)) {
+        affine::MemRefAccess srcAccess(op);
+        affine::MemRefAccess destAccess(memOp);
 
         // FIXME: This is unsafe as the two memref may be alias with each other.
         // This is also one of the most important change from the MLIR in-tree
@@ -78,16 +82,16 @@ bool hasNoInterveningEffect(Operation *start, Operation *memOp, Value memref) {
         // Affine dependence analysis here is applicable only if both ops
         // operate on the same memref and if `op`, `memOp`, and `start` are in
         // the same AffineScope.
-        if (getAffineScope(op) == getAffineScope(memOp) &&
-            getAffineScope(op) == getAffineScope(start)) {
+        if (affine::getAffineScope(op) == affine::getAffineScope(memOp) &&
+            affine::getAffineScope(op) == affine::getAffineScope(start)) {
           // Number of loops containing the start op and the ending operation.
           unsigned minSurroundingLoops =
-              getNumCommonSurroundingLoops(*start, *memOp);
+              affine::getNumCommonSurroundingLoops(*start, *memOp);
 
           // Number of loops containing the operation `op` which has the
           // potential memory side effect and can occur on a path between
           // `start` and `memOp`.
-          unsigned nsLoops = getNumCommonSurroundingLoops(*op, *memOp);
+          unsigned nsLoops = affine::getNumCommonSurroundingLoops(*op, *memOp);
 
           // For ease, let's consider the case that `op` is a store and we're
           // looking for other potential stores (e.g `op`) that overwrite memory
@@ -96,14 +100,14 @@ bool hasNoInterveningEffect(Operation *start, Operation *memOp, Value memref) {
           // minSurrounding loops since `start` would overwrite any store with a
           // smaller number of surrounding loops before.
           unsigned d;
-          FlatAffineValueConstraints dependenceConstraints;
+          affine::FlatAffineValueConstraints dependenceConstraints;
           for (d = nsLoops + 1; d > minSurroundingLoops; d--) {
-            DependenceResult result = checkMemrefAccessDependence(
+            affine::DependenceResult result = affine::checkMemrefAccessDependence(
                 srcAccess, destAccess, d, &dependenceConstraints,
                 /*dependenceComponents=*/nullptr);
             // A dependence failure or the presence of a dependence implies a
             // side effect.
-            if (!noDependence(result)) {
+            if (!affine::noDependence(result)) {
               hasSideEffect = true;
               return;
             }
@@ -215,11 +219,11 @@ void composeAffineMapAndOperands(AffineMap *map,
 /// set constraints.
 
 /// Check whether the two given if statements have the same condition.
-bool checkSameIfStatement(AffineIfOp lhsOp, AffineIfOp rhsOp);
+bool checkSameIfStatement(affine::AffineIfOp lhsOp, affine::AffineIfOp rhsOp);
 
 /// Return a pair which indicates whether the if statement is always true or
 /// false, respectively. The returned result is one-hot.
-std::pair<bool, bool> ifAlwaysTrueOrFalse(AffineIfOp ifOp);
+std::pair<bool, bool> ifAlwaysTrueOrFalse(affine::AffineIfOp ifOp);
 
 // affine的优化
 /// Returns true if the provided value is the induction variable of a
@@ -260,8 +264,10 @@ bool getTileAndPointLoopBand(const AffineLoopBand &band,
 /// Get the whole loop band given the outermost or innermost loop and return it
 /// in "band". Meanwhile, the return value is the innermost or outermost loop of
 /// this loop band.
-AffineForOp getLoopBandFromOutermost(AffineForOp forOp, AffineLoopBand &band);
-AffineForOp getLoopBandFromInnermost(AffineForOp forOp, AffineLoopBand &band);
+affine::AffineForOp getLoopBandFromOutermost(affine::AffineForOp forOp,
+                                             AffineLoopBand &band);
+affine::AffineForOp getLoopBandFromInnermost(affine::AffineForOp forOp,
+                                             AffineLoopBand &band);
 
 //===----------------------------------------------------------------------===//
 // Memory and loop analysis utils
@@ -269,12 +275,12 @@ AffineForOp getLoopBandFromInnermost(AffineForOp forOp, AffineLoopBand &band);
 
 /// Reduces each tile size to the largest divisor of the corresponding trip
 /// count (if the trip count is known).
-void adjustToDivisorsOfTripCounts(ArrayRef<AffineForOp> band,
+void adjustToDivisorsOfTripCounts(ArrayRef<affine::AffineForOp> band,
                                   SmallVectorImpl<unsigned> *tileSizes);
 
 /// Calculate the upper and lower bound of the affine map if possible.
-Optional<std::pair<int64_t, int64_t>> getBoundOfAffineMap(AffineMap map,
-                                                          ValueRange operands);
+std::optional<std::pair<int64_t, int64_t>>
+getBoundOfAffineMap(AffineMap map, ValueRange operands);
 
 /// Apply loop perfection. Try to sink all operations between loop statements
 /// into the innermost loop of the input loop band.

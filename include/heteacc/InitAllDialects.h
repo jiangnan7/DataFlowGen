@@ -25,6 +25,21 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 
 namespace mlir {
+using affine::AffineApplyOp;
+using affine::AffineDialect;
+using affine::AffineForOp;
+using affine::AffineIfOp;
+using affine::AffineLoadOp;
+using affine::AffineMaxOp;
+using affine::AffineMinOp;
+using affine::AffineParallelOp;
+using affine::AffineReadOpInterface;
+using affine::AffineStoreOp;
+using affine::AffineVectorLoadOp;
+using affine::AffineVectorStoreOp;
+using affine::AffineWriteOpInterface;
+using affine::AffineYieldOp;
+
 namespace heteacc {
 
 // Add all the dialects to the provided registry.
@@ -37,7 +52,7 @@ inline void registerAllDialects(mlir::DialectRegistry &registry) {
     mlir::linalg::LinalgDialect,
     mlir::memref::MemRefDialect,
     mlir::bufferization::BufferizationDialect,
-    mlir::AffineDialect,
+    mlir::affine::AffineDialect,
     mlir::math::MathDialect,
     mlir::arith::ArithDialect,
     mlir::vector::VectorDialect,
