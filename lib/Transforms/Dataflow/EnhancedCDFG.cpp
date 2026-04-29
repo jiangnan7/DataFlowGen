@@ -42,7 +42,7 @@ struct EnhancedCDFG : public EnhancedCDFGBase<EnhancedCDFG> {
     // executionBlock(&func.front());
 
     func.walk([&](dataflow::ForOp forop) {
-      executionBlock(&forop.getLoopBody().front());
+      executionBlock(&forop.getRegion().front());
     });
 
     uint32_t count = 0;

@@ -469,7 +469,7 @@ SelectNode *Graph::insertSelectNode(dataflow::SelectOp op) {
   std::string name = "select_" + std::to_string(this->op_list.size());
   bool dataSelect = false;
   if (auto attr = op->getAttr("Select")) {
-    if (attr.cast<StringAttr>().str().find("Data") != std::string::npos) {
+    if (llvm::cast<StringAttr>(attr).str().find("Data") != std::string::npos) {
       dataSelect = true;
     }
   }
@@ -499,7 +499,7 @@ LSNode *Graph::insertLoadNode(Value result, DataType type) {
   std::string name = "load_" + std::to_string(this->op_list.size());
   int memID = 999;
   if (auto id = result.getDefiningOp()->getAttr("ID")) {
-    memID = id.cast<IntegerAttr>().getInt();
+    memID = llvm::cast<IntegerAttr>(id).getInt();
   }
   MemoryNode *memUnit = this->memID2Node[memID];
 
@@ -530,13 +530,13 @@ LSNode *Graph::insertStoreNode(Value result, DataType type,
   std::string name = "store_" + std::to_string(this->op_list.size());
   int memID = 999;
   if (auto id = op->getAttr("ID")) {
-    memID = id.cast<IntegerAttr>().getInt();
+    memID = llvm::cast<IntegerAttr>(id).getInt();
   }
   MemoryNode *memUnit = this->memID2Node[memID];
 
   if (type == DataType::VectorType && !op->hasAttr("loadNums"))
     this->memID2Node[memID]->setLaneNums(
-        op->getAttr("laneNums").cast<IntegerAttr>().getInt());
+        llvm::cast<IntegerAttr>(op->getAttr("laneNums")).getInt());
   this->op_list.push_back(std::make_unique<LSNode>(
       NodeInfo(this->op_list.size(), name),
       OperationNode::OperationType::LSType, LSNode::opmemType::store, op,

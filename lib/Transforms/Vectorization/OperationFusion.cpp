@@ -209,8 +209,9 @@ struct OperationFusion
   }
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<AffineDialect, arith::ArithDialect, memref::MemRefDialect,
-                    scf::SCFDialect, vector::VectorDialect>();
+    registry.insert<mlir::affine::AffineDialect, arith::ArithDialect,
+                    memref::MemRefDialect, scf::SCFDialect,
+                    vector::VectorDialect>();
   }
 
   void runOnOperation() override {

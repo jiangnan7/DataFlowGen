@@ -110,7 +110,7 @@ struct vectorTransferReadLowering
       return failure();
     }
 
-    auto memRefShape = op.getSource().getMemRefType().getShape();
+    auto memRefShape = llvm::cast<MemRefType>(op.getSource().getType()).getShape();
     unsigned laneCount = vecTy.getNumElements();
 
     llvm::SmallVector<Value, 8> dims;
@@ -145,7 +145,7 @@ struct vectorTransferWriteLowering
 
     unsigned laneCount = vecTy.getNumElements();
 
-    auto memRefShape = op.getSource().getMemRefType().getShape();
+    auto memRefShape = llvm::cast<MemRefType>(op.getSource().getType()).getShape();
 
     bool static_flag = true;
     llvm::SmallVector<Value, 8> dims;

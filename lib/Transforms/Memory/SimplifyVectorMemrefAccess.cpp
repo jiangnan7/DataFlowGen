@@ -21,7 +21,7 @@ struct MemoryLoadPattern : public OpRewritePattern<vector::TransferReadOp> {
                                 PatternRewriter &rewriter) const override {
 
     if (llvm::all_of(op.getIndices(), [&](Value operand) {
-          return isValidDim(operand) || isValidSymbol(operand);
+          return affine::isValidDim(operand) || affine::isValidSymbol(operand);
         })) {
       rewriter.replaceOpWithNewOp<vector::LoadOp>(
           op, op.getVectorType(), op.getSource(), op.getIndices());
@@ -40,7 +40,7 @@ struct MemoryStorePattern : public OpRewritePattern<vector::TransferWriteOp> {
                                 PatternRewriter &rewriter) const override {
 
     if (llvm::all_of(op.getIndices(), [&](Value operand) {
-          return isValidDim(operand) || isValidSymbol(operand);
+          return affine::isValidDim(operand) || affine::isValidSymbol(operand);
         })) {
       rewriter.replaceOpWithNewOp<vector::StoreOp>(
           op, op.getVector(), op.getSource(), op.getIndices());

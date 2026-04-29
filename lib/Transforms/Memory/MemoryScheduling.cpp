@@ -30,7 +30,7 @@ void GraphGen::buildMemoryGraph(func::FuncOp func) {
     getMemAccessesMap(*block, accessesMap);
 
     for (auto [memref, loadStores] : accessesMap) {
-      auto memrefType = memref.getType().cast<MemRefType>();
+      auto memrefType = llvm::cast<MemRefType>(memref.getType());
       Type elementType = memrefType.getElementType();
       ArrayRef<int64_t> shape = memrefType.getShape();
       int64_t totalElements = std::accumulate(shape.begin(), shape.end(), 1,
@@ -112,9 +112,9 @@ static AffineMap getIdentityAffineMap(const SmallVectorImpl<Value> &operands,
   unsigned symbolCount = 0;
 
   for (auto operand : operands) {
-    if (isValidDim(operand))
+    if (affine::isValidDim(operand))
       exprs.push_back(getAffineDimExpr(dimCount++, context));
-    else if (isValidSymbol(operand))
+    else if (affine::isValidSymbol(operand))
       exprs.push_back(getAffineSymbolExpr(symbolCount++, context));
     else
       return AffineMap();
@@ -123,7 +123,7 @@ static AffineMap getIdentityAffineMap(const SmallVectorImpl<Value> &operands,
 }
 
 static SmallVector<AffineMap, 4>
-getDimAccessMaps(Operation *op, AffineValueMap valueMap, int64_t dim) {
+getDimAccessMaps(Operation *op, affine::AffineValueMap valueMap, int64_t dim) {
   // Only keep the mapping result of the target dimension.
   auto baseMap = AffineMap::get(valueMap.getNumDims(), valueMap.getNumSymbols(),
                                 valueMap.getResult(dim));
@@ -145,7 +145,7 @@ getDimAccessMaps(Operation *op, AffineValueMap valueMap, int64_t dim) {
 
   // Traverse each dimension of the transfered vector.
   for (unsigned i = 0, e = permuteMap.getNumResults(); i < e; ++i) {
-    auto dimExpr = permuteMap.getResult(i).dyn_cast<AffineDimExpr>();
+    auto dimExpr = llvm::dyn_cast<AffineDimExpr>(permuteMap.getResult(i));
 
     // If the permutation result of the current dimension is equal to the target
     // dimension, we push back the access map of each element of the vector into
@@ -162,7 +162,7 @@ getDimAccessMaps(Operation *op, AffineValueMap valueMap, int64_t dim) {
   return maps;
 }
 
-static AffineValueMap getAffineValueMap(Operation *op) {
+static affine::AffineValueMap getAffineValueMap(Operation *op) {
   // Get affine map from AffineLoad/Store.
   AffineMap map;
   SmallVector<Value, 4> operands;
@@ -185,10 +185,10 @@ static AffineValueMap getAffineValueMap(Operation *op) {
                                writeOp.getContext());
   }
 
-  fullyComposeAffineMapAndOperands(&map, &operands);
+  affine::fullyComposeAffineMapAndOperands(&map, &operands);
   map = simplifyAffineMap(map);
-  canonicalizeMapAndOperands(&map, &operands);
-  return AffineValueMap(map, operands);
+  affine::canonicalizeMapAndOperands(&map, &operands);
+  return affine::AffineValueMap(map, operands);
 }
 
 SmallVector<int64_t> createPermutationMap(ArrayRef<Value> vec1,
@@ -231,7 +231,7 @@ struct MemoryScheduling : public MemorySchedulingBase<MemoryScheduling> {
       getMemAccessesMap(*block, accessesMap);
 
       for (auto [memref, loadStores] : accessesMap) {
-        auto memrefType = memref.getType().cast<MemRefType>();
+        auto memrefType = llvm::cast<MemRefType>(memref.getType());
         auto &partitions = partitionsMap[memref];
 
         // If the current partitionsMap is empty, initialize it with no
@@ -247,7 +247,7 @@ struct MemoryScheduling : public MemorySchedulingBase<MemoryScheduling> {
         // memref.
         for (int64_t dim = 0; dim < memrefType.getRank(); ++dim) {
           // Collect all array access indices of the current dimension.
-          SmallVector<AffineValueMap, 4> indices;
+          SmallVector<affine::AffineValueMap, 4> indices;
 
           LLVM_DEBUG(llvm::outs() << "\n\nDimension " << dim << "";);
 
@@ -259,7 +259,7 @@ struct MemoryScheduling : public MemorySchedulingBase<MemoryScheduling> {
             auto dimMaps = getDimAccessMaps(accessOp, valueMap, dim);
             for (auto dimMap : dimMaps) {
               // Construct the new valueMap.
-              AffineValueMap dimValueMap(dimMap, valueMap.getOperands());
+              affine::AffineValueMap dimValueMap(dimMap, valueMap.getOperands());
               (void)dimValueMap.canonicalize();
 
               // Only add unique index.
@@ -325,7 +325,7 @@ struct MemoryScheduling : public MemorySchedulingBase<MemoryScheduling> {
                   simplifyAffineExpr(rhsExpr - lhsExpr, lhsIndex.getNumDims(),
                                      lhsIndex.getNumSymbols());
 
-              if (auto constDistance = newExpr.dyn_cast<AffineConstantExpr>()) {
+              if (auto constDistance = llvm::dyn_cast<AffineConstantExpr>(newExpr)) {
                 LLVM_DEBUG(llvm::outs() << " = " << constDistance.getValue(););
 
                 unsigned distance = std::abs(constDistance.getValue());

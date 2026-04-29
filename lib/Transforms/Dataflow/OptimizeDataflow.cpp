@@ -27,9 +27,9 @@ public:
 
     lowerBound = lowerAffineLowerBound(op, rewriter);
     upperBound = lowerAffineUpperBound(op, rewriter);
-    step = rewriter.create<arith::ConstantIndexOp>(loc, op.getStep());
+    step = rewriter.create<arith::ConstantIndexOp>(loc, op.getStepAsInt());
     auto forop = rewriter.create<dataflow::ForOp>(loc, lowerBound, upperBound,
-                                                  step, op.getIterOperands());
+                                                  step, op.getInits());
 
     // Pass loop band and level to the generated loop.
     for (auto attr : op->getAttrs()) {
@@ -62,7 +62,7 @@ public:
     Value step = op.getStep();
 
     auto forop = rewriter.create<dataflow::ForOp>(loc, lowerBound, upperBound,
-                                                  step, op.getIterOperands());
+                                                  step, op.getInitArgs());
 
     rewriter.eraseBlock(forop.getBody());
     rewriter.inlineRegionBefore(op.getRegion(), forop.getRegion(),
@@ -85,7 +85,7 @@ public:
     SmallVector<Type, 4> resultTypes(op.getResultTypes());
 
     for (auto &type : resultTypes)
-      if (type.isa<IndexType>())
+      if (llvm::isa<IndexType>(type))
         type = IntegerType::get(getContext(), 32);
     bool hasElseRegion = !op.getElseRegion().empty();
     auto newOp = rewriter.create<dataflow::IfOp>(
@@ -159,7 +159,7 @@ public:
     // Expand affine map from 'affineLoadOp'.
     SmallVector<Value, 8> indices(op.getMapOperands());
     auto resultOperands =
-        expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
+        affine::expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
     if (!resultOperands)
       return failure();
 
@@ -184,7 +184,7 @@ public:
     auto integerSet = op.getIntegerSet();
     Value zeroConstant = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     SmallVector<Value, 8> operands(op.getOperands());
-    auto operandsRef = llvm::makeArrayRef(operands);
+    ArrayRef<Value> operandsRef(operands);
 
     // Calculate cond as a conjunction without short-circuiting.
     Value cond = nullptr;
@@ -194,7 +194,7 @@ public:
 
       // Build and apply an affine expression
       auto numDims = integerSet.getNumDims();
-      Value affResult = expandAffineExpr(rewriter, loc, constraintExpr,
+      Value affResult = affine::expandAffineExpr(rewriter, loc, constraintExpr,
                                          operandsRef.take_front(numDims),
                                          operandsRef.drop_front(numDims));
       if (!affResult)
@@ -238,7 +238,7 @@ public:
   LogicalResult matchAndRewrite(AffineApplyOp op,
                                 PatternRewriter &rewriter) const override {
     auto maybeExpandedMap =
-        expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(),
+        affine::expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(),
                         llvm::to_vector<8>(op.getOperands()));
     if (!maybeExpandedMap)
       return failure();
@@ -259,7 +259,7 @@ public:
     // Expand affine map from 'affineStoreOp'.
     SmallVector<Value, 8> indices(op.getMapOperands());
     auto maybeExpandedMap =
-        expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
+        affine::expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
     if (!maybeExpandedMap)
       return failure();
 
@@ -281,16 +281,18 @@ public:
                                 PatternRewriter &rewriter) const override {
     auto rhs = remOp.getRhs();
     if (auto constant = rhs.getDefiningOp<arith::ConstantOp>()) {
-
-      APInt rhsValue = constant.getValue().cast<IntegerAttr>().getValue();
+      auto rhsAttr = llvm::dyn_cast<IntegerAttr>(constant.getValueAttr());
+      if (!rhsAttr)
+        return failure();
+      APInt rhsValue = rhsAttr.getValue();
       if (rhsValue.isPowerOf2()) {
         auto inputType = remOp.getType();
         Value constantValue;
-        if (inputType.isa<mlir::IndexType>()) {
+        if (llvm::isa<mlir::IndexType>(inputType)) {
           constantValue = rewriter.create<arith::ConstantOp>(
               remOp.getLoc(),
               rewriter.getIndexAttr(rhsValue.getSExtValue() - 1));
-        } else if (auto intType = inputType.dyn_cast<mlir::IntegerType>()) {
+        } else if (auto intType = llvm::dyn_cast<mlir::IntegerType>(inputType)) {
           constantValue = rewriter.create<arith::ConstantOp>(
               remOp.getLoc(), inputType,
               rewriter.getIntegerAttr(intType, rhsValue - 1));
@@ -327,7 +329,7 @@ struct OptimizeDataflow : public OptimizeDataflowBase<OptimizeDataflow> {
     // patterns.add<ArithSelectConversion>(context, /*benefit=*/1);
 
     ConversionTarget target(*context);
-    target.addIllegalDialect<mlir::AffineDialect, scf::SCFDialect>();
+    target.addIllegalDialect<mlir::affine::AffineDialect, scf::SCFDialect>();
     target.addLegalDialect<arith::ArithDialect, memref::MemRefDialect,
                            heteacc::dataflow::DataFlowDialect,
                            vector::VectorDialect>();

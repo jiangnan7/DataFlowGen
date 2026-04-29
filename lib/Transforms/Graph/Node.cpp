@@ -34,16 +34,16 @@ namespace {
 DataType heteacc::isDataType(Value arg) {
 
   Type type = arg.getType();
-  if (type.isa<mlir::IntegerType>()) {
+  if (llvm::isa<mlir::IntegerType>(type)) {
     return DataType::IntegerType;
 
-  } else if (type.isa<mlir::MemRefType>()) {
+  } else if (llvm::isa<mlir::MemRefType>(type)) {
     return DataType::MemrefType;
 
-  } else if (type.isa<mlir::FloatType>()) {
+  } else if (llvm::isa<mlir::FloatType>(type)) {
     return DataType::FloatType;
 
-  } else if (type.isa<mlir::VectorType>()) {
+  } else if (llvm::isa<mlir::VectorType>(type)) {
     unsupportedNodeType(type);
   } else {
     unsupportedNodeType(type);
@@ -114,15 +114,15 @@ ContainerNode::insertLiveInArgument(Value val,
                                     ArgumentNode::ArgumentType type) {
 
   auto valType = DataType::IntegerType;
-  if (val.getType().isa<mlir::MemRefType>()) {
+  if (llvm::isa<mlir::MemRefType>(val.getType())) {
     valType = DataType::MemrefType;
-  } else if (val.getType().isa<mlir::FloatType>()) {
+  } else if (llvm::isa<mlir::FloatType>(val.getType())) {
     valType = DataType::FloatType;
-  } else if (val.getType().isa<mlir::IntegerType>()) {
+  } else if (llvm::isa<mlir::IntegerType>(val.getType())) {
     valType = DataType::IntegerType;
-  } else if (val.getType().isa<mlir::IndexType>()) {
+  } else if (llvm::isa<mlir::IndexType>(val.getType())) {
     valType = DataType::IntegerType;
-  } else if (val.getType().isa<mlir::VectorType>()) {
+  } else if (llvm::isa<mlir::VectorType>(val.getType())) {
     valType = DataType::VectorType;
   } else {
     unsupportedNodeType(val.getType());
@@ -147,7 +147,7 @@ ContainerNode::insertLiveInArgument(Value val,
     return ff->get();
   }
   case ContainerNode::ContainType::FuncCallTy: {
-    if (val.getType().isa<mlir::MemRefType>()) {
+    if (llvm::isa<mlir::MemRefType>(val.getType())) {
       auto find =
           std::find_if(this->live_in_mems_begin(), this->live_in_mems_end(),
                        [&val](auto &arg) -> bool {
@@ -164,16 +164,16 @@ ContainerNode::insertLiveInArgument(Value val,
                             return arg.get()->getArgumentValue() == val;
                           });
       return find->get();
-    } else if (val.getType().isa<mlir::FloatType>() ||
-               val.getType().isa<mlir::IntegerType>() ||
-               val.getType().isa<mlir::IndexType>()) {
+    } else if (llvm::isa<mlir::FloatType>(val.getType()) ||
+               llvm::isa<mlir::IntegerType>(val.getType()) ||
+               llvm::isa<mlir::IndexType>(val.getType())) {
       auto ff =
           std::find_if(this->live_in_vals_begin(), this->live_in_vals_end(),
                        [&val](auto &arg) -> bool {
                          return arg.get()->getArgumentValue() == val;
                        });
       if (ff == this->live_in_vals_end()) {
-        auto tempType = val.getType().isa<mlir::FloatType>()
+        auto tempType = llvm::isa<mlir::FloatType>(val.getType())
                             ? DataType::FloatType
                             : DataType::IntegerType;
         this->live_in_vals.push_back(std::make_unique<ArgumentNode>(
@@ -199,15 +199,15 @@ ArgumentNode *
 ContainerNode::insertLiveOutArgument(Value val,
                                      ArgumentNode::ArgumentType type) {
   auto valType = DataType::IntegerType;
-  if (val.getType().isa<mlir::MemRefType>()) {
+  if (llvm::isa<mlir::MemRefType>(val.getType())) {
     valType = DataType::MemrefType;
-  } else if (val.getType().isa<mlir::FloatType>()) {
+  } else if (llvm::isa<mlir::FloatType>(val.getType())) {
     valType = DataType::FloatType;
-  } else if (val.getType().isa<mlir::IntegerType>()) {
+  } else if (llvm::isa<mlir::IntegerType>(val.getType())) {
     valType = DataType::IntegerType;
-  } else if (val.getType().isa<mlir::IndexType>()) {
+  } else if (llvm::isa<mlir::IndexType>(val.getType())) {
     valType = DataType::IntegerType;
-  } else if (val.getType().isa<mlir::VectorType>()) {
+  } else if (llvm::isa<mlir::VectorType>(val.getType())) {
     valType = DataType::VectorType;
   } else {
     unsupportedNodeType(val.getType());
@@ -236,15 +236,15 @@ ArgumentNode *
 ContainerNode::insertCarryDepenArgument(Value val,
                                         ArgumentNode::ArgumentType argtype) {
   auto valType = DataType::IntegerType;
-  if (val.getType().isa<mlir::MemRefType>()) {
+  if (llvm::isa<mlir::MemRefType>(val.getType())) {
     valType = DataType::MemrefType;
-  } else if (val.getType().isa<mlir::FloatType>()) {
+  } else if (llvm::isa<mlir::FloatType>(val.getType())) {
     valType = DataType::FloatType;
-  } else if (val.getType().isa<mlir::IntegerType>()) {
+  } else if (llvm::isa<mlir::IntegerType>(val.getType())) {
     valType = DataType::IntegerType;
-  } else if (val.getType().isa<mlir::IndexType>()) {
+  } else if (llvm::isa<mlir::IndexType>(val.getType())) {
     valType = DataType::IntegerType;
-  } else if (val.getType().isa<mlir::VectorType>()) {
+  } else if (llvm::isa<mlir::VectorType>(val.getType())) {
     valType = DataType::VectorType;
   } else {
     unsupportedNodeType(val.getType());
@@ -414,7 +414,7 @@ Node *ContainerNode::findLiveInNode(Value val) {
 
   switch (con_type) {
   case ContainerNode::ContainType::FuncCallTy: {
-    if (val.getType().isa<mlir::MemRefType>()) {
+    if (llvm::isa<mlir::MemRefType>(val.getType())) {
       auto ff =
           std::find_if(this->live_in_mems.begin(), this->live_in_mems.end(),
                        [&val](auto &arg) -> bool {

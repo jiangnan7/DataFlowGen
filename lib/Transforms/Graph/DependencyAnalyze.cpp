@@ -24,10 +24,10 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
   // check op is a special form.
 
   if (auto loopBandAttr = dataflowForop->getAttr("Loop_Band")) {
-    Info.loop_band = loopBandAttr.cast<IntegerAttr>().getInt();
+    Info.loop_band = llvm::cast<IntegerAttr>(loopBandAttr).getInt();
   }
   if (auto loopLevelAttr = dataflowForop->getAttr("Loop_Level")) {
-    Info.loop_level = loopLevelAttr.cast<IntegerAttr>().getInt();
+    Info.loop_level = llvm::cast<IntegerAttr>(loopLevelAttr).getInt();
   }
   if (Info.loop_band == 999 && Info.loop_level == 999)
     Info.loop_structure = false;
@@ -138,7 +138,7 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
                               this->dependency_graph->funArgValue.end(), VAL);
         auto carry_iter =
             std::find(carry_value.begin(), carry_value.end(), VAL);
-        return VAL.isa<mlir::BlockArgument>() &&
+        return llvm::isa<mlir::BlockArgument>(VAL) &&
                iter != this->dependency_graph->funArgValue.end();
       };
 
@@ -169,7 +169,7 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
           // llvm::outs() << sub_loop << "   subloop \n";
 
           // sub_loop.getOperation()->walk([&](mlir::Operation* sub_loop_op ){
-          for (auto &sub_loop_op : sub_loop.getLoopBody().front()) {
+          for (auto &sub_loop_op : sub_loop.getRegion().front()) {
 
             for (const auto &sub_loop_operand : sub_loop_op.getOperands()) {
 
@@ -264,7 +264,7 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
   // });
   if (dataflowForop.getOperation()->getNumResults() > 0) {
     auto forYield =
-        dataflowForop.getLoopBody().front().getTerminator()->getOperand(0);
+        dataflowForop.getRegion().front().getTerminator()->getOperand(0);
 
     if (auto exeop =
             dyn_cast<dataflow::ExecutionBlockOp>(forYield.getDefiningOp())) {
@@ -275,7 +275,7 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
         if (dataflowForop == sub_loop)
           return WalkResult::advance();
 
-        for (auto &sub_loop_op : sub_loop.getLoopBody().front()) {
+        for (auto &sub_loop_op : sub_loop.getRegion().front()) {
 
           for (const auto &sub_loop_operand : sub_loop_op.getOperands()) {
             if (&exeYield == &sub_loop_operand) {

@@ -27,10 +27,9 @@ bool GraphGen::applyGraphInit(func::FuncOp func, bool isTopFunc) {
       // ArgumentNode::LiveIn);
 
       this->dependency_graph->funArgValue.push_back(operand);
-      if (MemRefType memRefType = operand.getType().dyn_cast<MemRefType>()) {
+      if (auto memRefType = llvm::dyn_cast<MemRefType>(operand.getType())) {
         Type elementType = memRefType.getElementType();
-        ArrayRef<int64_t> shape =
-            operand.getType().cast<MemRefType>().getShape();
+        ArrayRef<int64_t> shape = memRefType.getShape();
         int64_t totalElements = std::accumulate(shape.begin(), shape.end(), 1,
                                                 std::multiplies<int64_t>());
         size += totalElements;

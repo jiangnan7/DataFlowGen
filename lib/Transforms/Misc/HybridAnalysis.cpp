@@ -81,20 +81,20 @@ struct HybridAnalysis : public HybridAnalysisBase<HybridAnalysis> {
       loopInfo["loop_level"] =
           maxLevelOp->getAttrOfType<mlir::IntegerAttr>("Loop_Level").getInt();
 
-      loopInfo["lower_bound"] = maxLevelOp.getLowerBound()
-                                    .getDefiningOp<mlir::arith::ConstantOp>()
-                                    .getValueAttr()
-                                    .dyn_cast<mlir::IntegerAttr>()
+      loopInfo["lower_bound"] = llvm::cast<mlir::IntegerAttr>(
+                                    maxLevelOp.getLowerBound()
+                                        .getDefiningOp<mlir::arith::ConstantOp>()
+                                        .getValue())
                                     .getInt();
-      loopInfo["upper_bound"] = maxLevelOp.getUpperBound()
-                                    .getDefiningOp<mlir::arith::ConstantOp>()
-                                    .getValueAttr()
-                                    .dyn_cast<mlir::IntegerAttr>()
+      loopInfo["upper_bound"] = llvm::cast<mlir::IntegerAttr>(
+                                    maxLevelOp.getUpperBound()
+                                        .getDefiningOp<mlir::arith::ConstantOp>()
+                                        .getValue())
                                     .getInt();
-      loopInfo["step"] = maxLevelOp.getStep()
-                             .getDefiningOp<mlir::arith::ConstantOp>()
-                             .getValueAttr()
-                             .dyn_cast<mlir::IntegerAttr>()
+      loopInfo["step"] = llvm::cast<mlir::IntegerAttr>(
+                             maxLevelOp.getStep()
+                                 .getDefiningOp<mlir::arith::ConstantOp>()
+                                 .getValue())
                              .getInt();
 
       int maxUnrollFactor =
