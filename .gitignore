@@ -33,6 +33,7 @@
 
 build/*
 hardware/.bsp/*
+hardware/hardfloat/
 hardware/project/project/*
 hardware/project/target/*
 hardware/target/*
