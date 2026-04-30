@@ -21,7 +21,7 @@ port (
 end entity;
 
 architecture behav of mul_4_stage is
-    
+
     signal a_reg : std_logic_vector(DATA_SIZE_OUT-1 downto 0);
     signal b_reg : std_logic_vector(DATA_SIZE_OUT-1 downto 0);
     signal q0 : std_logic_vector(DATA_SIZE_OUT-1 downto 0);
@@ -68,7 +68,7 @@ port (
 end entity;
 
 architecture behav of mul_8_stage is
-    
+
     signal a_reg : std_logic_vector(DATA_SIZE_OUT-1 downto 0);
     signal b_reg : std_logic_vector(DATA_SIZE_OUT-1 downto 0);
     signal q0 : std_logic_vector(DATA_SIZE_OUT-1 downto 0);
@@ -104,4 +104,3 @@ begin
     p <= q6;
 
 end architecture;
-

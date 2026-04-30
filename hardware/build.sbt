@@ -24,8 +24,7 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.1.4"),
   libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.0.1"),
   libraryDependencies ++= Seq("org.scalacheck" %% "scalacheck" % "1.13.4"),
-  libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel-iotesters" % "1.3-SNAPSHOT"),
-  libraryDependencies ++= Seq("edu.berkeley.cs" %% "chiseltest" % "0.5.0" % Test),
+  libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel-iotesters" % "1.5.0"),
   libraryDependencies ++= Seq("edu.berkeley.cs" %% "dsptools" % "1.5.0"),
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full),
   resolvers ++= Seq(
