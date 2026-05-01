@@ -38,46 +38,45 @@ class sumi3_memDF(implicit p: Parameters) extends sumi3_memDFIO()(p) {
   mem_ctrl_cache.initMem("dataset/sumi3_mem/sumi3_mem.txt")
 
   /* ================================================================== *
-   *                   Const nodes.                                     *
+   *                   Printing Const nodes.                            *
    * ================================================================== */
 
+  //%c1 = arith.constant 1 : index
   val int_const_0 = Module(new ConstFastNode(value = 1, ID = 0))
 
   /* ================================================================== *
-   *                   Execution Block nodes.                           *
+   *                   Printing Execution Block nodes.                  *
    * ================================================================== */
 
   val exe_block_0 = Module(new BasicBlockNode(NumInputs = 2, NumOuts = 2, NumPhi = 0, BID = 0))
 
   /* ================================================================== *
-   *                   Operation nodes.                                 *
+   *                   Printing Operation nodes.                        *
    * ================================================================== */
 
+  //dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
   val state_branch_0 = Module(new UBranchNode(ID = 0))
 
+  //%1 = dataflow.addr %arg0[%arg2] {memShape = [200]} : memref<200xi32>[index] -> i32
   val address_1 = Module(new GepNodeWithoutState(NumIns = 1, NumOuts = 1, ID = 1)(ElementSize = 1, ArraySize = List()))
 
+  //%2 = dataflow.load %1 {ID = 0 : i32} : i32 -> i32
   val load_2 = Module(new Load(NumOuts = 3, ID = 2, RouteID = 0))
 
+  //%3 = arith.muli %2, %3 ; %4 = arith.muli %4, %5 ; %5 = arith.addi ... : i32
   val m0 = Module(new Chain(NumOps = 3, ID = 0, OpCodes = Array("Mul", "Mul", "Add"))(sign = false)(p))
 
-  val int_add_6 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 6, opCode = "Add")(sign = false, Debug = false))
+  //%6 = arith.addi %arg2, %c1 {Exe = "Loop"} : index
+  val int_add_6 = Module(new ComputeNodeWithoutStateSupportCarry(NumOuts = 1, ID = 6, opCode = "Add")(sign = false, Debug = false))
 
+  //func.return %0 : i32
   val return_9 = Module(new RetNode2(retTypes = List(32), ID = 9))
 
   /* ================================================================== *
-   *                   Loop nodes.                                      *
+   *                   Printing Loop nodes.                             *
    * ================================================================== */
 
-  val loop_0 = Module(new LoopBlockNodeExperimental(
-    NumIns = List(1),
-    NumOuts = List(1),
-    NumCarry = List(2, 1),
-    NumExits = 1,
-    ID = 0,
-    LoopCounterMax = 200,
-    LoopCounterStep = 1
-  ))
+  val loop_0 = Module(new LoopBlockNodeExperimental(NumIns = List(1), NumOuts = List(1), NumCarry = List(2, 1), NumExits = 1, ID = 0, LoopCounterMax = 200, LoopCounterStep = 1))
 
   /* ================================================================== *
    *                   Control Signal.                                  *
@@ -129,14 +128,12 @@ class sumi3_memDF(implicit p: Parameters) extends sumi3_memDFIO()(p) {
 
   address_1.io.idx(0) <> loop_0.io.CarryDepenOut.elements("field0")(0)
 
-  int_add_6.io.LeftIO <> loop_0.io.CarryDepenOut.elements("field0")(1)
-
   loop_0.io.CarryDepenIn(1) <> m0.io.Out(3)
 
   m0.io.In(3) <> loop_0.io.CarryDepenOut.elements("field1")(0)
 
   /* ================================================================== *
-   *                   Connections.                                     *
+   *                   Printing Connection.                             *
    * ================================================================== */
 
   int_add_6.io.RightIO <> int_const_0.io.Out
@@ -153,12 +150,14 @@ class sumi3_memDF(implicit p: Parameters) extends sumi3_memDFIO()(p) {
     m0.io.Out(i).ready := true.B
   }
 
+  loop_0.io.CarryDepenOut.elements("field0")(1).ready := true.B
+
   mem_ctrl_cache.io.load_address(0) <> load_2.address_out
 
   load_2.data_in <> mem_ctrl_cache.io.load_data(0)
 
   /* ================================================================== *
-   *                   Execution Block Enable.                          *
+   *                   Printing Execution Block Enable.                 *
    * ================================================================== */
 
   int_const_0.io.enable <> exe_block_0.io.Out(0)
