@@ -1,11 +1,12 @@
-#include "mlir/Transforms/Passes.h"
-#include "heteacc/Graph/GraphGen.h"
-#include "heteacc/Misc/Utils.h"
-#include "heteacc/Transforms/Passes.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Transforms/Passes.h"
+
+#include "heteacc/Graph/GraphGen.h"
+#include "heteacc/Misc/Utils.h"
+#include "heteacc/Transforms/Passes.h"
 
 #include "llvm/Support/Debug.h"
 using namespace mlir;
@@ -19,6 +20,13 @@ void GraphGen::buildMemoryGraph(func::FuncOp func) {
   func.walk([&](dataflow::ExecutionBlockOp op) {
     targetBlocks.push_back(&op.getBody().front());
   });
+
+  // Graph initialization runs before execution blocks are materialized for
+  // simple kernels like benchmark/HLS/if_loop_1. Fall back to the function
+  // entry block so recursive memory-access collection still finds the
+  // memref/vector operations nested in loops and regions.
+  if (targetBlocks.empty())
+    targetBlocks.push_back(&func.front());
 
   enum class PartitionKind { CYCLIC, BLOCK, NONE };
   using Partition = std::pair<PartitionKind, int64_t>;
@@ -40,11 +48,12 @@ void GraphGen::buildMemoryGraph(func::FuncOp func) {
 
       for (auto *op : loadStores) {
         if (isa<memref::LoadOp>(op) || isa<vector::TransferReadOp>(op) ||
-            isa<dataflow::VectorIndexLoadOp>(op)) {
+            isa<dataflow::VectorIndexLoadOp>(op) || isa<dataflow::LoadOp>(op)) {
           loads.push_back(op);
         } else if (isa<memref::StoreOp>(op) ||
                    isa<vector::TransferWriteOp>(op) ||
-                   isa<dataflow::VectorIndexStoreOp>(op)) {
+                   isa<dataflow::VectorIndexStoreOp>(op) ||
+                   isa<dataflow::StoreOp>(op)) {
           stores.push_back(op);
         }
       }
@@ -83,6 +92,71 @@ void GraphGen::buildMemoryGraph(func::FuncOp func) {
       }
     }
   }
+
+  if (memop2id.empty()) {
+    llvm::DenseMap<Value, SmallVector<Operation *, 16>> accessesMap;
+    func.walk([&](Operation *op) {
+      if (auto load = dyn_cast<dataflow::LoadOp>(op)) {
+        if (auto addr =
+                load.getAddress().getDefiningOp<dataflow::AddressOp>()) {
+          accessesMap[addr.getBaseAddr()].push_back(op);
+        }
+      } else if (auto store = dyn_cast<dataflow::StoreOp>(op)) {
+        if (auto addr =
+                store.getAddress().getDefiningOp<dataflow::AddressOp>()) {
+          accessesMap[addr.getBaseAddr()].push_back(op);
+        }
+      }
+    });
+
+    for (auto [memref, loadStores] : accessesMap) {
+      auto memrefType = memref.getType().cast<MemRefType>();
+      ArrayRef<int64_t> shape = memrefType.getShape();
+      int64_t totalElements = std::accumulate(shape.begin(), shape.end(), 1,
+                                              std::multiplies<int64_t>());
+      SmallVector<Operation *, 16> loads;
+      SmallVector<Operation *, 16> stores;
+
+      for (auto *op : loadStores) {
+        if (isa<dataflow::LoadOp>(op)) {
+          loads.push_back(op);
+        } else if (isa<dataflow::StoreOp>(op)) {
+          stores.push_back(op);
+        }
+      }
+
+      while (!loads.empty() && !stores.empty()) {
+        Operation *loadOp = loads.pop_back_val();
+        Operation *storeOp = stores.pop_back_val();
+
+        this->memop2id[loadOp] = memID;
+        this->memop2id[storeOp] = memID;
+        this->id2size[memID] = totalElements;
+        memID++;
+      }
+      while (!loads.empty()) {
+        Operation *loadOp1 = loads.pop_back_val();
+        Operation *loadOp2 = nullptr;
+
+        if (!loads.empty()) {
+          loadOp2 = loads.pop_back_val();
+        }
+        this->memop2id[loadOp1] = memID;
+        if (loadOp2) {
+          this->memop2id[loadOp2] = memID;
+        }
+        this->id2size[memID] = totalElements;
+        memID++;
+      }
+      while (!stores.empty()) {
+        Operation *storeOp1 = stores.pop_back_val();
+        this->memop2id[storeOp1] = memID;
+        this->id2size[memID] = totalElements;
+        memID++;
+      }
+    }
+  }
+
   LLVM_DEBUG(llvm::dbgs() << "\n=== memop2id ===\n";);
   for (const auto &[op, id] : memop2id) {
     op->setAttr("ID", mlir::IntegerAttr::get(
@@ -366,7 +440,8 @@ struct MemoryScheduling : public MemorySchedulingBase<MemoryScheduling> {
             kind = PartitionKind::BLOCK;
           }
 
-          LLVM_DEBUG(llvm::outs() << "\nStretegy: " << " factor=" << factor
+          LLVM_DEBUG(llvm::outs() << "\nStretegy: "
+                                  << " factor=" << factor
                                   << " kind=" << static_cast<int>(kind););
 
           // TODO: For now, we always pick the partition with the largest

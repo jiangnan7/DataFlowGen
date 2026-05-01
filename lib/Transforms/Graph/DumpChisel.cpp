@@ -1624,6 +1624,9 @@ std::string LSNode::printInputData(PrintType _pt, uint32_t _id) {
         _text = "$name.GepAddr";
 
         strReplace(_text, "$name", _name.c_str());
+        if (!this->mem_node) {
+          llvm::report_fatal_error("LSNode has no memory unit bound during graph dump");
+        }
         strReplace(_text, "$mem", this->mem_node->getName());
       }
 

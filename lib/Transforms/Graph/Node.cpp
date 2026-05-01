@@ -2,14 +2,15 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/Support/raw_ostream.h"
+#include <cstdlib>
 
 #include "heteacc/Graph/GraphGen.h"
 #include "heteacc/Graph/Node.h"
 #include "heteacc/Graph/Utils.h"
 #include "heteacc/Graph/Visitor.h"
 #include "heteacc/Transforms/Passes.h"
-#include "llvm/Support/raw_ostream.h"
-#include <cstdlib>
+
 using namespace mlir;
 using namespace heteacc;
 
@@ -44,7 +45,7 @@ DataType heteacc::isDataType(Value arg) {
     return DataType::FloatType;
 
   } else if (type.isa<mlir::VectorType>()) {
-    unsupportedNodeType(type);
+    return DataType::VectorType;
   } else {
     unsupportedNodeType(type);
   }

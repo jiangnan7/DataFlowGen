@@ -15,6 +15,7 @@ using namespace mlir;
 using namespace heteacc;
 
 ConstNode *Graph::insertConstNode(Value result, DataType type) {
+
   std::string data; // = type == DataType::IntegerType ? "int" : "float";
   bool isInt;       // = type == DataType::IntegerType ? true : false;
 
@@ -27,7 +28,6 @@ ConstNode *Graph::insertConstNode(Value result, DataType type) {
     data = type == DataType::IntegerType ? "int" : "float";
     isInt = (type == DataType::IntegerType);
   }
-
   int num = this->const_list.size();
   std::string name = data + "_const_" + std::to_string(this->const_list.size());
   this->const_list.push_back(std::make_unique<ConstNode>(
@@ -507,14 +507,24 @@ LSNode *Graph::insertLoadNode(Value result, DataType type) {
     this->op_list.push_back(std::make_unique<LSNode>(
         NodeInfo(this->op_list.size(), name),
         OperationNode::OperationType::LSType, DataType::IntegerType,
-        LSNode::opmemType::load, result.getDefiningOp(),
-        this->getMemoryUnit()));
+        LSNode::opmemType::load, result.getDefiningOp(), memUnit));
   } else if (type == DataType::FloatType) {
     this->op_list.push_back(std::make_unique<LSNode>(
         NodeInfo(this->op_list.size(), name),
         OperationNode::OperationType::LSType, DataType::FloatType,
-        LSNode::opmemType::load, result.getDefiningOp(),
-        this->getMemoryUnit()));
+        LSNode::opmemType::load, result.getDefiningOp(), memUnit));
+    // isVectorTy
+  } else if (type == DataType::VectorType) {
+    if (!result.getDefiningOp()->hasAttr("loadNums")) {
+      this->memID2Node[memID]->setLaneNums(result.getDefiningOp()
+                                               ->getAttr("laneNums")
+                                               .cast<IntegerAttr>()
+                                               .getInt());
+    }
+    this->op_list.push_back(std::make_unique<LSNode>(
+        NodeInfo(this->op_list.size(), name),
+        OperationNode::OperationType::LSType, DataType::VectorType,
+        LSNode::opmemType::load, result.getDefiningOp(), memUnit));
     // isArrayTy
   } else {
   }
@@ -537,10 +547,10 @@ LSNode *Graph::insertStoreNode(Value result, DataType type,
   if (type == DataType::VectorType && !op->hasAttr("loadNums"))
     this->memID2Node[memID]->setLaneNums(
         op->getAttr("laneNums").cast<IntegerAttr>().getInt());
-  this->op_list.push_back(std::make_unique<LSNode>(
-      NodeInfo(this->op_list.size(), name),
-      OperationNode::OperationType::LSType, LSNode::opmemType::store, op,
-      this->getMemoryUnit()));
+  this->op_list.push_back(
+      std::make_unique<LSNode>(NodeInfo(this->op_list.size(), name),
+                               OperationNode::OperationType::LSType,
+                               LSNode::opmemType::store, op, memUnit));
 
   auto ff = std::find_if(
       this->op_list.begin(), this->op_list.end(),

@@ -194,6 +194,18 @@ void heteacc::getMemAccessesMap(Block &block, MemAccessesMap &map) {
     } else if (auto store = dyn_cast<memref::StoreOp>(op)) {
       map[store.getMemRef()].push_back(&op);
 
+    } else if (auto load = dyn_cast<heteacc::dataflow::LoadOp>(op)) {
+      if (auto addr =
+              load.getAddress().getDefiningOp<heteacc::dataflow::AddressOp>()) {
+        map[addr.getBaseAddr()].push_back(&op);
+      }
+
+    } else if (auto store = dyn_cast<heteacc::dataflow::StoreOp>(op)) {
+      if (auto addr = store.getAddress()
+                          .getDefiningOp<heteacc::dataflow::AddressOp>()) {
+        map[addr.getBaseAddr()].push_back(&op);
+      }
+
     } else if (auto load = dyn_cast<heteacc::dataflow::VectorIndexLoadOp>(op)) {
       map[load.getSource()].push_back(&op);
 
