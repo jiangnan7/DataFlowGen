@@ -560,7 +560,6 @@ public:
   }
 
   void visitOp(dataflow::ForOp op) {
-    uint32_t id = this->dependency_graph->getLoopNodeNums();
     // this->dependency_graph->analyzeLoopNode(op);
 
     // Anzlyze Loop Node.

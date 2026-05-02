@@ -1329,9 +1329,6 @@ std::string ArgumentNode::printInputData(PrintType _pt, uint32_t _idx) {
       break;
     }
 
-    default:
-      unsupportedArgumentNodeType();
-      break;
     }
 
     break;
@@ -1422,9 +1419,6 @@ std::string ArgumentNode::printOutputData(PrintType _pt, uint32_t _idx) {
       strReplace(_text, "$id", _idx);
       break;
     }
-    default:
-      unsupportedNodeType();
-      break;
     }
 
     break;
@@ -2147,7 +2141,7 @@ void Graph::printOperations(PrintType _pt) {
         assert(ins_node->getName() == oriName);
         // const uint32_t oriRouteID = ins_node->getRouteID();
 
-        for (uint32_t int i = 1; i < ins_node->getLaneNums(); ++i) {
+        for (uint32_t i = 1; i < ins_node->getLaneNums(); ++i) {
           std::string newName = oriName + "_lane" + std::to_string(i);
 
           ins_node->setName(newName);
@@ -2224,8 +2218,7 @@ void Graph::printControlEdge(PrintType _pt) {
       for (auto iter_input_control = exe->inputControl_begin();
            iter_input_control != exe->inputControl_end();
            iter_input_control++) {
-        if (static_cast<LoopNode *>(iter_input_control->first)->getType() ==
-            ContainerNode::ContainType::LoopNodeTy) {
+        if (isa<LoopNode>(iter_input_control->first)) {
           unique_loop_nodes.insert(
               static_cast<LoopNode *>(iter_input_control->first));
         } else {
@@ -2764,6 +2757,10 @@ void Graph::printLoopConnection(PrintType _pt) {
         }
       }
     }
+    break;
+  case PrintType::Dot:
+  case PrintType::Json:
+    unsupportedPrintType();
     break;
   }
 }

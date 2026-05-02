@@ -33,7 +33,7 @@ ConstNode *Graph::insertConstNode(Value result, DataType type) {
       NodeInfo(this->const_list.size(), name), result.getDefiningOp(), isInt,
       type, this->const_list.size()));
   auto ff = std::find_if(
-      const_list.begin(), const_list.end(), [&result, &num](auto &arg) -> bool {
+      const_list.begin(), const_list.end(), [&num](auto &arg) -> bool {
         return (static_cast<ConstNode *>(arg.get())->getConstID() == (num));
       });
 
@@ -114,6 +114,8 @@ CmpNode *Graph::insertCmpNode(Value result, DataType type) {
     case arith::CmpFPredicate::UNE:
       code = OpCode::ne;
       break;
+    default:
+      llvm_unreachable("unsupported floating-point compare predicate");
     }
   }
 
@@ -323,6 +325,8 @@ ReductionNode *Graph::insertReductionNode(Value result, DataType type) {
     case vector::CombiningKind::AND:
       code = OpCode::andi;
       break;
+    default:
+      llvm_unreachable("unsupported vector reduction kind");
     }
   }
   std::string name = "vector_reduction_" + std::to_string(this->op_list.size());

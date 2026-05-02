@@ -434,8 +434,8 @@ private:
 public:
   ConstNode(NodeInfo _ni, mlir::Operation *op, bool isint, DataType type,
             int _id)
-      : Node(Node::ConstTy, _ni), parent_op(op), isInt(isint), dataType(type),
-        id(_id) {
+      : Node(Node::ConstTy, _ni), parent_op(op), id(_id), isInt(isint),
+        dataType(type) {
     if (dataType == DataType::VectorType) {
 
       auto denseAttr = dyn_cast<mlir::DenseElementsAttr>(
@@ -483,7 +483,9 @@ public:
       : OperationNode(_ni, OperationType::BitCastType, op), parent_op(op) {}
 
   static bool classof(const Node *T) {
-    return T->getType() == OperationType::BitCastType;
+    return isa<OperationNode>(T) &&
+           cast<OperationNode>(T)->getOperationType() ==
+               OperationType::BitCastType;
   }
 
   mlir::Operation *getParentOp() { return this->parent_op; }
@@ -597,7 +599,8 @@ public:
                         Value arg = nullptr, ContainerNode *call_node = nullptr,
                         Node *arg_node = nullptr)
       : Node(Node::FunctionArgTy, ni), argType(arg_type), dataType(d_type),
-        argumentValue(arg), parent_call_node(call_node), parentNode(arg_node) {}
+        parentNode(arg_node), argumentValue(arg),
+        parent_call_node(call_node) {}
 
   const Value getArgumentValue() { return this->argumentValue; }
 
@@ -858,16 +861,17 @@ private:
 
 public:
   explicit MemoryNode(NodeInfo _nf, memType memtype)
-      : Node(Node::MemoryUnitTy, _nf), mem_type(memtype) {}
+      : Node(Node::MemoryUnitTy, _nf), alloca_node(nullptr), size(0),
+        num_byte(0), mem_id(0), mem_type(memtype) {}
 
   explicit MemoryNode(NodeInfo _nf, memType memtype, AllocaNode *alloca,
                       uint32_t mem_size, uint32_t mem_byte)
-      : Node(Node::MemoryUnitTy, _nf), mem_type(memtype), alloca_node(alloca),
-        size(mem_size), num_byte(mem_byte) {}
+      : Node(Node::MemoryUnitTy, _nf), alloca_node(alloca), size(mem_size),
+        num_byte(mem_byte), mem_id(0), mem_type(memtype) {}
   explicit MemoryNode(NodeInfo _nf, memType memtype, uint32_t memID,
                       uint32_t mem_size, uint32_t mem_byte)
-      : Node(Node::MemoryUnitTy, _nf), mem_type(memtype), mem_id(memID),
-        size(mem_size), num_byte(mem_byte) {}
+      : Node(Node::MemoryUnitTy, _nf), alloca_node(nullptr), size(mem_size),
+        num_byte(mem_byte), mem_id(memID), mem_type(memtype) {}
 
   AllocaNode *getAllocaNode() { return this->alloca_node; }
 
@@ -1008,8 +1012,8 @@ public:
   explicit LSNode(NodeInfo _ni, OperationType optype, opmemType memtype,
                   mlir::Operation *operation, MemoryNode *_node = nullptr,
                   uint32_t _id = 0)
-      : OperationNode(_ni, optype, operation), op_type(memtype),
-        mem_node(_node), route_id(_id) {
+      : OperationNode(_ni, optype, operation), mem_node(_node), route_id(_id),
+        ground(false), op_type(memtype) {
     if (memtype == opmemType::store) {
       isStore = true;
     }
@@ -1018,8 +1022,8 @@ public:
   explicit LSNode(NodeInfo _ni, OperationType optype, DataType _type,
                   opmemType memtype, mlir::Operation *operation,
                   MemoryNode *_node = nullptr, uint32_t _id = 0)
-      : OperationNode(_ni, optype, _type, operation), op_type(memtype),
-        mem_node(_node), route_id(_id) {
+      : OperationNode(_ni, optype, _type, operation), mem_node(_node),
+        route_id(_id), ground(false), op_type(memtype) {
     if (memtype == opmemType::store) {
       isStore = true;
     }
@@ -1084,7 +1088,9 @@ public:
   //   ending_loop(_loop) {}
 
   static bool classof(const Node *T) {
-    return T->getType() == OperationType::StateBranchType;
+    return isa<OperationNode>(T) &&
+           cast<OperationNode>(T)->getOperationType() ==
+               OperationType::StateBranchType;
   }
   // static bool
   // classof(const Node* T) {
@@ -1176,7 +1182,9 @@ public:
   //    {}
   dataflow::AddressOp getRelatedOp() { return relatedOp; }
   static bool classof(const Node *T) {
-    return T->getType() == OperationNode::OperationType::AddressGenType;
+    return isa<OperationNode>(T) &&
+           cast<OperationNode>(T)->getOperationType() ==
+               OperationNode::OperationType::AddressGenType;
   }
 
   virtual std::string printDefinition(PrintType) override;

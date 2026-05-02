@@ -114,21 +114,21 @@ public:
   std::unique_ptr<MemoryNode> memory_unit;
 
   explicit Graph()
-      : graph_info(NodeInfo(0, "dummy")), outputHardware(llvm::outs()) {}
+      : outputHardware(llvm::outs()), graph_info(NodeInfo(0, "dummy")) {}
 
   explicit Graph(NodeInfo _n_info)
-      : graph_info(_n_info), fine_arg_call(std::make_unique<FineArgCallNode>(
-                                 NodeInfo(0, "FineGrainedArgCall"))),
+      : fine_arg_call(std::make_unique<FineArgCallNode>(
+            NodeInfo(0, "FineGrainedArgCall"))),
+        outputHardware(llvm::outs()), graph_info(_n_info),
         memory_unit(std::make_unique<MemoryNode>(NodeInfo(0, "mem_ctrl_cache"),
-                                                 MemoryNode::memType::memory)),
-        outputHardware(llvm::outs()) {}
+                                                 MemoryNode::memType::memory)) {}
 
   explicit Graph(NodeInfo _n_info, llvm::raw_ostream &_output)
-      : graph_info(_n_info), fine_arg_call(std::make_unique<FineArgCallNode>(
-                                 NodeInfo(0, "FineGrainedArgCall"))),
+      : fine_arg_call(std::make_unique<FineArgCallNode>(
+            NodeInfo(0, "FineGrainedArgCall"))),
+        outputHardware(_output), graph_info(_n_info),
         memory_unit(std::make_unique<MemoryNode>(NodeInfo(0, "mem_ctrl_cache"),
-                                                 MemoryNode::memType::memory)),
-        outputHardware(_output) {}
+                                                 MemoryNode::memType::memory)) {}
 
   func::FuncOp top_function;
   std::map<uint32_t, Node *> id2node;
