@@ -145,7 +145,7 @@ def ForOp : DataFlowOp<"for", [AutomaticAllocationScope, DeclareOpInterfaceMetho
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "Value" : $lowerBound, "Value" : $upperBound, "Value" : $step,
-      CArg<"ValueRange", "llvm::None"> : $initArgs,
+      CArg<"ValueRange", "std::nullopt"> : $initArgs,
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
         "nullptr">)>
   ];
@@ -238,7 +238,7 @@ def YieldOp : DataFlowOp<"yield", [Pure, ReturnLike, Terminator,
   let arguments = (ins Variadic<AnyType>:$results);
   let assemblyFormat = [{  attr-dict ($results^ `:` type($results))? }];
 
-  let builders = [OpBuilder<(ins), "build($_builder, $_state, llvm::None);">];
+  let builders = [OpBuilder<(ins), "build($_builder, $_state, std::nullopt);">];
 }
 
 //===----------------------------------------------------------------------===//

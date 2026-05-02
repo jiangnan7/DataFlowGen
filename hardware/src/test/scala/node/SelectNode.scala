@@ -1,84 +1,108 @@
 package heteacc.node
 
-import chisel3.iotesters.PeekPokeTester
+import chisel3._
+import chiseltest._
 import chipsalliance.rocketchip.config._
 import heteacc.config._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class VectorSelectTester(df: SelectNodeWithVectorization)
-                        (implicit p: Parameters) extends PeekPokeTester(df) {
+class SelectNodeTests extends AnyFlatSpec with ChiselScalatestTester with Matchers {
+  implicit val p: Parameters = new WithAccelConfig ++ new WithTestConfig
 
-  private def outputVec(fieldIdx: Int) = df.io.Out.elements(s"field$fieldIdx")
+  behavior of "Select nodes"
 
-  private def printInputs(): Unit = {
-    for (lane <- 0 until df.io.InData1.length) {
-      println(f"[TEST] InData1[$lane] valid: ${peek(df.io.InData1(lane).valid)}")
-      println(f"[TEST] InData1[$lane] data: 0x${peek(df.io.InData1(lane).bits.data)}%X")
-      println(f"[TEST] InData2[$lane] valid: ${peek(df.io.InData2(lane).valid)}")
-      println(f"[TEST] InData2[$lane] data: 0x${peek(df.io.InData2(lane).bits.data)}%X")
-      println(f"[TEST] Select[$lane] valid: ${peek(df.io.Select(lane).valid)}")
-      println(f"[TEST] Select[$lane] data: 0x${peek(df.io.Select(lane).bits.data)}%X")
+  it should "select the scalar true branch" in {
+    test(new SelectNode(NumOuts = 1, ID = 0)) { c =>
+      c.io.enable.valid.poke(false.B)
+      c.io.enable.bits.control.poke(false.B)
+      c.io.enable.bits.taskID.poke(0.U)
+      c.io.enable.bits.debug.poke(false.B)
+      c.io.InData1.valid.poke(false.B)
+      c.io.InData2.valid.poke(false.B)
+      c.io.Select.valid.poke(false.B)
+      c.io.Out(0).ready.poke(true.B)
+
+      c.clock.step()
+
+      c.io.enable.valid.poke(true.B)
+      c.io.enable.bits.control.poke(true.B)
+      c.io.enable.bits.taskID.poke(21.U)
+      c.io.InData1.valid.poke(true.B)
+      c.io.InData1.bits.data.poke("h11".U)
+      c.io.InData1.bits.predicate.poke(true.B)
+      c.io.InData1.bits.taskID.poke(0.U)
+      c.io.InData2.valid.poke(true.B)
+      c.io.InData2.bits.data.poke("h22".U)
+      c.io.InData2.bits.predicate.poke(true.B)
+      c.io.InData2.bits.taskID.poke(0.U)
+      c.io.Select.valid.poke(true.B)
+      c.io.Select.bits.data.poke(1.U)
+      c.io.Select.bits.predicate.poke(true.B)
+      c.io.Select.bits.taskID.poke(0.U)
+
+      c.clock.step()
+      c.io.enable.valid.poke(false.B)
+      c.io.InData1.valid.poke(false.B)
+      c.io.InData2.valid.poke(false.B)
+      c.io.Select.valid.poke(false.B)
+
+      c.io.Out(0).valid.expect(true.B)
+      c.io.Out(0).bits.data.expect("h11".U)
+      c.io.Out(0).bits.taskID.expect(21.U)
+      c.io.Out(0).bits.predicate.expect(true.B)
+
+      c.clock.step()
+      c.io.Out(0).valid.expect(false.B)
     }
   }
 
-  private def printOutputs(): Unit = {
-    for (fieldIdx <- 0 until df.io.Out.elements.size) {
-      val vec = outputVec(fieldIdx)
-      for (idx <- 0 until vec.length) {
-        println(f"[TEST] Output[field$fieldIdx][$idx] valid: ${peek(vec(idx).valid)}")
-        println(f"[TEST] Output[field$fieldIdx][$idx] data: 0x${peek(vec(idx).bits.data)}%X")
+  it should "select vector lane outputs independently" in {
+    test(new SelectNodeWithVectorization(NumOuts = Seq(1, 1, 1, 1), NumLanes = 4, ID = 0)) { c =>
+      c.io.Out.elements.values.foreach(_.foreach(_.ready.poke(true.B)))
+
+      for (lane <- c.io.InData1.indices) {
+        c.io.InData1(lane).valid.poke(false.B)
+        c.io.InData2(lane).valid.poke(false.B)
+        c.io.Select(lane).valid.poke(false.B)
       }
+
+      c.clock.step()
+
+      for (lane <- c.io.InData1.indices) {
+        c.io.InData1(lane).valid.poke(true.B)
+        c.io.InData1(lane).bits.data.poke((0x10 + lane).U)
+        c.io.InData1(lane).bits.predicate.poke(true.B)
+        c.io.InData1(lane).bits.taskID.poke(0.U)
+
+        c.io.InData2(lane).valid.poke(true.B)
+        c.io.InData2(lane).bits.data.poke((0x20 + lane).U)
+        c.io.InData2(lane).bits.predicate.poke(true.B)
+        c.io.InData2(lane).bits.taskID.poke(0.U)
+
+        c.io.Select(lane).valid.poke(true.B)
+        c.io.Select(lane).bits.data.poke((lane % 2).U)
+        c.io.Select(lane).bits.predicate.poke(true.B)
+        c.io.Select(lane).bits.taskID.poke(0.U)
+      }
+
+      c.clock.step()
+      for (lane <- c.io.InData1.indices) {
+        c.io.InData1(lane).valid.poke(false.B)
+        c.io.InData2(lane).valid.poke(false.B)
+        c.io.Select(lane).valid.poke(false.B)
+      }
+
+      for (lane <- c.io.InData1.indices) {
+        val expected = if (lane % 2 == 0) 0x20 + lane else 0x10 + lane
+        val out = c.io.Out.elements(s"field$lane")(0)
+        out.valid.expect(true.B)
+        out.bits.data.expect(expected.U)
+        out.bits.taskID.expect(0.U)
+        out.bits.predicate.expect(true.B)
+      }
+
+      c.clock.step()
     }
-  }
-
-  for (fieldIdx <- 0 until df.io.Out.elements.size) {
-    val vec = outputVec(fieldIdx)
-    for (idx <- 0 until vec.length) {
-      poke(vec(idx).ready, 1)
-    }
-  }
-
-  println("=== Initial State ===")
-  printInputs()
-  printOutputs()
-
-  for (lane <- 0 until df.io.InData1.length) {
-    poke(df.io.InData1(lane).valid, 1)
-    poke(df.io.InData1(lane).bits.data, 0x10 + lane)
-
-    poke(df.io.InData2(lane).valid, 1)
-    poke(df.io.InData2(lane).bits.data, 0x20 + lane)
-
-    poke(df.io.Select(lane).valid, 1)
-    poke(df.io.Select(lane).bits.data, lane % 2)
-  }
-
-  println("=== After Providing Inputs ===")
-  printInputs()
-  printOutputs()
-
-  step(1)
-  println("=== Outputs After One Cycle ===")
-  printOutputs()
-
-  step(2)
-  println("=== Outputs After Three Cycles ===")
-  printOutputs()
-}
-
-class VectorSelectTests extends FlatSpec with Matchers {
-  implicit val p = new WithAccelConfig ++ new WithTestConfig
-
-  it should "test vectorized SelectNodeWithVectorization" in {
-    chisel3.iotesters.Driver.execute(
-      Array("--target-dir", "generated_dut/",
-        "--generate-vcd-output", "on",
-        "-X", "verilog"),
-      () => new SelectNodeWithVectorization(
-        NumOuts = Seq(1, 1, 1, 1),
-        NumLanes = 4,
-        ID = 0
-      )
-    ) { c => new VectorSelectTester(c) } should be(true)
   }
 }

@@ -20,7 +20,7 @@ module SinglePortDRAM
 
     initial begin
         //$display("\nLoading DRAM ...");
-        $readmemh("/home/jnli/yahu/heteacc/hardware/src/main/resources/verilog/memory_trace.mem", mem);
+        $readmemh("src/main/resources/verilog/memory_trace.mem", mem);
     end
 
     // Port A

@@ -2,14 +2,15 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/Support/raw_ostream.h"
+#include <cstdlib>
 
 #include "heteacc/Graph/GraphGen.h"
 #include "heteacc/Graph/Node.h"
 #include "heteacc/Graph/Utils.h"
 #include "heteacc/Graph/Visitor.h"
 #include "heteacc/Transforms/Passes.h"
-#include "llvm/Support/raw_ostream.h"
-#include <cstdlib>
+
 using namespace mlir;
 using namespace heteacc;
 
@@ -44,7 +45,7 @@ DataType heteacc::isDataType(Value arg) {
     return DataType::FloatType;
 
   } else if (type.isa<mlir::VectorType>()) {
-    unsupportedNodeType(type);
+    return DataType::VectorType;
   } else {
     unsupportedNodeType(type);
   }
@@ -303,6 +304,7 @@ uint32_t ContainerNode::findLiveInArgumentIndex(ArgumentNode *_arg_node) {
       std::copy_if(live_in_vals.begin(), live_in_vals.end(),
                    std::back_inserter(_local_list), find_function);
     }
+    LLVM_FALLTHROUGH;
   }
   case ContainType::LoopNodeTy: {
     std::copy_if(live_in_sets.begin(), live_in_sets.end(),
@@ -373,6 +375,7 @@ uint32_t ContainerNode::numLiveInArgList(ArgumentNode::ArgumentType type,
       std::copy_if(live_in_vals.begin(), live_in_vals.end(),
                    std::back_inserter(_local_list), find_function);
     }
+    LLVM_FALLTHROUGH;
   }
   case ContainType::LoopNodeTy: {
     std::copy_if(live_in_sets.begin(), live_in_sets.end(),
@@ -437,6 +440,7 @@ Node *ContainerNode::findLiveInNode(Value val) {
 
       return_ptr = ff->get();
     }
+    LLVM_FALLTHROUGH;
   }
   case ContainerNode::ContainType::LoopNodeTy: {
     auto ff = std::find_if(this->live_in_sets_begin(), this->live_in_sets_end(),

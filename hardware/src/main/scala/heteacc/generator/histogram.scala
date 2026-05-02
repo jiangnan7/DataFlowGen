@@ -43,60 +43,66 @@ class histogramDF(implicit p: Parameters) extends histogramDFIO()(p){
   mem_ctrl_cache_out.initMem("dataset/histogram/out.txt")
 
   /* ================================================================== *
-   *                   Const nodes.                                     *
+   *                   Printing Const nodes.                            *
    * ================================================================== */
 
+  //%c1 = arith.constant 1 : index
   val int_const_0 = Module(new ConstFastNode(value = 1, ID = 0))
 
   /* ================================================================== *
-   *                   Execution Block nodes.                           *
+   *                   Printing Execution Block nodes.                  *
    * ================================================================== */
 
   val exe_block_0 = Module(new BasicBlockNode(NumInputs = 2, NumOuts = 2, NumPhi = 0, BID = 0))
 
   /* ================================================================== *
-   *                   Operation nodes.                                 *
+   *                   Printing Operation nodes.                        *
    * ================================================================== */
 
+  //dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
   val state_branch_0 = Module(new UBranchNode(ID = 0))
 
+  //%0 = dataflow.addr %arg1[%arg3] {memShape = [100]} : memref<100xi32>[index] -> i32
   val address_1 = Module(new GepNodeWithoutState(NumIns = 1, NumOuts = 1, ID = 1)(ElementSize = 1, ArraySize = List()))
 
+  //%1 = dataflow.load %0 {ID = 0 : i32} : i32 -> i32
   val load_2 = Module(new Load(NumOuts = 1, ID = 2, RouteID = 0))
 
+  //%2 = dataflow.addr %arg0[%arg3] {memShape = [200]} : memref<200xi32>[index] -> i32
   val address_3 = Module(new GepNodeWithoutState(NumIns = 1, NumOuts = 1, ID = 3)(ElementSize = 1, ArraySize = List()))
 
+  //%3 = dataflow.load %2 {ID = 1 : i32} : i32 -> i32
   val load_4 = Module(new Load(NumOuts = 1, ID = 4, RouteID = 1))
 
+  //%4 = arith.index_cast %3 : i32 to index
   val cast_5 = Module(new BitCastNode(NumOuts = 2, ID = 5))
 
+  //%5 = dataflow.addr %arg2[%4] {memShape = [100]} : memref<100xi32>[index] -> i32
   val address_6 = Module(new GepNodeWithoutState(NumIns = 1, NumOuts = 1, ID = 6)(ElementSize = 1, ArraySize = List()))
 
+  //%6 = dataflow.load %5 {ID = 2 : i32} : i32 -> i32
   val load_7 = Module(new Load(NumOuts = 1, ID = 7, RouteID = 2))
 
+  //%7 = arith.addi %6, %1 : i32
   val int_add_8 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 8, opCode = "Add")(sign = false, Debug = false))
 
+  //%8 = dataflow.addr %arg2[%4] {memShape = [100]} : memref<100xi32>[index] -> i32
   val address_9 = Module(new GepNodeWithoutState(NumIns = 1, NumOuts = 1, ID = 9)(ElementSize = 1, ArraySize = List()))
 
+  //dataflow.store %7 %8 : i32 i32
   val store_10 = Module(new Store(NumOuts = 1, ID = 10, RouteID = 3))
 
-  val int_add_11 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 11, opCode = "Add")(sign = false, Debug = false))
+  //%9 = arith.addi %arg3, %c1 {Exe = "Loop"} : index
+  val int_add_11 = Module(new ComputeNodeWithoutStateSupportCarry(NumOuts = 1, ID = 11, opCode = "Add")(sign = false, Debug = false))
 
+  //func.return
   val return_14 = Module(new RetNode2(retTypes = List(), ID = 14))
 
   /* ================================================================== *
-   *                   Loop nodes.                                      *
+   *                   Printing Loop nodes.                             *
    * ================================================================== */
 
-  val loop_0 = Module(new LoopBlockNodeExperimental(
-    NumIns = List(1, 1, 2),
-    NumOuts = List(),
-    NumCarry = List(3),
-    NumExits = 1,
-    ID = 0,
-    LoopCounterMax = 100,
-    LoopCounterStep = 1
-  ))
+  val loop_0 = Module(new LoopBlockNodeExperimental(NumIns = List(1, 1, 2), NumOuts = List(), NumCarry = List(3), NumExits = 1, ID = 0, LoopCounterMax = 100, LoopCounterStep = 1))
 
   /* ================================================================== *
    *                   Control Signal.                                  *
@@ -148,10 +154,8 @@ class histogramDF(implicit p: Parameters) extends histogramDFIO()(p){
 
   address_3.io.idx(0) <> loop_0.io.CarryDepenOut.elements("field0")(1)
 
-  int_add_11.io.LeftIO <> loop_0.io.CarryDepenOut.elements("field0")(2)
-
   /* ================================================================== *
-   *                   Connections.                                     *
+   *                   Printing Connection.                             *
    * ================================================================== */
 
   int_add_11.io.RightIO <> int_const_0.io.Out
@@ -192,8 +196,10 @@ class histogramDF(implicit p: Parameters) extends histogramDFIO()(p){
 
   store_10.io.Out(0) <> mem_ctrl_cache_out.io.store_data(0)
 
+  loop_0.io.CarryDepenOut.elements("field0")(2).ready := true.B
+
   /* ================================================================== *
-   *                   Execution Block Enable.                          *
+   *                   Printing Execution Block Enable.                 *
    * ================================================================== */
 
   int_const_0.io.enable <> exe_block_0.io.Out(0)

@@ -26,8 +26,9 @@ class ConstFastNode(value: BigInt, ID: Int)
   val enable_R = RegInit(ControlBundle.default)
   val enable_valid_R = RegInit(false.B)
 
-  val taskID = Mux(enable_valid_R, enable_R.taskID, io.enable.bits.taskID)
-  val predicate = Mux(enable_valid_R, enable_R.control, io.enable.bits.control)
+  val output_enable = Mux(enable_valid_R, enable_R, io.enable.bits)
+  val taskID = output_enable.taskID
+  val predicate = output_enable.control
 
   /*===============================================*
    *            Latch inputs. Wire up output       *
@@ -35,39 +36,22 @@ class ConstFastNode(value: BigInt, ID: Int)
 
 
   val output_value = value.asSInt(xlen.W).asUInt
-  // val output_value = value.asSInt(16.W).asUInt
   io.enable.ready := ~enable_valid_R
-  io.Out.valid := enable_valid_R
+  io.Out.valid := enable_valid_R || io.enable.valid
 
   io.Out.bits := DataBundle(output_value, taskID, predicate)
 
   /*============================================*
    *            ACTIONS (possibly dangerous)    *
    *============================================*/
-  val s_idle :: s_fire :: Nil = Enum(2)
-  val state = RegInit(s_idle)
+  when(!enable_valid_R && io.enable.fire && !io.Out.ready) {
+    enable_valid_R := true.B
+    enable_R := io.enable.bits
+  }
 
-  switch(state) {
-    is(s_idle) {
-      when(io.enable.fire) {
-        io.Out.valid := true.B
-        when(io.Out.fire) {
-          state := s_idle
-        }.otherwise {
-          state := s_fire
-          enable_valid_R := true.B
-          enable_R <> io.enable.bits
-        }
-      }
-    }
-    is(s_fire) {
-      when(io.Out.fire) {
-        //Restart the registers
-        enable_R := ControlBundle.default
-        enable_valid_R := false.B
-        state := s_idle
-      }
-    }
+  when(enable_valid_R && io.Out.fire) {
+    enable_R := ControlBundle.default
+    enable_valid_R := false.B
   }
 
 }
@@ -116,41 +100,28 @@ class ConstFastNodeWithVectorization(value: BigInt, NumLanes: Int, ID: Int)
 
 
   val output_value = value.asSInt(xlen.W).asUInt
-  // val output_value = value.asSInt(16.W).asUInt
+  val all_outputs_ready =
+    if (NumLanes == 0) {
+      true.B
+    } else {
+      io.Out.map(_.ready).reduce(_ && _)
+    }
+
   io.enable.ready := ~enable_valid_R
-  // io.Out.valid := enable_valid_R
-  io.Out.foreach(_.valid := enable_valid_R)
-  // io.Out.bits := DataBundle(output_value, taskID, predicate)
+  io.Out.foreach(_.valid := enable_valid_R || io.enable.valid)
   io.Out.foreach(_.bits := DataBundle(output_value, taskID, predicate))
 
   /*============================================*
    *            ACTIONS (possibly dangerous)    *
    *============================================*/
-  val s_idle :: s_fire :: Nil = Enum(2)
-  val state = RegInit(s_idle)
+  when(!enable_valid_R && io.enable.fire && !all_outputs_ready) {
+    enable_valid_R := true.B
+    enable_R := io.enable.bits
+  }
 
-  switch(state) {
-    is(s_idle) {
-      when(io.enable.fire) {
-        // io.Out.valid := true.B
-        io.Out.foreach(_.valid := true.B)
-        when(io.Out(0).fire) {
-          state := s_idle
-        }.otherwise {
-          state := s_fire
-          enable_valid_R := true.B
-          enable_R <> io.enable.bits
-        }
-      }
-    }
-    is(s_fire) {
-      when(io.Out(0).fire) {
-        //Restart the registers
-        enable_R := ControlBundle.default
-        enable_valid_R := false.B
-        state := s_idle
-      }
-    }
+  when(enable_valid_R && all_outputs_ready) {
+    enable_R := ControlBundle.default
+    enable_valid_R := false.B
   }
 
 }

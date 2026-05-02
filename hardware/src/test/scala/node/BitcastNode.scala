@@ -1,66 +1,81 @@
 package heteacc.node
 
-import chisel3.iotesters.PeekPokeTester
+import chisel3._
+import chiseltest._
 import chipsalliance.rocketchip.config._
 import heteacc.config._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class VectorBroadcastTester(df: BroadcastNodeWithVectorization)
-                           (implicit p: Parameters) extends PeekPokeTester(df) {
+class BitcastNodeTests extends AnyFlatSpec with ChiselScalatestTester with Matchers {
+  implicit val p: Parameters = new WithAccelConfig ++ new WithTestConfig
 
-  private def printInputs(): Unit = {
-    println(f"[TEST] Input valid: ${peek(df.io.Input.valid)}")
-    println(f"[TEST] Input data: 0x${peek(df.io.Input.bits.data)}%X")
-    println(f"[TEST] Input ready: ${peek(df.io.Input.ready)}")
-  }
+  behavior of "Bitcast nodes"
 
-  private def printOutputs(): Unit = {
-    for (i <- 0 until df.io.Out.length) {
-      println(f"[TEST] Output[$i] valid: ${peek(df.io.Out(i).valid)}")
-      println(f"[TEST] Output[$i] data: 0x${peek(df.io.Out(i).bits.data)}%X")
-      println(f"[TEST] Output[$i] ready: ${peek(df.io.Out(i).ready)}")
+  it should "forward scalar input data" in {
+    test(new BitCastNode(NumOuts = 1, ID = 0, Debug = false)) { c =>
+      c.io.enable.valid.poke(false.B)
+      c.io.enable.bits.control.poke(false.B)
+      c.io.enable.bits.taskID.poke(0.U)
+      c.io.enable.bits.debug.poke(false.B)
+      c.io.Input.valid.poke(false.B)
+      c.io.Out(0).ready.poke(true.B)
+
+      c.clock.step()
+      c.io.Input.ready.expect(true.B)
+
+      c.io.Input.valid.poke(true.B)
+      c.io.Input.bits.data.poke("h1234".U)
+      c.io.Input.bits.predicate.poke(true.B)
+      c.io.Input.bits.taskID.poke(0.U)
+      c.io.enable.valid.poke(true.B)
+      c.io.enable.bits.control.poke(true.B)
+      c.io.enable.bits.taskID.poke(11.U)
+
+      c.clock.step()
+      c.io.Input.valid.poke(false.B)
+      c.io.enable.valid.poke(false.B)
+
+      c.io.Out(0).valid.expect(true.B)
+      c.io.Out(0).bits.data.expect("h1234".U)
+      c.io.Out(0).bits.taskID.expect(11.U)
+      c.io.Out(0).bits.predicate.expect(true.B)
+
+      c.clock.step()
+      c.io.Out(0).valid.expect(false.B)
     }
   }
 
-  for (i <- 0 until df.io.Out.length) {
-    poke(df.io.Out(i).ready, 1)
-  }
-  poke(df.io.Input.valid, 0)
+  it should "forward vector inputs lane by lane" in {
+    test(new BitcastNodeWithVectorization(NumOuts = Seq(1, 1, 1, 1), NumLanes = 4, ID = 0)) { c =>
+      for (lane <- c.io.Input.indices) {
+        c.io.Input(lane).valid.poke(false.B)
+      }
+      c.io.Out.elements.values.foreach(_.foreach(_.ready.poke(true.B)))
 
-  println("=== Initial State ===")
-  printInputs()
-  printOutputs()
+      c.clock.step()
 
-  poke(df.io.Input.valid, 1)
-  poke(df.io.Input.bits.data, 0xDEADBEEF)
+      for (lane <- c.io.Input.indices) {
+        c.io.Input(lane).valid.poke(true.B)
+        c.io.Input(lane).bits.data.poke((0x40 + lane).U)
+        c.io.Input(lane).bits.predicate.poke(true.B)
+        c.io.Input(lane).bits.taskID.poke(0.U)
+      }
 
-  println("=== After Providing Input ===")
-  printInputs()
-  printOutputs()
+      c.clock.step()
+      for (lane <- c.io.Input.indices) {
+        c.io.Input(lane).valid.poke(false.B)
+      }
 
-  step(1)
-  println("=== Outputs After One Cycle ===")
-  printOutputs()
+      for (lane <- c.io.Input.indices) {
+        val out = c.io.Out.elements(s"field$lane")(0)
+        out.valid.expect(true.B)
+        out.bits.data.expect((0x40 + lane).U)
+        out.bits.taskID.expect(1.U)
+        out.bits.predicate.expect(true.B)
+      }
 
-  poke(df.io.Input.bits.data, 0xCAFEBABE)
-  step(1)
-  println("=== After Sending New Data ===")
-  printOutputs()
-}
-
-class VectorBroadcastTests extends FlatSpec with Matchers {
-  implicit val p = new WithAccelConfig ++ new WithTestConfig
-
-  it should "test vectorized BroadcastNodeWithVectorization" in {
-    chisel3.iotesters.Driver.execute(
-      Array("--target-dir", "generated_dut/",
-        "--generate-vcd-output", "on",
-        "-X", "verilog"),
-      () => new BroadcastNodeWithVectorization(
-        NumOuts = 1,
-        NumLanes = 4,
-        ID = 0
-      )(sign = false, Debug = false)
-    ) { c => new VectorBroadcastTester(c) } should be(true)
+      c.clock.step()
+    }
   }
 }

@@ -245,10 +245,6 @@ class HandShaking[T <: Data](val NumPredOps: Int,
   /*=================================
   =            Registers            =
   =================================*/
-  // Extra information
-  val token    = RegInit(0.U)
-  val nodeID_R = RegInit(ID.U)
-
   // Enable
   val enable_R       = RegInit(ControlBundle.default)
   val enable_valid_R = RegInit(false.B)

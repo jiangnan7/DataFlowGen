@@ -156,6 +156,7 @@ private:
 
 public:
   Node(NodeType _nt, NodeInfo _ni) : node_type(_nt), info(_ni) {}
+  virtual ~Node() = default;
 
   NodeInfo getInfo() { return this->info; }
   uint32_t // op_list.size()

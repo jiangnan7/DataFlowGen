@@ -1,97 +1,101 @@
 package heteacc.node
 
 import chisel3._
-import chisel3.util._
-
-import chisel3.iotesters.{ChiselFlatSpec, Driver, PeekPokeTester}
-import org.scalatest.{Matchers, FlatSpec}
-
+import chiseltest._
 import chipsalliance.rocketchip.config._
 import heteacc.config._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-// Tester for vectorized ComputeNodeWithVectorization.
-class VectorComputeTester(df: ComputeNodeWithVectorization)
-                         (implicit p: Parameters) extends PeekPokeTester(df) {
+class ComputeNodeTests extends AnyFlatSpec with ChiselScalatestTester with Matchers {
+  implicit val p: Parameters = new WithAccelConfig ++ new WithTestConfig
 
-  val NumLanes = df.io.LeftIO.length // Number of vector lanes
+  behavior of "Compute nodes"
 
-  def printInputs(): Unit = {
-    for (lane <- 0 until NumLanes) {
-      val leftData = peek(df.io.LeftIO(lane).bits.data)
-      val rightData = peek(df.io.RightIO(lane).bits.data)
-      val leftPred = peek(df.io.LeftIO(lane).bits.predicate)
-      val rightPred = peek(df.io.RightIO(lane).bits.predicate)
-      println(s"Lane $lane - Left: Data=$leftData, Pred=$leftPred | Right: Data=$rightData, Pred=$rightPred")
+  it should "compute scalar add results" in {
+    test(new ComputeNode(NumOuts = 1, ID = 0, opCode = "Add")(sign = false, Debug = false)) { c =>
+      c.io.enable.valid.poke(false.B)
+      c.io.enable.bits.control.poke(false.B)
+      c.io.enable.bits.taskID.poke(0.U)
+      c.io.enable.bits.debug.poke(false.B)
+      c.io.LeftIO.valid.poke(false.B)
+      c.io.RightIO.valid.poke(false.B)
+      c.io.Out(0).ready.poke(false.B)
+
+      c.clock.step()
+      c.io.LeftIO.ready.expect(true.B)
+      c.io.RightIO.ready.expect(true.B)
+
+      c.io.enable.valid.poke(true.B)
+      c.io.enable.bits.control.poke(true.B)
+      c.io.enable.bits.taskID.poke(3.U)
+      c.io.LeftIO.valid.poke(true.B)
+      c.io.LeftIO.bits.data.poke(10.U)
+      c.io.LeftIO.bits.predicate.poke(true.B)
+      c.io.LeftIO.bits.taskID.poke(0.U)
+      c.io.RightIO.valid.poke(true.B)
+      c.io.RightIO.bits.data.poke(32.U)
+      c.io.RightIO.bits.predicate.poke(true.B)
+      c.io.RightIO.bits.taskID.poke(0.U)
+
+      c.clock.step()
+      c.io.enable.valid.poke(false.B)
+      c.io.LeftIO.valid.poke(false.B)
+      c.io.RightIO.valid.poke(false.B)
+
+      c.io.Out(0).valid.expect(true.B)
+      c.clock.step()
+      c.io.Out(0).valid.expect(true.B)
+      c.io.Out(0).bits.data.expect(42.U)
+      c.io.Out(0).bits.taskID.expect(3.U)
+      c.io.Out(0).bits.predicate.expect(true.B)
+
+      c.io.Out(0).ready.poke(true.B)
+      c.clock.step()
+      c.io.Out(0).valid.expect(false.B)
     }
   }
 
-  def printOutputs(): Unit = {
-    for ((name, vec) <- df.io.Out.elements) {
-      for (idx <- vec.indices) {
-        val outData = peek(vec(idx).bits.data)
-        val outPred = peek(vec(idx).bits.predicate)
-        val outValid = peek(vec(idx).valid)
-        println(s"Output[$name][$idx] - Data=$outData, Pred=$outPred, Valid=$outValid")
+  it should "compute vector add results lane by lane" in {
+    test(new ComputeNodeWithVectorization(NumOuts = Seq(1, 1, 1, 1), NumLanes = 4, ID = 0, opCode = "Add")(
+      sign = false,
+      Debug = false
+    )) { c =>
+      for (lane <- c.io.LeftIO.indices) {
+        c.io.LeftIO(lane).valid.poke(false.B)
+        c.io.RightIO(lane).valid.poke(false.B)
       }
+      c.io.Out.elements.values.foreach(_.foreach(_.ready.poke(true.B)))
+
+      c.clock.step()
+
+      for (lane <- c.io.LeftIO.indices) {
+        c.io.LeftIO(lane).valid.poke(true.B)
+        c.io.LeftIO(lane).bits.data.poke((lane + 1).U)
+        c.io.LeftIO(lane).bits.predicate.poke(true.B)
+        c.io.LeftIO(lane).bits.taskID.poke(0.U)
+
+        c.io.RightIO(lane).valid.poke(true.B)
+        c.io.RightIO(lane).bits.data.poke(((lane + 1) * 2).U)
+        c.io.RightIO(lane).bits.predicate.poke(true.B)
+        c.io.RightIO(lane).bits.taskID.poke(0.U)
+      }
+
+      c.clock.step()
+      for (lane <- c.io.LeftIO.indices) {
+        c.io.LeftIO(lane).valid.poke(false.B)
+        c.io.RightIO(lane).valid.poke(false.B)
+      }
+
+      for (lane <- c.io.LeftIO.indices) {
+        val out = c.io.Out.elements(s"field$lane")(0)
+        out.valid.expect(true.B)
+        out.bits.data.expect(((lane + 1) * 3).U)
+        out.bits.taskID.expect(0.U)
+        out.bits.predicate.expect(true.B)
+      }
+
+      c.clock.step()
     }
-  }
-
-  for (lane <- 0 until NumLanes) {
-    poke(df.io.LeftIO(lane).bits.data, lane + 1) // Example: lane 0 -> 1, lane 1 -> 2, ...
-    poke(df.io.LeftIO(lane).bits.predicate, false.B)
-
-    poke(df.io.RightIO(lane).bits.data, (lane + 1) * 2) // Example: lane 0 -> 2, lane 1 -> 4, ...
-    poke(df.io.RightIO(lane).bits.predicate, false.B)
-
-    poke(df.io.LeftIO(lane).valid, false.B)
-    poke(df.io.RightIO(lane).valid, false.B)
-  }
-
-  for ((_, vec) <- df.io.Out.elements) {
-    for (decoupled <- vec) {
-      poke(decoupled.ready, false.B)
-    }
-  }
-
-  println("Initial Inputs:")
-  printInputs()
-
-  step(1)
-
-  for (lane <- 0 until NumLanes) {
-    poke(df.io.LeftIO(lane).valid, true.B)
-    poke(df.io.RightIO(lane).valid, true.B)
-    poke(df.io.LeftIO(lane).bits.predicate, true.B)
-    poke(df.io.RightIO(lane).bits.predicate, true.B)
-  }
-
-  for ((_, vec) <- df.io.Out.elements) {
-    for (decoupled <- vec) {
-      poke(decoupled.ready, true.B)
-    }
-  }
-
-  println("Inputs After Enabling:")
-  printInputs()
-  println("Outputs After Enabling:")
-  printOutputs()
-
-
-}
-
-// Test suite for the vectorized ComputeNodeWithVectorization.
-class VectorCompTests extends FlatSpec with Matchers {
-  implicit val p = new WithAccelConfig ++ new WithTestConfig
-
-  it should "Test vectorized ComputeNodeWithVectorization" in {
-    chisel3.iotesters.Driver.execute(
-      Array("--target-dir", "generated_dut/", "--generate-vcd-output", "on", "-X", "verilog"),
-      () => new ComputeNodeWithVectorization(
-        NumOuts = Seq(1, 1, 1, 1),
-        NumLanes = 4,
-        ID = 0,
-        opCode = "Add"
-      )(sign = false, Debug = false)
-    ) { c => new VectorComputeTester(c) } should be(true)
   }
 }

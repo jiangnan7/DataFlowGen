@@ -24,7 +24,7 @@ set(LIBS
 add_llvm_executable(heteacc-opt heteacc-opt.cpp)
 
 llvm_update_compile_flags(heteacc-opt)
-target_link_libraries(heteacc-opt PRIVATE ${LIBS})
+target_link_libraries(heteacc-opt PRIVATE -Wl,--start-group ${LIBS} -Wl,--end-group)
 llvm_update_compile_flags(heteacc-opt)
 
 mlir_check_all_link_libraries(heteacc-opt)

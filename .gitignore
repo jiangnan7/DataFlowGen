@@ -39,3 +39,5 @@ hardware/target/*
 hardware/test_run_dir/*
 .vscode/*
 hardware/generated_dut/*
+hardware/hardfloat/*
+docs/*

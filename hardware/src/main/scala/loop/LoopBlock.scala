@@ -146,13 +146,13 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
     Reg
   }
 
-  val active_loop_start_R = RegInit(ControlBundle.default)
+  val active_loop_start_control_R = RegInit(false.B)
   val active_loop_start_valid_R = RegInit(false.B)
 
-  val active_loop_back_R = RegInit(ControlBundle.default)
+  val active_loop_back_control_R = RegInit(false.B)
   val active_loop_back_valid_R = RegInit(false.B)
 
-  val loop_exit_R = Seq.fill(NumExits)(RegInit(ControlBundle.default))
+  val loop_exit_control_R = Seq.fill(NumExits)(RegInit(false.B))
   val loop_exit_valid_R = Seq.fill(NumExits)(RegInit(false.B))
   val loop_exit_fire_R = Seq.fill(NumExits)(RegInit(false.B))
 
@@ -252,15 +252,15 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
   /**
     * Connecting control output signals
     */
-  io.activate_loop_start.bits <> active_loop_start_R
+  io.activate_loop_start.bits := ControlBundle.default(active_loop_start_control_R, enable_R.taskID)
   io.activate_loop_start.valid := active_loop_start_valid_R
 
-  io.activate_loop_back.bits <> active_loop_back_R
+  io.activate_loop_back.bits := ControlBundle.default(active_loop_back_control_R, enable_R.taskID)
   io.activate_loop_back.valid := active_loop_back_valid_R
 
   for (i <- 0 until NumExits) {
-    io.loopExit(i).bits <> loop_exit_R(i)
-    io.loopExit(i).valid <> loop_exit_valid_R(i)
+    io.loopExit(i).bits := Mux(loop_exit_control_R(i), ControlBundle.active(true.B), ControlBundle.deactivate())
+    io.loopExit(i).valid := loop_exit_valid_R(i)
   }
 
 
@@ -441,10 +441,10 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
           out_live_in_valid_R.foreach(_.foreach(_ := true.B))
           out_carry_out_valid_R.foreach(_.foreach(_ := true.B))
 
-          active_loop_start_R := ControlBundle.active(enable_R.taskID)
+          active_loop_start_control_R := true.B
           active_loop_start_valid_R := true.B
 
-          active_loop_back_R := ControlBundle.deactivate(enable_R.taskID)
+          active_loop_back_control_R := false.B
           active_loop_back_valid_R := true.B
 
           //Change state
@@ -456,7 +456,7 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
           out_live_out_valid_R.foreach(_.foreach(_ := true.B))
 
           // Fire Loop exists
-          loop_exit_R.foreach(_ := ControlBundle.deactivate())
+          loop_exit_control_R.foreach(_ := false.B)
           loop_exit_valid_R.foreach(_ := true.B)
 
           //Change state
@@ -472,10 +472,10 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
         when(loop_back_R.map(_.control).reduce(_ | _)) { //in case of multiple backwardedges being valid
           //Drive loop internal output signals
           loopcounter := loopcounter + 1.U
-          active_loop_start_R := ControlBundle.deactivate(false.B) //loop_back_R(0).taskID resource++ fmhz++
+          active_loop_start_control_R := false.B //loop_back_R(0).taskID resource++ fmhz++
           active_loop_start_valid_R := true.B
 
-          active_loop_back_R := ControlBundle.active(loop_back_R(0).taskID)
+          active_loop_back_control_R := true.B
           active_loop_back_valid_R := true.B
 
           out_live_in_fire_R.foreach(_.foreach(_ := false.B))
@@ -508,11 +508,11 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
           out_live_out_valid_R.foreach(_.foreach(_ := true.B))
           loop_exit_valid_R.foreach(_ := true.B)
 
-          active_loop_start_R := ControlBundle.default
-          active_loop_back_R := ControlBundle.default
+          active_loop_start_control_R := false.B
+          active_loop_back_control_R := false.B
           // in_carry_in_R.foreach(_ := DataBundle.default)
           // Fire Loop exists
-          loop_exit_R.foreach(_ := ControlBundle.active(loop_back_R(0).taskID))
+          loop_exit_control_R.foreach(_ := true.B)
           loop_exit_valid_R.foreach(_ := true.B)
 
           //Change state
@@ -546,6 +546,10 @@ class LoopBlockNode(ID: Int, NumIns: Seq[Int], NumCarry: Seq[Int], NumOuts: Seq[
 
         enable_R := ControlBundle.default
         enable_valid_R := false.B
+
+        active_loop_start_control_R := false.B
+        active_loop_back_control_R := false.B
+        loop_exit_control_R.foreach(_ := false.B)
 
         loop_back_R foreach (_ := ControlBundle.default)
         loop_back_valid_R foreach (_ := false.B)
@@ -685,13 +689,13 @@ class LoopBlockNodeExperimental(ID: Int,
     Reg
   }
 
-  val active_loop_start_R = RegInit(ControlBundle.default)
+  val active_loop_start_control_R = RegInit(false.B)
   val active_loop_start_valid_R = RegInit(false.B)
 
-  val active_loop_back_R = RegInit(ControlBundle.default)
+  val active_loop_back_control_R = RegInit(false.B)
   val active_loop_back_valid_R = RegInit(false.B)
 
-  val loop_exit_R = Seq.fill(NumExits)(RegInit(ControlBundle.default))
+  val loop_exit_control_R = Seq.fill(NumExits)(RegInit(false.B))
   val loop_exit_valid_R = Seq.fill(NumExits)(RegInit(false.B))
   val loop_exit_fire_R = Seq.fill(NumExits)(RegInit(false.B))
 
@@ -760,15 +764,15 @@ class LoopBlockNodeExperimental(ID: Int,
   /**
     * Connecting control output signals
     */
-  io.activate_loop_start.bits <> active_loop_start_R
+  io.activate_loop_start.bits := ControlBundle.default(active_loop_start_control_R, enable_R.taskID)
   io.activate_loop_start.valid := active_loop_start_valid_R
 
-  io.activate_loop_back.bits <> active_loop_back_R
+  io.activate_loop_back.bits := ControlBundle.default(active_loop_back_control_R, enable_R.taskID)
   io.activate_loop_back.valid := active_loop_back_valid_R
 
   for (i <- 0 until NumExits) {
-    io.loopExit(i).bits <> loop_exit_R(i)
-    io.loopExit(i).valid <> loop_exit_valid_R(i)
+    io.loopExit(i).bits := Mux(loop_exit_control_R(i), ControlBundle.active(true.B), ControlBundle.deactivate())
+    io.loopExit(i).valid := loop_exit_valid_R(i)
   }
 
 
@@ -915,10 +919,10 @@ class LoopBlockNodeExperimental(ID: Int,
           out_live_in_valid_R.foreach(_.foreach(_ := true.B))
           out_carry_out_valid_R.foreach(_.foreach(_ := true.B))
 
-          active_loop_start_R := ControlBundle.active(enable_R.taskID)
+          active_loop_start_control_R := true.B
           active_loop_start_valid_R := true.B
 
-          active_loop_back_R := ControlBundle.deactivate(enable_R.taskID)
+          active_loop_back_control_R := false.B
           active_loop_back_valid_R := true.B
 
           //Change state
@@ -935,7 +939,7 @@ class LoopBlockNodeExperimental(ID: Int,
           out_live_out_valid_R.foreach(_.foreach(_ := true.B))
 
           // Fire Loop exists
-          loop_exit_R.foreach(_ := ControlBundle.deactivate())
+          loop_exit_control_R.foreach(_ := false.B)
           loop_exit_valid_R.foreach(_ := true.B)
 
           //Change state
@@ -952,10 +956,10 @@ class LoopBlockNodeExperimental(ID: Int,
           //When loop needs to repeat itself
           //Drive loop internal output signals
           loopcounter := loopcounter + loopcounterSTEP
-          active_loop_start_R := ControlBundle.deactivate(enable_R.taskID)
+          active_loop_start_control_R := false.B
           active_loop_start_valid_R := true.B
 
-          active_loop_back_R := ControlBundle.active(enable_R.taskID)
+          active_loop_back_control_R := true.B
           active_loop_back_valid_R := true.B
 
           out_live_in_fire_R.foreach(_.foreach(_ := false.B))
@@ -984,11 +988,11 @@ class LoopBlockNodeExperimental(ID: Int,
           out_live_out_valid_R.foreach(_.foreach(_ := true.B))
           loop_exit_valid_R.foreach(_ := true.B)
 
-          active_loop_start_R := ControlBundle.default
-          active_loop_back_R := ControlBundle.default
+          active_loop_start_control_R := false.B
+          active_loop_back_control_R := false.B
           in_carry_in_R.foreach(_ := DataBundle.default)
           // Fire Loop exists
-          loop_exit_R.foreach(_ := ControlBundle.active(true.B))
+          loop_exit_control_R.foreach(_ := true.B)
           loop_exit_valid_R.foreach(_ := true.B)
 
           //Change state
@@ -1012,6 +1016,10 @@ class LoopBlockNodeExperimental(ID: Int,
 
         enable_R := ControlBundle.default
         enable_valid_R := false.B
+
+        active_loop_start_control_R := false.B
+        active_loop_back_control_R := false.B
+        loop_exit_control_R.foreach(_ := false.B)
 
         in_live_in_R.foreach(_ := DataBundle.default)
         in_live_in_valid_R.foreach(_ := false.B)

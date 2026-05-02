@@ -1,93 +1,92 @@
 package heteacc.node
 
-import chisel3.iotesters.PeekPokeTester
+import chisel3._
+import chiseltest._
 import chipsalliance.rocketchip.config._
 import heteacc.config._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class VectorGepTester(df: GepNodeWithVectorization)
-                     (implicit p: Parameters) extends PeekPokeTester(df) {
+class GepNodeTests extends AnyFlatSpec with ChiselScalatestTester with Matchers {
+  implicit val p: Parameters = new WithAccelConfig ++ new WithTestConfig
 
-  val numIns = df.io.idx.length
+  behavior of "Gep nodes"
 
-  private def outputVec(fieldIdx: Int) = df.io.Out.elements(s"field$fieldIdx")
+  it should "compute scalar addresses" in {
+    test(new GepNode(NumIns = 1, NumOuts = 1, ID = 0)(ElementSize = 4, ArraySize = List())) { c =>
+      c.io.enable.valid.poke(false.B)
+      c.io.enable.bits.control.poke(false.B)
+      c.io.enable.bits.taskID.poke(0.U)
+      c.io.enable.bits.debug.poke(false.B)
+      c.io.baseAddress.valid.poke(false.B)
+      c.io.idx(0).valid.poke(false.B)
+      c.io.Out(0).ready.poke(true.B)
 
-  private def printInputs(): Unit = {
-    println("[TEST] --- Inputs ---")
-    println(f"[TEST] BaseAddress valid: ${peek(df.io.baseAddress.valid)}")
-    println(f"[TEST] BaseAddress data: 0x${peek(df.io.baseAddress.bits.data)}%X")
+      c.clock.step()
+      c.io.baseAddress.ready.expect(true.B)
+      c.io.idx(0).ready.expect(true.B)
 
-    for (i <- 0 until numIns) {
-      println(f"[TEST] Index[$i] valid: ${peek(df.io.idx(i).valid)}")
-      println(f"[TEST] Index[$i] data: 0x${peek(df.io.idx(i).bits.data)}%X")
+      c.io.enable.valid.poke(true.B)
+      c.io.enable.bits.control.poke(true.B)
+      c.io.enable.bits.taskID.poke(5.U)
+      c.io.baseAddress.valid.poke(true.B)
+      c.io.baseAddress.bits.data.poke("h1000".U)
+      c.io.baseAddress.bits.predicate.poke(true.B)
+      c.io.baseAddress.bits.taskID.poke(13.U)
+      c.io.idx(0).valid.poke(true.B)
+      c.io.idx(0).bits.data.poke(3.U)
+      c.io.idx(0).bits.predicate.poke(true.B)
+      c.io.idx(0).bits.taskID.poke(0.U)
+
+      c.clock.step()
+      c.io.enable.valid.poke(false.B)
+      c.io.baseAddress.valid.poke(false.B)
+      c.io.idx(0).valid.poke(false.B)
+
+      c.clock.step()
+      c.io.Out(0).valid.expect(true.B)
+      c.io.Out(0).bits.data.expect("h100c".U)
+      c.io.Out(0).bits.taskID.expect(13.U)
+      c.io.Out(0).bits.predicate.expect(true.B)
+
+      c.clock.step()
+      c.io.Out(0).valid.expect(false.B)
     }
   }
 
-  private def printOutputs(): Unit = {
-    println("[TEST] --- Outputs ---")
-    for (fieldIdx <- 0 until df.io.Out.elements.size) {
-      val vec = outputVec(fieldIdx)
-      for (idx <- 0 until vec.length) {
-        println(f"[TEST] Output[field$fieldIdx][$idx] valid: ${peek(vec(idx).valid)}")
-        println(f"[TEST] Output[field$fieldIdx][$idx] data: 0x${peek(vec(idx).bits.data)}%X")
+  it should "compute vector field addresses" in {
+    test(new GepNodeWithVectorization(NumIns = 1, NumOuts = Seq(1, 1, 1, 1), NumLanes = 4, ID = 0)(
+      ElementSize = 1,
+      ArraySize = List()
+    )) { c =>
+      c.io.Out.elements.values.foreach(_.foreach(_.ready.poke(true.B)))
+      c.io.baseAddress.valid.poke(false.B)
+      c.io.idx(0).valid.poke(false.B)
+
+      c.clock.step()
+
+      c.io.baseAddress.valid.poke(true.B)
+      c.io.baseAddress.bits.data.poke("h1000".U)
+      c.io.baseAddress.bits.predicate.poke(true.B)
+      c.io.baseAddress.bits.taskID.poke(0.U)
+      c.io.idx(0).valid.poke(true.B)
+      c.io.idx(0).bits.data.poke("h10".U)
+      c.io.idx(0).bits.predicate.poke(true.B)
+      c.io.idx(0).bits.taskID.poke(0.U)
+
+      c.clock.step()
+      c.io.baseAddress.valid.poke(false.B)
+      c.io.idx(0).valid.poke(false.B)
+
+      for (fieldIdx <- 0 until c.io.Out.elements.size) {
+        val out = c.io.Out.elements(s"field$fieldIdx")(0)
+        out.valid.expect(true.B)
+        out.bits.data.expect((0x1010 + fieldIdx).U)
+        out.bits.taskID.expect(1.U)
+        out.bits.predicate.expect(true.B)
       }
+
+      c.clock.step()
     }
-  }
-
-  poke(df.io.baseAddress.valid, 0)
-  poke(df.io.baseAddress.bits.data, 0)
-  for (i <- 0 until numIns) {
-    poke(df.io.idx(i).valid, 0)
-    poke(df.io.idx(i).bits.data, 0)
-  }
-  for (fieldIdx <- 0 until df.io.Out.elements.size) {
-    val vec = outputVec(fieldIdx)
-    for (idx <- 0 until vec.length) {
-      poke(vec(idx).ready, 1)
-    }
-  }
-
-  println("=== Initial State ===")
-  printInputs()
-  printOutputs()
-
-  poke(df.io.baseAddress.valid, 1)
-  poke(df.io.baseAddress.bits.data, 0x1000)
-  for (i <- 0 until numIns) {
-    poke(df.io.idx(i).valid, 1)
-    poke(df.io.idx(i).bits.data, 0x10 + i)
-  }
-
-  println("=== After Providing Inputs ===")
-  printInputs()
-  printOutputs()
-
-  step(1)
-  println("=== Outputs After One Cycle ===")
-  printOutputs()
-
-  step(2)
-  println("=== Outputs After Three Cycles ===")
-  printOutputs()
-}
-
-class VectorGepTests extends FlatSpec with Matchers {
-  implicit val p = new WithAccelConfig ++ new WithTestConfig
-
-  it should "test vectorized GepNodeWithVectorization" in {
-    chisel3.iotesters.Driver.execute(
-      Array("--target-dir", "generated_dut/",
-        "--generate-vcd-output", "on",
-        "-X", "verilog"),
-      () => new GepNodeWithVectorization(
-        NumIns = 1,
-        NumOuts = Seq(1, 1, 1, 1),
-        NumLanes = 4,
-        ID = 0
-      )(
-        ElementSize = 1,
-        ArraySize = List()
-      )
-    ) { c => new VectorGepTester(c) } should be(true)
   }
 }

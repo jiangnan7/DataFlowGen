@@ -41,45 +41,57 @@ class if_loop_1DF(implicit p: Parameters) extends if_loop_1DFIO()(p) {
   mem_ctrl_cache.initMem("dataset/if_loop_1/if_loop_1.txt")
 
   /* ================================================================== *
-   *                   Const nodes.                                     *
+   *                   Printing Const nodes.                            *
    * ================================================================== */
 
+  //%c2_i32 = arith.constant 2 : i32
   val int_const_0 = Module(new ConstFastNode(value = 2, ID = 0))
 
+  //%c10_i32 = arith.constant 10 : i32
   val int_const_1 = Module(new ConstFastNode(value = 10, ID = 1))
 
+  //%c1 = arith.constant 1 : index
   val int_const_2 = Module(new ConstFastNode(value = 1, ID = 2))
 
   /* ================================================================== *
-   *                   Execution Block nodes.                           *
+   *                   Printing Execution Block nodes.                  *
    * ================================================================== */
 
   val exe_block_0 = Module(new BasicBlockNode(NumInputs = 2, NumOuts = 3, NumPhi = 0, BID = 0))
 
   /* ================================================================== *
-   *                   Operation nodes.                                 *
+   *                   Printing Operation nodes.                        *
    * ================================================================== */
 
+  //dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
   val state_branch_0 = Module(new UBranchNode(ID = 0))
 
+  //%4 = dataflow.addr %arg0[%arg1] {memShape = [100]} : memref<100xi32>[index] -> i32
   val address_1 = Module(new GepNodeWithoutState(NumIns = 1, NumOuts = 1, ID = 1)(ElementSize = 1, ArraySize = List()))
 
+  //%5 = dataflow.load %4 {ID = 0 : i32, affineCoeff = [1], affineOffset = 0 : i64, map = affine_map<(d0) -> (d0)>} : i32 -> i32
   val load_2 = Module(new Load(NumOuts = 1, ID = 2, RouteID = 0))
 
+  //%6 = arith.muli %5, %c2_i32 : i32
   val int_mul_3 = Module(new ComputeNodeWithoutState(NumOuts = 2, ID = 3, opCode = "Mul")(sign = false, Debug = false))
 
+  //%7 = arith.cmpi ugt, %6, %c10_i32 : i32
   val int_cmp_4 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 4, opCode = "ugt")(sign = false, Debug = false))
 
-  val int_add_5 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 5, opCode = "Add")(sign = false, Debug = false))
+  //%8 = arith.addi %6, %arg2 : i32
+  val int_add_5 = Module(new ComputeNodeWithoutStateSupportCarry(NumOuts = 1, ID = 5, opCode = "Add")(sign = false, Debug = false))
 
+  //%9 = dataflow.select %7, %8, %arg2 : i32
   val select_6 = Module(new SelectNodeWithoutState(NumOuts = 2, ID = 6))
 
+  //%10 = arith.addi %arg1, %c1 {Exe = "Loop"} : index
   val int_add_7 = Module(new ComputeNodeWithoutStateSupportCarry(NumOuts = 1, ID = 7, opCode = "Add")(sign = false, Debug = false))
 
+  //func.return %0 : i32
   val return_10 = Module(new RetNode2(retTypes = List(32), ID = 10))
 
   /* ================================================================== *
-   *                   Loop nodes.                                      *
+   *                   Printing Loop nodes.                             *
    * ================================================================== */
 
   val loop_0 = Module(new LoopBlockNodeExperimental(NumIns = List(1), NumOuts = List(1), NumCarry = List(2), NumExits = 1, ID = 0, LoopCounterMax = 100, LoopCounterStep = 1))
@@ -134,12 +146,10 @@ class if_loop_1DF(implicit p: Parameters) extends if_loop_1DFIO()(p) {
 
   loop_0.io.CarryDepenIn(0) <> select_6.io.Out(1)
 
-  int_add_5.io.RightIO <> loop_0.io.CarryDepenOut.elements("field0")(0)
-
   select_6.io.InData2 <> loop_0.io.CarryDepenOut.elements("field0")(1)
 
   /* ================================================================== *
-   *                   Connections.                                     *
+   *                   Printing Connection.                             *
    * ================================================================== */
 
   int_mul_3.io.RightIO <> int_const_0.io.Out
@@ -154,7 +164,7 @@ class if_loop_1DF(implicit p: Parameters) extends if_loop_1DFIO()(p) {
 
   int_cmp_4.io.LeftIO <> int_mul_3.io.Out(0)
 
-  int_add_5.io.LeftIO <> int_mul_3.io.Out(1)
+  int_add_5.io.RightIO <> int_mul_3.io.Out(1)
 
   select_6.io.Select <> int_cmp_4.io.Out(0)
 
@@ -164,8 +174,10 @@ class if_loop_1DF(implicit p: Parameters) extends if_loop_1DFIO()(p) {
 
   load_2.data_in <> mem_ctrl_cache.io.load_data(0)
 
+  loop_0.io.CarryDepenOut.elements("field0")(0).ready := true.B
+
   /* ================================================================== *
-   *                   Execution Block Enable.                          *
+   *                   Printing Execution Block Enable.                 *
    * ================================================================== */
 
   int_const_0.io.enable <> exe_block_0.io.Out(0)

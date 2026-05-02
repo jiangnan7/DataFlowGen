@@ -233,7 +233,7 @@ std::optional<OpFoldResult> ForOp::getSingleUpperBound() {
 
 void IfOp::build(OpBuilder &builder, OperationState &result, Value cond,
                  bool withElseRegion) {
-  build(builder, result, /*resultTypes=*/llvm::None, cond, withElseRegion);
+  build(builder, result, /*resultTypes=*/std::nullopt, cond, withElseRegion);
 }
 void IfOp::build(OpBuilder &builder, OperationState &result,
                  TypeRange resultTypes, Value cond, bool withElseRegion) {
@@ -338,7 +338,7 @@ void IfOp::getSuccessorRegions(Optional<unsigned> index,
   // Otherwise, the successor is dependent on the condition.
   bool condition;
   if (auto condAttr = operands.front().dyn_cast_or_null<IntegerAttr>()) {
-    condition = condAttr.getValue().isOneValue();
+    condition = condAttr.getValue().isOne();
   } else {
     // If the condition isn't constant, both regions may be executed.
     regions.push_back(RegionSuccessor(&getThenRegion()));

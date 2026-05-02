@@ -68,6 +68,42 @@ def AffineLoopPerfection :
 //===----------------------------------------------------------------------===//
 // Vector-related Passes
 //===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+// Vector-related Passes
+//===----------------------------------------------------------------------===//
+
+def AutoVectorization : Pass<"auto-vectorization", "func::FuncOp"> {
+  let summary = "Apply vectorization strategies to optimize code generation.";
+  let constructor = "mlir::heteacc::createAutoVectorizationPass()";
+  let dependentDialects = ["arith::ArithDialect", "dataflow::DataFlowDialect"];
+  let options = [
+    Option<"maxAttempts", "slp-max-attempts", "unsigned",
+           /*default=*/"3",
+           "Maximum number of SLP vectorization attempts" >,
+
+    Option<"maxSuccessfulIterations", "slp-max-successful-iterations", "unsigned",
+           /*default=*/"3",
+           "Maximum number of successful SLP vectorization iterations per function" >,
+
+    Option<"maxNodeSize", "slp-max-node-size", "unsigned",
+           /*default=*/"32",
+           "Maximum size of multi-nodes during SLP vectorization" >,
+
+    Option<"maxLookAhead", "slp-max-look-ahead", "unsigned",
+           /*default=*/"3",
+           "Maximum look-ahead depth when reordering operands during SLP vectorization" >,
+
+    Option<"reorderInstructionsDFS", "slp-reorder-instructions-dfs", "bool",
+           /*default=*/"true",
+           "Indicates whether SLP vectorization instructions should be ordered by DFS (true) or BFS (false)" >,
+
+    Option<"allowDuplicateElements", "slp-allow-duplicate-elements", "bool",
+           /*default=*/"false",
+           "Indicates whether duplicate elements are allowed in vectors during SLP graph construction" >
+  ];
+}
+
+
 def EvaluationModel : Pass<"evaluation-model", "func::FuncOp"> {
   let summary = "Build an evaluation model to analyze the efficiency of vectorization.";
   let constructor = "mlir::heteacc::createEvaluationModelPass()";

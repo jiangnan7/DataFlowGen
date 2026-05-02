@@ -23,6 +23,17 @@ add_mlir_dialect_library(MLIRHLSTransforms
   Misc/Utils.cpp
   Misc/HybridAnalysis.cpp
   Misc/EvaluationModel.cpp
+  Misc/VecUtils.cpp
+
+  Vectorization/AutoVectorization.cpp
+  Vectorization/BlockCostModel.cpp
+  Vectorization/GraphConversion.cpp
+  Vectorization/OperationFusion.cpp
+  Vectorization/ScoreModel.cpp
+  Vectorization/Seeding.cpp
+  Vectorization/SLPGraph.cpp
+  Vectorization/SLPGraphBuilder.cpp
+  Vectorization/SLPVectorizationPatternMatch.cpp
 
   DEPENDS
   MLIRVectorizationOpsIncGen

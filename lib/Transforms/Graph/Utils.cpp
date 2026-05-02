@@ -1,7 +1,3 @@
-#include "heteacc/Graph/Utils.h"
-#include "heteacc/Graph/GraphGen.h"
-#include "heteacc/Graph/Visitor.h"
-#include "heteacc/Transforms/Passes.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
@@ -9,6 +5,10 @@
 #include "llvm/Support/raw_ostream.h"
 #include <cstdlib>
 
+#include "heteacc/Graph/GraphGen.h"
+#include "heteacc/Graph/Utils.h"
+#include "heteacc/Graph/Visitor.h"
+#include "heteacc/Transforms/Passes.h"
 using namespace mlir;
 using namespace heteacc;
 

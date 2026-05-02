@@ -38,60 +38,66 @@ class getTanhDF(implicit p: Parameters) extends getTanhDFIO()(p) {
   mem_ctrl_cache.initMem("dataset/getTanh/getTanh.txt")
 
   /* ================================================================== *
-   *                   Const nodes.                                     *
+   *                   Printing Const nodes.                            *
    * ================================================================== */
 
+  //%c1_i32 = arith.constant 1 : i32
   val int_const_0 = Module(new ConstFastNode(value = 1, ID = 0))
 
+  //%c19_i32 = arith.constant 19 : i32
   val int_const_1 = Module(new ConstFastNode(value = 19, ID = 1))
 
+  //%c3_i32 = arith.constant 3 : i32
   val int_const_2 = Module(new ConstFastNode(value = 3, ID = 2))
 
+  //%c1 = arith.constant 1 : index
   val int_const_3 = Module(new ConstFastNode(value = 1, ID = 3))
 
+  //%c1_0 = arith.constant 1 : index
   val int_const_4 = Module(new ConstFastNode(value = 1, ID = 4))
 
   /* ================================================================== *
-   *                   Execution Block nodes.                           *
+   *                   Printing Execution Block nodes.                  *
    * ================================================================== */
 
   val exe_block_0 = Module(new BasicBlockNode(NumInputs = 2, NumOuts = 6, NumPhi = 0, BID = 0))
 
   /* ================================================================== *
-   *                   Operation nodes.                                 *
+   *                   Printing Operation nodes.                        *
    * ================================================================== */
 
+  //dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
   val state_branch_0 = Module(new UBranchNode(ID = 0))
 
+  //%1 = dataflow.addr %arg0[%arg2] {memShape = [100]} : memref<100xi32>[index] -> i32
   val address_1 = Module(new GepNodeWithoutState(NumIns = 1, NumOuts = 1, ID = 1)(ElementSize = 1, ArraySize = List()))
 
+  //%2 = dataflow.load %1 {ID = 0 : i32} : i32 -> i32
   val load_2 = Module(new Load(NumOuts = 6, ID = 2, RouteID = 0))
 
+  //%3 = arith.cmpi slt, %2, %c1_i32 : i32
   val int_cmp_3 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 3, opCode = "slt")(sign = false, Debug = false))
 
+  //%4 = arith.muli %3, %4 ; %5 = arith.addi ... ; %9 = arith.muli ... : i32
   val m0 = Module(new Chain(NumOps = 6, ID = 0, OpCodes = Array("Mul", "Add", "Mul", "Mul", "Add", "Mul"))(sign = false)(p))
 
+  //%10 = dataflow.select %3, %9, %c1 : i32
   val select_10 = Module(new SelectNodeWithoutState(NumOuts = 1, ID = 10))
 
-  val int_add_11 = Module(new ComputeNodeWithoutState(NumOuts = 2, ID = 11, opCode = "Add")(sign = false, Debug = false))
+  //%11 = arith.addi %arg3, %10 : i32
+  val int_add_11 = Module(new ComputeNodeWithoutStateSupportCarry(NumOuts = 2, ID = 11, opCode = "Add")(sign = false, Debug = false))
 
-  val int_add_12 = Module(new ComputeNodeWithoutState(NumOuts = 1, ID = 12, opCode = "Add")(sign = false, Debug = false))
+  //%12 = arith.addi %arg2, %c1_0 {Exe = "Loop"} : index
+  val int_add_12 = Module(new ComputeNodeWithoutStateSupportCarry(NumOuts = 1, ID = 12, opCode = "Add")(sign = false, Debug = false))
 
+  //func.return %0 : i32
   val return_15 = Module(new RetNode2(retTypes = List(32), ID = 15))
 
   /* ================================================================== *
-   *                   Loop nodes.                                      *
+   *                   Printing Loop nodes.                             *
    * ================================================================== */
 
-  val loop_0 = Module(new LoopBlockNodeExperimental(
-    NumIns = List(1),
-    NumOuts = List(1),
-    NumCarry = List(1, 2),
-    NumExits = 1,
-    ID = 0,
-    LoopCounterMax = 100,
-    LoopCounterStep = 1
-  ))
+  val loop_0 = Module(new LoopBlockNodeExperimental(NumIns = List(1), NumOuts = List(1), NumCarry = List(1, 2), NumExits = 1, ID = 0, LoopCounterMax = 100, LoopCounterStep = 1))
 
   /* ================================================================== *
    *                   Control Signal.                                  *
@@ -141,16 +147,12 @@ class getTanhDF(implicit p: Parameters) extends getTanhDFIO()(p) {
 
   loop_0.io.CarryDepenIn(0) <> int_add_11.io.Out(1)
 
-  int_add_11.io.LeftIO <> loop_0.io.CarryDepenOut.elements("field0")(0)
-
   loop_0.io.CarryDepenIn(1) <> int_add_12.io.Out(0)
 
   address_1.io.idx(0) <> loop_0.io.CarryDepenOut.elements("field1")(0)
 
-  int_add_12.io.LeftIO <> loop_0.io.CarryDepenOut.elements("field1")(1)
-
   /* ================================================================== *
-   *                   Connections.                                     *
+   *                   Printing Connection.                             *
    * ================================================================== */
 
   int_cmp_3.io.RightIO <> int_const_0.io.Out
@@ -191,8 +193,11 @@ class getTanhDF(implicit p: Parameters) extends getTanhDFIO()(p) {
     m0.io.Out(i).ready := true.B
   }
 
+  loop_0.io.CarryDepenOut.elements("field0")(0).ready := true.B
+  loop_0.io.CarryDepenOut.elements("field1")(1).ready := true.B
+
   /* ================================================================== *
-   *                   Execution Block Enable.                          *
+   *                   Printing Execution Block Enable.                 *
    * ================================================================== */
 
   int_const_0.io.enable <> exe_block_0.io.Out(0)
