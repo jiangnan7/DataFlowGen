@@ -26,10 +26,11 @@ struct RefineFunc : public OpRewritePattern<func::FuncOp> {
             loc, arith::CmpIPredicate::eq,
             rewriter.create<arith::ConstantIndexOp>(loc, 0), // TODO index/int
             dyn_cast<dataflow::ForOp>(op).getLowerBound());
-        Value enable = rewriter.create<dataflow::EnableOp>(
-            loc, loopSignal.getType(), loopSignal);
+        rewriter.create<dataflow::EnableOp>(loc, loopSignal.getType(),
+                                            loopSignal);
         return success();
       }
+    return failure();
   }
 };
 } // namespace
@@ -37,7 +38,6 @@ struct RefineFunc : public OpRewritePattern<func::FuncOp> {
 struct EnhancedCDFG : public EnhancedCDFGBase<EnhancedCDFG> {
   void runOnOperation() override {
     auto func = getOperation();
-    auto context = func.getContext();
 
     // executionBlock(&func.front());
 
@@ -65,7 +65,6 @@ struct EnhancedCDFG : public EnhancedCDFGBase<EnhancedCDFG> {
       }
     });
 
-    mlir::Operation *control_signal;
     if (count == 0) {
       if (isa<dataflow::ForOp>(countOp)) {
         // The bounds are constants omitting the arith::cmp.
@@ -129,18 +128,12 @@ struct EnhancedCDFG : public EnhancedCDFGBase<EnhancedCDFG> {
           OpBuilder builder(exeop);
 
           builder.setInsertionPointToStart(&exeop.getBody().front());
-          Value ivSel;
-          auto isInBlock = [&](OpOperand &use) {
-            return exeop->isAncestor(use.getOwner());
-          };
           // Supporting Carry Value.
           if (isa<dataflow::ForOp>(exeop->getParentOp())) {
-            int i = 3;
-
             // for(const auto &carry: forop.getRegionIterArgs()){
             //   auto carry_select =
             //   builder.create<dataflow::MergeOp>(builder.getUnknownLoc(),
-            //   carry.getType(), forop.getOperation()->getOperand(i++), carry);
+            //   carry.getType(), forop.getOperation()->getOperand(3), carry);
             //   carry_vec.push_back(carry);
             //   carry2select[carry] = carry_select;
             //   carry_new_op.push_back(carry_select);
@@ -180,9 +173,9 @@ struct EnhancedCDFG : public EnhancedCDFGBase<EnhancedCDFG> {
                                                 "Loop")); // Loop_Level
           forop.getRegion().front().getTerminator()->replaceUsesOfWith(
               forop.getInductionVar(), ivnew);
-          return WalkResult::advance();
         }
       }
+      return WalkResult::advance();
     });
 
     func.walk([&](mlir::Operation *op) {

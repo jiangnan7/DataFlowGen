@@ -116,7 +116,7 @@ std::vector<unsigned> affineExprAnalysis(
 // A pass that manually walks the IR
 struct AnalyzeMemrefAddress : AnalyzeMemrefAddressBase<AnalyzeMemrefAddress> {
 
-  void runOnOperation() {
+  void runOnOperation() override {
     auto FunctionOp = dyn_cast<FuncOp>(getOperation());
     mlir::OpBuilder builder(&getContext());
     llvm::errs()

@@ -116,8 +116,6 @@ public:
   LogicalResult
   matchAndRewrite(scf::YieldOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = rewriter.getUnknownLoc();
-
     llvm::SmallVector<Value, 8> inputs;
 
     for (auto a : op.getOperands()) {
@@ -135,9 +133,6 @@ public:
 
   LogicalResult matchAndRewrite(AffineYieldOp op,
                                 PatternRewriter &rewriter) const override {
-
-    auto loc = rewriter.getUnknownLoc();
-
     llvm::SmallVector<Value, 8> inputs;
     for (auto a : op.getOperands()) {
       inputs.push_back(a);
@@ -184,7 +179,7 @@ public:
     auto integerSet = op.getIntegerSet();
     Value zeroConstant = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     SmallVector<Value, 8> operands(op.getOperands());
-    auto operandsRef = llvm::makeArrayRef(operands);
+    ArrayRef<Value> operandsRef(operands);
 
     // Calculate cond as a conjunction without short-circuiting.
     Value cond = nullptr;

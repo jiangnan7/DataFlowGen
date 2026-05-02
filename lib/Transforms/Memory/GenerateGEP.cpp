@@ -177,7 +177,7 @@ struct vectorTransferWriteLowering
 // A pass that manually walks the IR
 struct GenerateGEP : GenerateGEPBase<GenerateGEP> {
 
-  void runOnOperation() {
+  void runOnOperation() override {
     auto func = getOperation();
     auto context = func.getContext();
 

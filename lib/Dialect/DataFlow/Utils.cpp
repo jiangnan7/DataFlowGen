@@ -61,7 +61,6 @@ TaskOp heteacc::fuseOpsIntoTask(ArrayRef<Operation *> ops,
     rewriter.setInsertionPoint(ops.front());
   else
     rewriter.setInsertionPoint(ops.back());
-  Type resultType;
   auto task =
       rewriter.create<TaskOp>(loc, ValueRange(outputValues.getArrayRef()));
   auto taskBlock = rewriter.createBlock(&task.getBody());
@@ -109,24 +108,17 @@ ExecutionBlockOp heteacc::executionBlock(Block *block) {
     ;
   }
 
-  auto isInDispatch = [&](OpOperand &use) {
-    return block->getParentOp()->isAncestor(use.getOwner());
-  };
-
   OpBuilder builder(block, block->begin());
   auto loc = builder.getUnknownLoc();
   ValueRange returnValues(block->getTerminator()->getOperands());
-  TypeRange typeValues;
 
   auto exeOp =
       builder.create<ExecutionBlockOp>(loc, returnValues); //, returnValues);
 
   OpBuilder b(exeOp);
-  auto UnknownLoc = b.getUnknownLoc();
-
   auto &exeBlock = exeOp.getBody().emplaceBlock();
   b.setInsertionPointToStart(&exeBlock);
-  auto exeReturnse = b.create<arith::ConstantIntOp>(loc, 1, 1);
+  b.create<arith::ConstantIntOp>(loc, 1, 1);
 
   builder.setInsertionPointToEnd(&exeBlock);
   auto yield = builder.create<YieldOp>(loc, returnValues);
