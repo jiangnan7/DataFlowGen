@@ -53,6 +53,7 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
             return WalkResult::interrupt();
           }
         }
+        return WalkResult::advance();
       });
   if (Info.enable == nullptr) {
     Info.enable = dataflowForop.getOperation()->getParentOp();
@@ -136,8 +137,6 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
       auto isBlockArgOrNotAllocaOp = [&](const mlir::Value &VAL) -> bool {
         auto iter = std::find(this->dependency_graph->funArgValue.begin(),
                               this->dependency_graph->funArgValue.end(), VAL);
-        auto carry_iter =
-            std::find(carry_value.begin(), carry_value.end(), VAL);
         return VAL.isa<mlir::BlockArgument>() &&
                iter != this->dependency_graph->funArgValue.end();
       };
@@ -232,6 +231,7 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
         this->blacklist_loop_live_in_data_edge[operand].push_back(region_op);
       }
     }
+    return WalkResult::advance();
   });
 
   // for(auto iter = op2traversal.begin(); iter != op2traversal.end(); ++iter){
@@ -427,7 +427,6 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
 }
 
 void GraphGen::buildLoopGraph(func::FuncOp func) {
-  uint32_t c_id = 0;
   LLVM_DEBUG(llvm::dbgs() << "\nBuild Loop Graph \n ";);
 
   func.walk([&](dataflow::ForOp forOp) {
@@ -436,7 +435,7 @@ void GraphGen::buildLoopGraph(func::FuncOp func) {
     LoopInfo currLoopInfo = this->for_op_info[forOp];
 
     if (currentLoopNode == nullptr)
-      assert(!"LoopNode is empty !");
+      assert(false && "LoopNode is empty !");
 
     // enable
 
@@ -590,20 +589,23 @@ void GraphGen::buildLoopGraph(func::FuncOp func) {
 
     LLVM_DEBUG(llvm::dbgs() << "currLoopInfo.live_out_out_ins.size: "
                             << currLoopInfo.live_out_out_ins.size() << "\n";);
-    for (auto _live_out_edge : currLoopInfo.live_out_out_ins) {
-      auto _node = currentLoopNode->findLiveOutNode(_live_out_edge.getFirst());
-      if (_node == nullptr) {
-        auto _new_live_out_node = currentLoopNode->insertLiveOutArgument(
-            _live_out_edge.getFirst(), ArgumentNode::ArgumentType::LiveOut);
-        _new_live_out_node->setParentNode(
-            map_value_node[_live_out_edge.getFirst()]);
+    if (this->dependency_graph->hasreturnValue) {
+      for (auto _live_out_edge : currLoopInfo.live_out_out_ins) {
+        auto _node =
+            currentLoopNode->findLiveOutNode(_live_out_edge.getFirst());
+        if (_node == nullptr) {
+          auto _new_live_out_node = currentLoopNode->insertLiveOutArgument(
+              _live_out_edge.getFirst(), ArgumentNode::ArgumentType::LiveOut);
+          _new_live_out_node->setParentNode(
+              map_value_node[_live_out_edge.getFirst()]);
 
-        LLVM_DEBUG(llvm::dbgs() << "_new_live_out_node "
-                                << _new_live_out_node->getName() << "\n";);
-      }
-      for (auto _inst : _live_out_edge.getSecond()) {
-        this->live_out_loop_ins_edge[forOp].insert(
-            std::make_pair(_live_out_edge.getFirst(), _inst));
+          LLVM_DEBUG(llvm::dbgs() << "_new_live_out_node "
+                                  << _new_live_out_node->getName() << "\n";);
+        }
+        for (auto _inst : _live_out_edge.getSecond()) {
+          this->live_out_loop_ins_edge[forOp].insert(
+              std::make_pair(_live_out_edge.getFirst(), _inst));
+        }
       }
     }
     LLVM_DEBUG(llvm::dbgs() << "Edge type 3 "
@@ -666,7 +668,7 @@ void GraphGen::buildLoopGraph(func::FuncOp func) {
 
     auto from = this->map_value_node.find(edge.first);
     if (from == this->map_value_node.end()) {
-      assert(!"WRONG");
+      assert(false && "WRONG");
     }
 
     for (auto loop : edge.second) {
@@ -676,7 +678,7 @@ void GraphGen::buildLoopGraph(func::FuncOp func) {
       auto to = loop_node->findLiveInNode(edge.first);
 
       if (to == nullptr)
-        assert(!"There is a bug in loop connections!");
+        assert(false && "There is a bug in loop connections!");
       LLVM_DEBUG(llvm::dbgs() << "from: " << from->second->getName() << "\n";);
 
       from->second->addDataOutputPort(to);
@@ -713,7 +715,6 @@ void GraphGen::buildLoopGraph(func::FuncOp func) {
 void GraphGen::dependencyAnalyze(mlir::func::FuncOp func) {
 
   LLVM_DEBUG(llvm::dbgs() << "\nDependency Analyze. \n ";);
-  int i = 0;
 
   // 1. Analyze data dependency.
   // Connecting function arguments to the spliter
@@ -765,8 +766,16 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func) {
         DataType datatype = DataType::IntegerType;
         if (isa<arith::ConstantFloatOp>(operand.getDefiningOp()))
           datatype = DataType::FloatType;
+        else if (isa<mlir::VectorType>(operand.getType()))
+          datatype = DataType::VectorType;
+        ;
 
         const_node = this->dependency_graph->insertConstNode(operand, datatype);
+        if (isa<mlir::VectorType>(operand.getType())) {
+          auto vectorType = dyn_cast<mlir::VectorType>(operand.getType());
+          unsigned laneSize = getVectorLaneSize(vectorType);
+          const_node->setLaneNums(laneSize);
+        }
         // this->map_value_node[operand] = const_node;
         find_const = true;
         const_node->addControlInputPort(
@@ -825,8 +834,6 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func) {
 
       if (from == this->map_value_node.end() || to == this->map_op_node.end())
         return WalkResult::advance();
-      auto from_node = from->second;
-      auto to_node = to->second;
       // Live in
       LLVM_DEBUG(llvm::dbgs() << "live_in check!\n";);
       bool find_live_in = false;
@@ -959,7 +966,7 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func) {
 
         int direction =
             this->edge_direction_map[std::make_pair(operand, operation)];
-        if ((direction == 3)) {
+        if (direction == 3) {
           to->second->addDataOutputPort(from->second);
           from->second->addDataInputPort(to->second);
         }
@@ -991,34 +998,31 @@ void GraphGen::dependencyAnalyze(mlir::func::FuncOp func) {
       from->second->addDataOutputPort(to->second);
       to->second->addDataInputPort(from->second, i);
     }
+    return WalkResult::advance();
   });
-
   func.walk([&](mlir::Operation *operation) {
     // Memory System.
     auto op_node = this->map_op_node.find(operation);
     if (op_node == this->map_op_node.end())
       return WalkResult::advance();
     auto memory_node = static_cast<LSNode *>(op_node->second);
+
+    if (!memory_node)
+      return WalkResult::advance();
+    auto *cache = memory_node->getMemoryUnit();
+    if (!cache)
+      return WalkResult::advance();
     if (isa<dataflow::LoadOp>(operation)) {
-      // TODO: Dynamic memory management.
-      this->dependency_graph->getMemoryUnit()->addReadMemoryReqPort(
-          memory_node);
-      this->dependency_graph->getMemoryUnit()->addReadMemoryRespPort(
-          memory_node);
-      memory_node->addReadMemoryReqPort(
-          this->dependency_graph->getMemoryUnit());
-      memory_node->addReadMemoryRespPort(
-          this->dependency_graph->getMemoryUnit());
+      cache->addReadMemoryReqPort(memory_node);
+      cache->addReadMemoryRespPort(memory_node);
+      memory_node->addReadMemoryReqPort(cache);
+      memory_node->addReadMemoryRespPort(cache);
 
     } else if (isa<dataflow::StoreOp>(operation)) {
-      this->dependency_graph->getMemoryUnit()->addWriteMemoryReqPort(
-          memory_node);
-      this->dependency_graph->getMemoryUnit()->addWriteMemoryRespPort(
-          memory_node);
-      memory_node->addWriteMemoryReqPort(
-          this->dependency_graph->getMemoryUnit());
-      memory_node->addWriteMemoryRespPort(
-          this->dependency_graph->getMemoryUnit());
+      cache->addWriteMemoryReqPort(memory_node);
+      cache->addWriteMemoryRespPort(memory_node);
+      memory_node->addWriteMemoryReqPort(cache);
+      memory_node->addWriteMemoryRespPort(cache);
     }
 
     return WalkResult::advance();
@@ -1069,7 +1073,6 @@ void GraphGen::connectingBranch(mlir::func::FuncOp func) {
           dyn_cast<dataflow::IfOp>(operation->getNextNode());
     }
   });
-  int id = 0;
 
   for (auto &op : this->state2if) {
     auto if_cmp = this->map_value_node[op.getFirst().getCond()];
@@ -1222,16 +1225,29 @@ void Graph::connectingGraph(mlir::func::FuncOp func) {
     }
   }
 
-  uint32_t cnt = 0;
-  auto cache = this->getMemoryUnit();
-  for (auto load_mem = cache->read_req_begin();
-       load_mem != cache->read_req_end(); load_mem++) {
-    static_cast<LSNode *>(&*load_mem->first)->setRouteID(cnt);
-    cnt++;
-  }
-  for (auto store_mem = cache->write_req_begin();
-       store_mem != cache->write_req_end(); store_mem++) {
-    static_cast<LSNode *>(&*store_mem->first)->setRouteID(cnt);
-    cnt++;
+  // uint32_t cnt = 0;
+  // auto cache   = this->getMemoryUnit();
+  // for (auto load_mem = cache->read_req_begin(); load_mem !=
+  // cache->read_req_end() ;load_mem++) {
+  //   static_cast<LSNode*>(&*load_mem->first)->setRouteID(cnt);
+  //   cnt++;
+  // }
+  // for (auto store_mem = cache->write_req_begin(); store_mem !=
+  // cache->write_req_end() ;store_mem++) {
+  //   static_cast<LSNode*>(&*store_mem->first)->setRouteID(cnt);
+  //   cnt++;
+  // }
+  for (const auto &cache : this->getScratchpadMemories()) {
+    uint32_t cnt = 0;
+    for (auto load_mem = cache->read_req_begin();
+         load_mem != cache->read_req_end(); load_mem++) {
+      static_cast<LSNode *>(&*load_mem->first)->setRouteID(cnt);
+      cnt++;
+    }
+    for (auto store_mem = cache->write_req_begin();
+         store_mem != cache->write_req_end(); store_mem++) {
+      static_cast<LSNode *>(&*store_mem->first)->setRouteID(cnt);
+      cnt++;
+    }
   }
 }
