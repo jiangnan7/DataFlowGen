@@ -407,6 +407,16 @@ LoopNode *Graph::insertLoopNode(dataflow::ForOp op) {
   uint32_t id = this->getLoopNodeNums();
   auto new_loop =
       std::make_unique<LoopNode>(NodeInfo(id, "loop_" + std::to_string(id)));
+  if (auto lower = op.getLowerBound().getDefiningOp<arith::ConstantIndexOp>()) {
+    if (auto upper =
+            op.getUpperBound().getDefiningOp<arith::ConstantIndexOp>()) {
+      int64_t lowerValue = lower.value();
+      int64_t upperValue = upper.value();
+      new_loop->setLoopCounterBounds(
+          upperValue - lowerValue,
+          op.getStep().getDefiningOp<arith::ConstantIndexOp>().value());
+    }
+  }
   LoopNode *loop_ptr = new_loop.get();
   this->loop_nodes.push_back(std::move(new_loop));
   return loop_ptr;

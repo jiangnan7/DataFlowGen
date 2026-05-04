@@ -12,6 +12,51 @@ using namespace mlir;
 using namespace heteacc;
 using namespace dataflow;
 
+static bool hasLoopStartState(dataflow::TaskOp taskop) {
+  for (auto &op : taskop.getBody().front()) {
+    if (auto state = dyn_cast<dataflow::StateOp>(op)) {
+      if (state.getInstanceName().str().find("loop_start") != std::string::npos)
+        return true;
+      if (auto enableAttr = state->getAttrOfType<StringAttr>("Enable")) {
+        if (enableAttr.getValue().find("Loop_Start") != std::string::npos)
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
+static bool hasLoopExitState(dataflow::ForOp forop) {
+  for (auto &op : forop.getLoopBody().front()) {
+    if (auto exeop = dyn_cast<dataflow::ExecutionBlockOp>(op)) {
+      for (auto &exeInnerOp : exeop.getBody().front()) {
+        if (auto state = dyn_cast<dataflow::StateOp>(exeInnerOp)) {
+          if (state.getInstanceName().str().find("loop_exit") !=
+              std::string::npos)
+            return true;
+          if (auto exeAttr = state->getAttrOfType<StringAttr>("Exe")) {
+            if (exeAttr.getValue().find("Loop") != std::string::npos)
+              return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+static bool hasStaticLoopBounds(dataflow::ForOp forop) {
+  return forop.getLowerBound().getDefiningOp<arith::ConstantIndexOp>() &&
+         forop.getUpperBound().getDefiningOp<arith::ConstantIndexOp>() &&
+         forop.getStep().getDefiningOp<arith::ConstantIndexOp>();
+}
+
+static bool needsExplicitLoopExitState(dataflow::ForOp forop) {
+  if (!hasStaticLoopBounds(forop))
+    return true;
+  return static_cast<bool>(forop->getParentOfType<dataflow::ForOp>());
+}
+
 namespace {
 struct RefineFunc : public OpRewritePattern<func::FuncOp> {
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
@@ -45,149 +90,87 @@ struct EnhancedCDFG : public EnhancedCDFGBase<EnhancedCDFG> {
       executionBlock(&forop.getLoopBody().front());
     });
 
-    uint32_t count = 0;
-    mlir::Operation *countOp;
-
-    // TODO: Add a execution block for more operations.
     func.walk([&](dataflow::TaskOp taskop) {
+      if (hasLoopStartState(taskop))
+        return WalkResult::advance();
+
+      mlir::Operation *countOp = nullptr;
+      uint32_t count = 0;
       for (auto &op : taskop.getBody().front()) {
         countOp = &op;
-        if (isa<dataflow::ForOp, AffineForOp, scf::IfOp, dataflow::IfOp>(op))
+        if (isa<dataflow::ForOp, AffineForOp, scf::IfOp, dataflow::IfOp>(op)) {
           break;
-        else if (isa<arith::ConstantIntOp, arith::ConstantOp,
-                     arith::ConstantIndexOp, memref::AllocaOp,
-                     arith::IndexCastOp>(op))
+        } else if (isa<arith::ConstantIntOp, arith::ConstantOp,
+                       arith::ConstantIndexOp, memref::AllocaOp,
+                       arith::IndexCastOp>(op)) {
           continue;
-        else {
+        } else {
           count += 1;
           countOp = taskop->getParentOp();
         }
       }
-    });
 
-    if (count == 0) {
-      if (isa<dataflow::ForOp>(countOp)) {
-        // The bounds are constants omitting the arith::cmp.
-        // If it is not then a cmp is built, thus supporting dynamic
-        // bounds.(whileop)
-        OpBuilder builder(countOp);
-        if (dyn_cast<dataflow::ForOp>(countOp)
-                .getLowerBound()
-                .getType()
-                .isIndex()) {
-          auto true_signal = builder.create<arith::ConstantIntOp>(
-              builder.getUnknownLoc(), 1, 1);
-          auto loop_stast =
-              StringAttr::get(countOp->getContext(), "loop_start");
-          auto null = StringAttr::get(countOp->getContext(), "null");
-          builder.setInsertionPoint(countOp);
-          auto state = builder.create<dataflow::StateOp>(
-              builder.getUnknownLoc(), true_signal, loop_stast, null);
-          state->setAttr("Enable",
-                         StringAttr::get(builder.getContext(), "Loop_Start"));
-          // auto enable = builder.create<dataflow::EnableOp>(
-          //     builder.getUnknownLoc(), true_signal.getType(), true_signal);
-          //     enable->setAttr("Enable", StringAttr::get(builder.getContext(),
-          //     "Loop_Start"));
-          // control_signal = enable.getOperation();
-        } else {
-          // TODO Supporting  whileop.
+      if (!countOp)
+        return WalkResult::advance();
 
-          // Value loopSignal = builder.create<arith::CmpIOp>(
-          // builder.getUnknownLoc(), arith::CmpIPredicate::slt,
-          // dyn_cast<dataflow::ForOp>(countOp).getLowerBound(),
-          // dyn_cast<dataflow::ForOp>(countOp).getUpperBound()); auto enable =
-          // builder.create<dataflow::EnableOp>(
-          //   builder.getUnknownLoc(), loopSignal.getType(), loopSignal);
-          //   enable->setAttr("Enable", StringAttr::get(builder.getContext(),
-          //   "Loop_Start"));
-          // control_signal = enable.getOperation();
-        }
+      OpBuilder builder(countOp);
+      auto trueSignal =
+          builder.create<arith::ConstantIntOp>(builder.getUnknownLoc(), 1, 1);
+      auto loopStart =
+          StringAttr::get(builder.getContext(), "loop_start");
+      auto nullState = StringAttr::get(builder.getContext(), "null");
+
+      if (count == 0 && isa<dataflow::ForOp>(countOp)) {
+        builder.setInsertionPoint(countOp);
+      } else {
+        builder.setInsertionPointToStart(&taskop.getBody().front());
       }
 
-    } else {
-      OpBuilder builder(countOp);
-      auto true_signal =
-          builder.create<arith::ConstantIntOp>(builder.getUnknownLoc(), 1, 1);
-      auto loop_stast = StringAttr::get(countOp->getContext(), "loop_start");
-      auto null = StringAttr::get(countOp->getContext(), "null");
-      builder.setInsertionPointToStart(&countOp->getRegion(0).front());
-      auto state = builder.create<dataflow::StateOp>(
-          builder.getUnknownLoc(), true_signal, loop_stast, null);
+      auto state = builder.create<dataflow::StateOp>(builder.getUnknownLoc(),
+                                                     trueSignal, loopStart,
+                                                     nullState);
       state->setAttr("Enable",
                      StringAttr::get(builder.getContext(), "Loop_Start"));
-      // TODO
-    }
-
-    llvm::SmallVector<Value, 8> carry_vec;
-    llvm::SmallVector<mlir::Operation *, 8> carry_new_op;
-    llvm::DenseMap<Value, mlir::Operation *> carry2select;
-    func.walk([&](dataflow::ForOp forop) {
-      for (auto &opiter : forop.getRegion().front()) {
-        if (auto exeop = dyn_cast<dataflow::ExecutionBlockOp>(opiter)) {
-          OpBuilder builder(exeop);
-
-          builder.setInsertionPointToStart(&exeop.getBody().front());
-          // Supporting Carry Value.
-          if (isa<dataflow::ForOp>(exeop->getParentOp())) {
-            // for(const auto &carry: forop.getRegionIterArgs()){
-            //   auto carry_select =
-            //   builder.create<dataflow::MergeOp>(builder.getUnknownLoc(),
-            //   carry.getType(), forop.getOperation()->getOperand(3), carry);
-            //   carry_vec.push_back(carry);
-            //   carry2select[carry] = carry_select;
-            //   carry_new_op.push_back(carry_select);
-            //   carry_select->setAttr("Select",
-            //   StringAttr::get(builder.getContext(), "Loop_Signal"));
-            // }
-
-          } else {
-            // ivSel =
-            // builder.create<dataflow::MergeOp>(builder.getUnknownLoc(),
-            // forop.getInductionVar().getType(), forop.getLowerBound(),
-            // forop.getInductionVar());
-            // ivSel.getDefiningOp()->setAttr("Select",
-            // StringAttr::get(builder.getContext(),
-            // "Loop_Signal"));//Loop_Level
-          }
-
-          builder.setInsertionPoint(exeop.getBody().front().getTerminator());
-          // Fixed: Added explicit increment for the loop counter.
-          auto ivnew = builder.create<arith::AddIOp>(builder.getUnknownLoc(),
-                                                     forop.getInductionVar(),
-                                                     forop.getStep());
-
-          Value loopSignal = builder.create<arith::CmpIOp>(
-              builder.getUnknownLoc(), arith::CmpIPredicate::eq, ivnew,
-              forop.getUpperBound());
-          ivnew->setAttr("Exe", StringAttr::get(builder.getContext(),
-                                                "Loop")); // Loop_Level
-          loopSignal.getDefiningOp()->setAttr(
-              "Exe",
-              StringAttr::get(builder.getContext(), "Loop")); // Loop_Level
-          auto loop_back = StringAttr::get(forop.getContext(), "loop_back");
-          auto loop_exit = StringAttr::get(forop.getContext(), "loop_exit");
-          auto state = builder.create<dataflow::StateOp>(
-              builder.getUnknownLoc(), loopSignal, loop_exit, loop_back);
-          state->setAttr("Exe", StringAttr::get(builder.getContext(),
-                                                "Loop")); // Loop_Level
-          forop.getRegion().front().getTerminator()->replaceUsesOfWith(
-              forop.getInductionVar(), ivnew);
-        }
-      }
       return WalkResult::advance();
     });
 
-    func.walk([&](mlir::Operation *op) {
-      for (auto &carry_value : carry2select) {
-        // for(auto &carry_op: carry_new_op){
-        if (op !=
-            carry_value.getSecond()) { // && !dyn_cast<dataflow::AddressOp>(op)
-          op->replaceUsesOfWith(carry_value.getFirst(),
-                                carry_value.getSecond()->getResult(0));
-          // }
+    func.walk([&](dataflow::ForOp forop) {
+      if (hasLoopExitState(forop))
+        return WalkResult::advance();
+
+      dataflow::ExecutionBlockOp exeop;
+      for (auto &opiter : forop.getRegion().front()) {
+        if (auto candidate = dyn_cast<dataflow::ExecutionBlockOp>(opiter)) {
+          exeop = candidate;
+          break;
         }
       }
+      if (!exeop)
+        return WalkResult::advance();
+
+      OpBuilder builder(exeop);
+      builder.setInsertionPoint(exeop.getBody().front().getTerminator());
+
+      auto ivnew = builder.create<arith::AddIOp>(builder.getUnknownLoc(),
+                                                 forop.getInductionVar(),
+                                                 forop.getStep());
+      ivnew->setAttr("Exe", StringAttr::get(builder.getContext(), "Loop"));
+
+      if (needsExplicitLoopExitState(forop)) {
+        Value loopSignal = builder.create<arith::CmpIOp>(
+            builder.getUnknownLoc(), arith::CmpIPredicate::eq, ivnew,
+            forop.getUpperBound());
+        loopSignal.getDefiningOp()->setAttr(
+            "Exe", StringAttr::get(builder.getContext(), "Loop"));
+        auto loopBack = StringAttr::get(forop.getContext(), "loop_back");
+        auto loopExit = StringAttr::get(forop.getContext(), "loop_exit");
+        auto state = builder.create<dataflow::StateOp>(
+            builder.getUnknownLoc(), loopSignal, loopExit, loopBack);
+        state->setAttr("Exe", StringAttr::get(builder.getContext(), "Loop"));
+      }
+      forop.getRegion().front().getTerminator()->replaceUsesOfWith(
+          forop.getInductionVar(), ivnew);
+      return WalkResult::advance();
     });
     // mlir::RewritePatternSet patterns(context);
     // patterns.add<RefineFunc>(context);

@@ -12,6 +12,36 @@ using namespace mlir;
 using namespace heteacc;
 using namespace dataflow;
 
+static bool hasLoopExeAdd(dataflow::ForOp forop) {
+  for (auto &op : forop.getLoopBody().front()) {
+    if (auto exeop = dyn_cast<dataflow::ExecutionBlockOp>(op)) {
+      for (auto &inner : exeop.getBody().front()) {
+        if (auto add = dyn_cast<arith::AddIOp>(inner)) {
+          if (add->hasAttr("Exe") &&
+              add->getAttrOfType<StringAttr>("Exe").getValue() == "Loop")
+            return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+static bool hasLoopExitState(dataflow::ForOp forop) {
+  for (auto &op : forop.getLoopBody().front()) {
+    if (auto exeop = dyn_cast<dataflow::ExecutionBlockOp>(op)) {
+      for (auto &inner : exeop.getBody().front()) {
+        if (auto state = dyn_cast<dataflow::StateOp>(inner)) {
+          if (state.getInstanceName().str().find("loop_exit") !=
+              std::string::npos)
+            return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 namespace {
 struct SelectPrediction : public OpRewritePattern<dataflow::IfOp> {
   using OpRewritePattern<dataflow::IfOp>::OpRewritePattern;
@@ -70,10 +100,7 @@ struct BranchPrediction : public OpRewritePattern<dataflow::IfOp> {
 
   LogicalResult matchAndRewrite(dataflow::IfOp ifop,
                                 PatternRewriter &rewriter) const override {
-    int ifopNum = 0;
     // Only one ifop.
-    mlir::Operation *topOp;
-    int branchStauts = 0;
     llvm::SmallVector<mlir::Operation *, 6> branchOps;
     llvm::DenseMap<mlir::Operation *, llvm::SmallSetVector<mlir::Block *, 4>>
         branch2block;
@@ -158,6 +185,30 @@ struct HybridBranchPrediction
                                           if_else_null);
       }
 
+      return WalkResult::advance();
+    });
+
+    func.walk([&](dataflow::ForOp forop) {
+      if (hasLoopExeAdd(forop))
+        return WalkResult::advance();
+      if (hasLoopExitState(forop))
+        return WalkResult::advance();
+
+      dataflow::ExecutionBlockOp exeop;
+      for (auto &op : forop.getLoopBody().front()) {
+        if (auto candidate = dyn_cast<dataflow::ExecutionBlockOp>(op)) {
+          exeop = candidate;
+          break;
+        }
+      }
+      if (!exeop)
+        return WalkResult::advance();
+
+      OpBuilder builder(exeop);
+      builder.setInsertionPoint(exeop.getBody().front().getTerminator());
+      auto ivnew = builder.create<arith::AddIOp>(
+          builder.getUnknownLoc(), forop.getInductionVar(), forop.getStep());
+      ivnew->setAttr("Exe", StringAttr::get(builder.getContext(), "Loop"));
       return WalkResult::advance();
     });
   }

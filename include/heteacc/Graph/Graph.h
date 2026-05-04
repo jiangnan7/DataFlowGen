@@ -208,6 +208,7 @@ public:
   uint32_t getExecutionBlockListSize() { return this->exe_block_list.size(); }
   uint32_t getBuiltListSize() { return this->built_node_list.size(); }
   uint32_t getLoopNodeNums() { return this->loop_nodes.size(); }
+  const OperationList &getOperationNodes() const { return this->op_list; }
   void setOutputNode(Node *node) { this->out_node = node; }
   FineArgCallNode *getArgCall() const { return fine_arg_call.get(); }
   const ScratchpadList &getScratchpadMemories() const {

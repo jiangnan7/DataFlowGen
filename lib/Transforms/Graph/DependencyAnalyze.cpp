@@ -17,6 +17,12 @@ using namespace mlir;
 using namespace heteacc;
 #define DEBUG_TYPE "graph"
 
+static bool hasStaticLoopBounds(dataflow::ForOp forOp) {
+  return forOp.getLowerBound().getDefiningOp<arith::ConstantIndexOp>() &&
+         forOp.getUpperBound().getDefiningOp<arith::ConstantIndexOp>() &&
+         forOp.getStep().getDefiningOp<arith::ConstantIndexOp>();
+}
+
 LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
   LLVM_DEBUG(llvm::dbgs() << "\nAnalyze Loop Node \n ");
   LoopInfo Info("loop_" +
@@ -332,15 +338,38 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
     }
   }
 
+  auto addInductionCarryUse = [&](Operation *user) {
+    if (!user || isa<dataflow::ForOp>(user))
+      return;
+    auto &deps = Info.carry_dependencies[forInduction];
+    if (!llvm::is_contained(deps, user))
+      deps.push_back(user);
+    this->blacklist_carry_dependency_data_edge[forInduction].push_back(user);
+  };
+
   // Carry loop dependency
-  for (auto &use : forInduction.getUses()) {
-    // use.getOwner()->dump();
-    if (isa<dataflow::ForOp>(use.getOwner())) {
-      continue;
+  bool suppressInductionCarry =
+      hasStaticLoopBounds(dataflowForop) &&
+      dataflowForop.getNumRegionIterArgs() > 0;
+  if (!suppressInductionCarry) {
+    for (auto &use : forInduction.getUses()) {
+      addInductionCarryUse(use.getOwner());
     }
-    Info.carry_dependencies[forInduction].push_back(use.getOwner());
-    this->blacklist_carry_dependency_data_edge[forInduction].push_back(
-        use.getOwner());
+
+    if (hasStaticLoopBounds(dataflowForop)) {
+      dataflowForop.getOperation()->walk([&](Operation *regionOp) {
+        if (auto addr = dyn_cast<dataflow::AddressOp>(regionOp)) {
+          if (llvm::is_contained(addr.getDims(), forInduction))
+            addInductionCarryUse(regionOp);
+        } else if (auto add = dyn_cast<arith::AddIOp>(regionOp)) {
+          if (add->hasAttr("Exe") &&
+              add->getAttrOfType<StringAttr>("Exe").getValue() == "Loop" &&
+              llvm::is_contained(add->getOperands(), forInduction))
+            addInductionCarryUse(regionOp);
+        }
+        return WalkResult::advance();
+      });
+    }
   }
   // for(const auto &operand:
   // Info.exe_block_op->getRegion(0).front().getTerminator()->getOperands()){
@@ -356,6 +385,10 @@ LoopInfo GraphGen::analyzeLoopNode(dataflow::ForOp dataflowForop) {
   for (const auto &iter_value : dataflowForop.getRegionIterArgs()) {
 
     for (auto &use : iter_value.getUses()) {
+      if (auto add = dyn_cast<arith::AddIOp>(use.getOwner())) {
+        if (llvm::is_contained(add->getOperands(), iter_value))
+          continue;
+      }
       // if(isa<dataflow::ForOp>(use.getOwner())){
       //   continue;
       // }
@@ -449,20 +482,22 @@ void GraphGen::buildLoopGraph(func::FuncOp func) {
     this->map_op_node[currLoopInfo.exe_block_op]->addControlInputPort(
         currentLoopNode);
 
-    static_cast<StateBranchNode *>(this->map_op_node[currLoopInfo.loop_back])
-        ->addFalseBranch(currentLoopNode);
-    currentLoopNode->setControlLoop(this->map_op_node[currLoopInfo.loop_back]);
-    static_cast<StateBranchNode *>(this->map_op_node[currLoopInfo.loop_back])
-        ->addTrueBranch(currentLoopNode);
-    currentLoopNode->setControlLoop(this->map_op_node[currLoopInfo.loop_back]);
+    if (!hasStaticLoopBounds(forOp)) {
+      static_cast<StateBranchNode *>(this->map_op_node[currLoopInfo.loop_back])
+          ->addFalseBranch(currentLoopNode);
+      currentLoopNode->setControlLoop(this->map_op_node[currLoopInfo.loop_back]);
+      static_cast<StateBranchNode *>(this->map_op_node[currLoopInfo.loop_back])
+          ->addTrueBranch(currentLoopNode);
+      currentLoopNode->setControlLoop(this->map_op_node[currLoopInfo.loop_back]);
 
-    auto loop_cmp =
-        this->map_value_node[dyn_cast<dataflow::StateOp>(currLoopInfo.loop_back)
-                                 .getCond()];
-    static_cast<StateBranchNode *>(this->map_op_node[currLoopInfo.loop_back])
-        ->addDataInputPort(loop_cmp);
-    loop_cmp->addDataOutputPort(this->map_op_node[currLoopInfo.loop_back]);
+      auto loop_cmp =
+          this->map_value_node[dyn_cast<dataflow::StateOp>(currLoopInfo.loop_back)
+                                   .getCond()];
+      static_cast<StateBranchNode *>(this->map_op_node[currLoopInfo.loop_back])
+          ->addDataInputPort(loop_cmp);
+      loop_cmp->addDataOutputPort(this->map_op_node[currLoopInfo.loop_back]);
 
+    }
     currentLoopNode->setActiveBackSignal(
         this->map_op_node[currLoopInfo.exe_block_op]);
     this->map_op_node[currLoopInfo.exe_block_op]->addControlInputPort(

@@ -21,6 +21,105 @@ namespace {
   std::abort();
 }
 
+static bool isStaticLoopExeCmp(arith::CmpIOp cmp) {
+  auto parentLoop = cmp->getParentOfType<dataflow::ForOp>();
+  return parentLoop &&
+         parentLoop.getLowerBound().getDefiningOp<arith::ConstantIndexOp>() &&
+         parentLoop.getUpperBound().getDefiningOp<arith::ConstantIndexOp>() &&
+         parentLoop.getStep().getDefiningOp<arith::ConstantIndexOp>() &&
+         cmp->hasAttr("Exe") &&
+         cmp->getAttrOfType<StringAttr>("Exe").getValue() == "Loop";
+}
+
+static bool shouldSkipConstNode(ConstNode *constNode) {
+  auto *op = constNode->getConstantOp();
+  if (!op || op->getNumResults() == 0)
+    return false;
+  bool hasUses = false;
+  for (OpOperand &use : op->getResult(0).getUses()) {
+    hasUses = true;
+    auto cmp = dyn_cast<arith::CmpIOp>(use.getOwner());
+    if (!cmp || !isStaticLoopExeCmp(cmp))
+      return false;
+  }
+  return hasUses;
+}
+
+static ComputeOperationNode *findStaticLoopIncrement(Graph &graph,
+                                                     dataflow::ForOp forOp) {
+  Operation *forOperation = forOp.getOperation();
+  for (auto &opNode : graph.getOperationNodes()) {
+    auto *compute = dyn_cast<ComputeOperationNode>(opNode.get());
+    if (!compute)
+      continue;
+    auto add = dyn_cast_or_null<arith::AddIOp>(compute->getOperation());
+    if (!add)
+      continue;
+    auto parentLoop = add->getParentOfType<dataflow::ForOp>();
+    if (!parentLoop || parentLoop.getOperation() != forOperation)
+      continue;
+    if (!add->hasAttr("Exe") ||
+        add->getAttrOfType<StringAttr>("Exe").getValue() != "Loop")
+      continue;
+    return compute;
+  }
+  return nullptr;
+}
+
+static bool isStaticLoopIncrement(OperationNode *node) {
+  auto *compute = dyn_cast<ComputeOperationNode>(node);
+  if (!compute)
+    return false;
+  auto add = dyn_cast_or_null<arith::AddIOp>(compute->getOperation());
+  if (!add)
+    return false;
+  auto parentLoop = add->getParentOfType<dataflow::ForOp>();
+  return parentLoop &&
+         parentLoop.getLowerBound().getDefiningOp<arith::ConstantIndexOp>() &&
+         parentLoop.getUpperBound().getDefiningOp<arith::ConstantIndexOp>() &&
+         parentLoop.getStep().getDefiningOp<arith::ConstantIndexOp>() &&
+         add->hasAttr("Exe") &&
+         add->getAttrOfType<StringAttr>("Exe").getValue() == "Loop";
+}
+
+static bool isStaticLoopAddress(AddressGenNode *node) {
+  auto addrOp = node->getRelatedOp();
+  auto forOp = addrOp->getParentOfType<dataflow::ForOp>();
+  if (!forOp ||
+      !forOp.getLowerBound().getDefiningOp<arith::ConstantIndexOp>() ||
+      !forOp.getUpperBound().getDefiningOp<arith::ConstantIndexOp>() ||
+      !forOp.getStep().getDefiningOp<arith::ConstantIndexOp>())
+    return false;
+  Value inductionVar = forOp.getInductionVar();
+  return llvm::any_of(addrOp.getDims(), [inductionVar](Value dim) {
+    auto blockArg = dyn_cast<BlockArgument>(dim);
+    return blockArg && blockArg == inductionVar;
+  });
+}
+
+static bool isStaticIterArgLoopAddress(AddressGenNode *node) {
+  auto addrOp = node->getRelatedOp();
+  auto forOp = addrOp->getParentOfType<dataflow::ForOp>();
+  if (!forOp ||
+      !forOp.getLowerBound().getDefiningOp<arith::ConstantIndexOp>() ||
+      !forOp.getUpperBound().getDefiningOp<arith::ConstantIndexOp>() ||
+      !forOp.getStep().getDefiningOp<arith::ConstantIndexOp>())
+    return false;
+  return forOp->getNumResults() > 0;
+}
+
+static AddressGenNode *findStaticLoopAddress(Graph &graph, dataflow::ForOp forOp) {
+  for (auto &opNode : graph.getOperationNodes()) {
+    auto *address = dyn_cast<AddressGenNode>(opNode.get());
+    if (!address)
+      continue;
+    if (address->getRelatedOp()->getParentOfType<dataflow::ForOp>() != forOp)
+      continue;
+    return address;
+  }
+  return nullptr;
+}
+
 [[noreturn]] void unsupportedDotPrintType() {
   llvm::errs() << "Dot file format is not supported\n";
   std::abort();
@@ -72,7 +171,6 @@ std::string ConstNode::printDefinition(PrintType _pt) {
       _text = "  val $name = Module(new $type(value = $val"
               ", ID = $id))\n\n";
       strReplace(_text, "$name", _name.c_str());
-      strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
       strReplace(_text, "$id", this->getID());
       strReplace(_text, "$type", "ConstFastNode");
       if (this->isInt) {
@@ -235,6 +333,16 @@ std::string BitCastNode::printInputData(PrintType _pt, uint32_t _idx) {
 std::string ComputeOperationNode::printDefinition(PrintType _pt) {
   std::string _text;
   std::string _name(this->getName());
+  auto isLoopCarryAdd = [this]() {
+    auto add = dyn_cast_or_null<arith::AddIOp>(this->getOperation());
+    if (!add || !this->isIntegerType())
+      return false;
+    return llvm::any_of(add->getOperands(), [](Value operand) {
+      auto blockArg = dyn_cast<BlockArgument>(operand);
+      return blockArg &&
+             isa<dataflow::ForOp>(blockArg.getOwner()->getParentOp());
+    });
+  };
   switch (_pt) {
   case PrintType::Scala: {
     if (this->getLaneNums() == 0) {
@@ -245,9 +353,14 @@ std::string ComputeOperationNode::printDefinition(PrintType _pt) {
       strReplace(_text, "$name", _name.c_str());
       strReplace(_text, "$id", this->getID());
       strReplace(_text, "$opcode", this->getOpcodeName());
-      strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
+      uint32_t numOut = this->numDataOutputPort();
+      if (numOut == 0 && isStaticLoopIncrement(this))
+        numOut = 1;
+      strReplace(_text, "$num_out", std::to_string(numOut));
       if (this->isIntegerType()) {
-        strReplace(_text, "$type", "ComputeNodeWithoutState");
+        strReplace(_text, "$type",
+                   isLoopCarryAdd() ? "ComputeNodeWithoutStateSupportCarry"
+                                    : "ComputeNodeWithoutState");
       } else if (this->isFloatType()) {
         strReplace(_text,
                    "(sign = false, Debug "
@@ -320,8 +433,23 @@ std::string ComputeOperationNode::printOutputData(PrintType _pt,
 std::string ComputeOperationNode::printInputData(PrintType _pt, uint32_t _idx) {
   std::string _text;
   std::string _name(this->getName());
+  auto isLoopCarryAdd = [this]() {
+    auto add = dyn_cast_or_null<arith::AddIOp>(this->getOperation());
+    if (!add || !this->isIntegerType())
+      return false;
+    return llvm::any_of(add->getOperands(), [](Value operand) {
+      auto blockArg = dyn_cast<BlockArgument>(operand);
+      return blockArg &&
+             isa<dataflow::ForOp>(blockArg.getOwner()->getParentOp());
+    });
+  };
   switch (_pt) {
   case PrintType::Scala:
+    if (isLoopCarryAdd()) {
+      _text = "$name.io.RightIO";
+      strReplace(_text, "$name", _name.c_str());
+      break;
+    }
     if (this->checkInputConfict(_idx))
       _idx += 1;
     if (_idx == 0)
@@ -1027,14 +1155,26 @@ std::string LoopNode::printDefinition(PrintType _pt) {
 
   switch (_pt) {
   case PrintType::Scala: {
-    _text = "  val $name = Module(new $type(NumIns = "
-            "List($<input_vector>), "
-            "NumOuts = List($<num_out>), "
-            "NumCarry = List($<num_carry>), "
-            "NumExits = $num_exit, ID = $id))\n\n";
+    if (this->hasLoopCounterBounds()) {
+      _text = "  val $name = Module(new $type(NumIns = "
+              "List($<input_vector>), "
+              "NumOuts = List($<num_out>), "
+              "NumCarry = List($<num_carry>), "
+              "NumExits = $num_exit, ID = $id, LoopCounterMax = $max, "
+              "LoopCounterStep = $step))\n\n";
+      strReplace(_text, "$type", "LoopBlockNodeExperimental");
+      strReplace(_text, "$max", this->getLoopCounterMax());
+      strReplace(_text, "$step", this->getLoopCounterStep());
+    } else {
+      _text = "  val $name = Module(new $type(NumIns = "
+              "List($<input_vector>), "
+              "NumOuts = List($<num_out>), "
+              "NumCarry = List($<num_carry>), "
+              "NumExits = $num_exit, ID = $id))\n\n";
+      strReplace(_text, "$type", "LoopBlockNode");
+    }
     strReplace(_text, "$name", _name.c_str());
     strReplace(_text, "$id", this->getID());
-    strReplace(_text, "$type", "LoopBlockNode");
     strReplace(_text, "$num_exit",
                1); // static_cast<uint32_t>(this->loop_exits.size())
 
@@ -1328,7 +1468,6 @@ std::string ArgumentNode::printInputData(PrintType _pt, uint32_t _idx) {
       strReplace(_text, "$id", _idx);
       break;
     }
-
     }
 
     break;
@@ -1450,8 +1589,10 @@ std::string AddressGenNode::printDefinition(PrintType _pt) {
       strReplace(_text, "$num_out", std::to_string(this->numDataOutputPort()));
 
       // The first input is always baseaddress
-      strReplace(_text, "$num_ins",
-                 std::to_string(this->numDataInputPort() - 1));
+      uint32_t numIns = this->numDataInputPort() - 1;
+      if (numIns == 0 && isStaticLoopAddress(this))
+        numIns = 1;
+      strReplace(_text, "$num_ins", std::to_string(numIns));
       if (this->getLaneNums() > 0) {
         strReplace(_text, "$num_out", std::to_string(this->getLaneNums()));
       }
@@ -1476,8 +1617,10 @@ std::string AddressGenNode::printDefinition(PrintType _pt) {
       strReplace(_text, "$num_out", numOutSeq.substr(0, lane * 2 - 1));
 
       // The first input is always baseaddress
-      strReplace(_text, "$num_ins",
-                 std::to_string(this->numDataInputPort() - 1));
+      uint32_t numIns = this->numDataInputPort() - 1;
+      if (numIns == 0 && isStaticLoopAddress(this))
+        numIns = 1;
+      strReplace(_text, "$num_ins", std::to_string(numIns));
 
       std::stringstream _array;
       strReplace(_text, "$size", 1);
@@ -2102,6 +2245,8 @@ void Graph::printOperations(PrintType _pt) {
 
     this->outputHardware << helperScalaPrintHeader("Printing Const nodes.");
     for (auto &const_node : this->const_list) {
+      if (shouldSkipConstNode(const_node.get()))
+        continue;
       this->outputHardware << "  //";
       if (const_node->getConstantOp())
         const_node->getConstantOp()->print(this->outputHardware);
@@ -2173,7 +2318,7 @@ void Graph::printOperations(PrintType _pt) {
 }
 void Graph::printControlEdge(PrintType _pt) {
   switch (_pt) {
-  case PrintType::Scala:
+  case PrintType::Scala: {
     this->outputHardware << helperScalaPrintHeader("Control Signal.");
 
     for (auto iter_output_control =
@@ -2218,7 +2363,8 @@ void Graph::printControlEdge(PrintType _pt) {
       for (auto iter_input_control = exe->inputControl_begin();
            iter_input_control != exe->inputControl_end();
            iter_input_control++) {
-        if (isa<LoopNode>(iter_input_control->first)) {
+        if (static_cast<LoopNode *>(iter_input_control->first)->getType() ==
+            ContainerNode::ContainType::LoopNodeTy) {
           unique_loop_nodes.insert(
               static_cast<LoopNode *>(iter_input_control->first));
         } else {
@@ -2307,6 +2453,7 @@ void Graph::printControlEdge(PrintType _pt) {
       }
     }
     break;
+  }
   case PrintType::Dot:
     unsupportedDotPrintType();
     break;
@@ -2320,7 +2467,7 @@ void Graph::printControlEdge(PrintType _pt) {
  */
 void Graph::printConnection(PrintType _pt) {
   switch (_pt) {
-  case PrintType::Scala:
+  case PrintType::Scala: {
     this->outputHardware << helperScalaPrintHeader("Printing Connection.");
 
     for (auto &exe : this->exe_block_list) {
@@ -2332,6 +2479,7 @@ void Graph::printConnection(PrintType _pt) {
             << exe->printMaskOutput(PrintType::Scala, i++) << "\n\n";
       }
     }
+    DenseSet<dataflow::ForOp> emittedStaticIterArgLoopIdx;
     for (auto &_data_edge : this->edge_list) {
       if (_data_edge->getType() == Edge::DataTypeEdge) {
         auto *src_node = _data_edge->getSrc().first;
@@ -2345,6 +2493,25 @@ void Graph::printConnection(PrintType _pt) {
             tar_node->printInputData(PrintType::Scala, tar_port);
         const std::string src_str_back =
             src_node->printOutputData(PrintType::Scala, src_port);
+
+        if (tar_node->getType() == Node::NodeType::ComputeNodeTy) {
+          if (auto add = dyn_cast_or_null<arith::AddIOp>(
+                  static_cast<OperationNode *>(tar_node)->getOperation())) {
+            bool isLoopCarryAdd =
+                llvm::any_of(add->getOperands(), [](Value operand) {
+                  auto blockArg = dyn_cast<BlockArgument>(operand);
+                  return blockArg && isa<dataflow::ForOp>(
+                                         blockArg.getOwner()->getParentOp());
+                });
+            if (isLoopCarryAdd && tar_port < add->getNumOperands()) {
+              auto blockArg =
+                  dyn_cast<BlockArgument>(add->getOperand(tar_port));
+              if (blockArg &&
+                  isa<dataflow::ForOp>(blockArg.getOwner()->getParentOp()))
+                continue;
+            }
+          }
+        }
 
         if (lanes > 0 &&
             static_cast<OperationNode *>(tar_node)->getOperationType() !=
@@ -2417,7 +2584,32 @@ void Graph::printConnection(PrintType _pt) {
           this->outputHardware << "  " << tar_str_back << " <> " << src_str_back
                                << "\n\n";
         }
+        if (static_cast<OperationNode *>(src_node)->getOperationType() ==
+            OperationNode::OperationType::AddressGenType) {
+          auto *address = static_cast<AddressGenNode *>(src_node);
+          if (isStaticIterArgLoopAddress(address)) {
+            auto forOp =
+                address->getRelatedOp()->getParentOfType<dataflow::ForOp>();
+            if (emittedStaticIterArgLoopIdx.insert(forOp).second) {
+              if (auto *incNode = findStaticLoopIncrement(*this, forOp)) {
+                this->outputHardware
+                    << "  " << address->printInputData(PrintType::Scala, 1)
+                    << " <> "
+                    << incNode->printOutputData(PrintType::Scala, 0) << "\n\n";
+              }
+            }
+          }
+        }
       }
+    }
+    for (auto &loop : this->loop_nodes) {
+      auto carrySets = loop->getCarryDepenSets();
+      if (!loop->hasLoopCounterBounds() || carrySets.empty())
+        continue;
+      this->outputHardware << "  "
+                           << carrySets.front()->printOutputData(
+                                  PrintType::Scala, 0)
+                           << ".ready := true.B\n\n";
     }
     // auto cache = this->getMemoryUnit();
     for (const auto &cache : this->getScratchpadMemories()) {
@@ -2591,6 +2783,7 @@ void Graph::printConnection(PrintType _pt) {
       // }
     }
     break;
+  }
   case PrintType::Dot:
     unsupportedDotPrintType();
     break;
@@ -2605,7 +2798,8 @@ void Graph::printConnection(PrintType _pt) {
  */
 void Graph::printLoopConnection(PrintType _pt) {
   switch (_pt) {
-  case PrintType::Scala:
+  case PrintType::Scala: {
+
     this->outputHardware << helperScalaPrintHeader("Loop dependencies.");
     this->outputHardware << helperScalaPrintHeader("Input Data dependencies.");
 
@@ -2737,10 +2931,39 @@ void Graph::printLoopConnection(PrintType _pt) {
         }
         // }
 
-        for (auto iter = carry_value->get()->outputDataport_begin();
-             iter != carry_value->get()->outputDataport_end(); iter++) {
-          if (isa<ArgumentNode>(iter->first))
-            continue;
+	        for (auto iter = carry_value->get()->outputDataport_begin();
+	             iter != carry_value->get()->outputDataport_end(); iter++) {
+	          if (isa<ArgumentNode>(iter->first))
+	            continue;
+	          if (loop_node->hasLoopCounterBounds()) {
+	            auto carryArg = carry_value->get()->getArgumentValue();
+	            if (auto blockArg = dyn_cast<BlockArgument>(carryArg)) {
+	              if (auto forOp =
+	                      dyn_cast<dataflow::ForOp>(blockArg.getOwner()->getParentOp())) {
+	                if (blockArg == forOp.getInductionVar() &&
+	                    forOp.getNumRegionIterArgs() > 0)
+	                  continue;
+	              }
+	            }
+	          }
+	          if (loop_node->hasLoopCounterBounds()) {
+	            if (iter->first->getType() == Node::NodeType::ComputeNodeTy) {
+	              auto *compute =
+	                  static_cast<ComputeOperationNode *>(iter->first);
+              if (auto add =
+                      dyn_cast_or_null<arith::AddIOp>(compute->getOperation())) {
+                auto parentLoop = add->getParentOfType<dataflow::ForOp>();
+                if (parentLoop && parentLoop.getNumRegionIterArgs() > 0 &&
+                    (!add->hasAttr("Exe") ||
+                     add->getAttrOfType<StringAttr>("Exe").getValue() !=
+                         "Loop"))
+                  continue;
+                if (add->hasAttr("Exe") &&
+                    add->getAttrOfType<StringAttr>("Exe").getValue() == "Loop")
+                  continue;
+              }
+            }
+          }
           this->outputHardware
               << "  "
               << iter->first->printInputData(
@@ -2757,7 +2980,27 @@ void Graph::printLoopConnection(PrintType _pt) {
         }
       }
     }
+
+    DenseSet<dataflow::ForOp> emittedStaticLoopIdx;
+    for (auto &opNode : this->op_list) {
+      auto *address = dyn_cast<AddressGenNode>(opNode.get());
+      if (!address || !isStaticIterArgLoopAddress(address))
+        continue;
+      auto forOp = address->getRelatedOp()->getParentOfType<dataflow::ForOp>();
+      if (!emittedStaticLoopIdx.insert(forOp).second)
+        continue;
+      auto *loopAddress = findStaticLoopAddress(*this, forOp);
+      if (auto *incNode = findStaticLoopIncrement(*this, forOp)) {
+        this->outputHardware
+            << "  "
+            << (loopAddress ? loopAddress->printInputData(PrintType::Scala, 1)
+                            : address->printInputData(PrintType::Scala, 1))
+            << " <> "
+            << incNode->printOutputData(PrintType::Scala, 0) << "\n\n";
+      }
+    }
     break;
+  }
   case PrintType::Dot:
   case PrintType::Json:
     unsupportedPrintType();

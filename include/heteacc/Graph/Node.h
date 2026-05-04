@@ -911,6 +911,9 @@ private:
   std::list<std::pair<Node *, PortType>> port_type;
   LoopNode *parent_loop;
   std::list<OperationNode *> instruction_list;
+  int64_t loopCounterMax = 0;
+  int64_t loopCounterStep = 1;
+  bool useCounterBound = false;
 
   OperationNode *induction_variable;
   // std::list<SuperNode*> basic_block_list;
@@ -986,6 +989,14 @@ public:
   }
   void setSignal() { this->setStart = true; }
   bool getSignal() { return this->setStart; }
+  void setLoopCounterBounds(int64_t max, int64_t step) {
+    loopCounterMax = max;
+    loopCounterStep = step;
+    useCounterBound = true;
+  }
+  bool hasLoopCounterBounds() const { return useCounterBound; }
+  int64_t getLoopCounterMax() const { return loopCounterMax; }
+  int64_t getLoopCounterStep() const { return loopCounterStep; }
   /**
    * Make sure that loop end enable signal is always fix to index 1
    */
