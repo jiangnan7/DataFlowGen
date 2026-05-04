@@ -128,6 +128,46 @@ Value stripLogOrValue(Value value, RewriterBase &rewriter) {
   }
   llvm_unreachable("value cannot be cast to float");
 }
+
+static Attribute getZeroAttrForType(Type type, Builder &builder) {
+  if (auto floatType = type.dyn_cast<FloatType>())
+    return builder.getFloatAttr(floatType, 0.0);
+  if (auto intType = type.dyn_cast<IntegerType>())
+    return builder.getIntegerAttr(intType, 0);
+  if (type.isa<IndexType>())
+    return builder.getIndexAttr(0);
+  llvm_unreachable("unsupported zero attribute type");
+}
+
+static Value createIndexOffset(Value baseIndex, Value laneIndex, int64_t coeff,
+                               Location loc, RewriterBase &rewriter) {
+  if (baseIndex == laneIndex || coeff == 0)
+    return rewriter.create<arith::ConstantIndexOp>(loc, 0);
+
+  Value delta = rewriter.create<arith::SubIOp>(loc, laneIndex, baseIndex);
+  if (coeff == 1)
+    return delta;
+
+  Value coeffVal = rewriter.create<arith::ConstantIndexOp>(loc, coeff);
+  return rewriter.create<arith::MulIOp>(loc, delta, coeffVal);
+}
+
+static Value packIndexVector(Location loc, ArrayRef<Value> offsets,
+                             RewriterBase &rewriter) {
+  auto vectorType = VectorType::get({static_cast<int64_t>(offsets.size())},
+                                    rewriter.getIndexType());
+  auto zeroElements =
+      DenseElementsAttr::get(vectorType, rewriter.getIndexAttr(0));
+  Value packed = rewriter.create<arith::ConstantOp>(loc, vectorType,
+                                                    zeroElements);
+  for (auto [lane, offset] : llvm::enumerate(offsets)) {
+    Value lanePos =
+        rewriter.create<arith::ConstantIntOp>(loc, lane, 32);
+    packed = rewriter.create<vector::InsertElementOp>(loc, offset, packed,
+                                                      lanePos);
+  }
+  return packed;
+}
 } // namespace
 
 // === Broadcast === //
@@ -503,36 +543,35 @@ void CreateConsecutiveLoad::accept(PatternVisitor &visitor,
 // === CreateGatherLoad === //
 
 LogicalResult CreateGatherLoad::match(Superword *superword) {
-  Value batchMem = nullptr;
-  Value dynamicIndex = nullptr;
-  // for (auto element : *superword) {
-  //   auto batchRead = element.getDefiningOp<SPNBatchRead>();
-  //   if (!batchRead) {
-  //     return failure();
-  //   }
-  //   // We can only gather from the same memory location.
-  //   if (!batchMem) {
-  //     batchMem = batchRead.batchMem();
-  //   } else if (batchRead.batchMem() != batchMem) {
-  //     return failure();
-  //   }
-  //   if (!dynamicIndex) {
-  //     dynamicIndex = batchRead.dynamicIndex();
-  //     // We require the dynamic index to be 0.
-  //     if (auto* definingOp = dynamicIndex.getDefiningOp()) {
-  //       auto constant = dyn_cast<ConstantOp>(definingOp);
-  //       if (!constant || !constant.getType().isIntOrIndex() ||
-  //       constant.getValue().cast<IntegerAttr>().getInt() != 0) {
-  //         return failure();
-  //       }
-  //     } else {
-  //       return failure();
-  //     }
-  //   } else if (batchRead.dynamicIndex() != dynamicIndex) {
-  //     return failure();
-  //   }
-  // }
-  return failure();
+  if (failed(
+          OpSpecificVectorizationPattern<memref::LoadOp>::match(superword))) {
+    return failure();
+  }
+  if (consecutiveLoads(superword->begin(), superword->end()))
+    return failure();
+
+  auto firstLoad = dyn_cast<memref::LoadOp>(
+      superword->getElement(0).getDefiningOp());
+  if (!firstLoad)
+    return failure();
+
+  auto firstCoeff = firstLoad->getAttr("affineCoeff");
+  auto firstOffset = firstLoad->getAttr("affineOffset");
+  auto firstMap = firstLoad->getAttr("map");
+  for (size_t lane = 1; lane < superword->numLanes(); ++lane) {
+    auto loadOp =
+        dyn_cast<memref::LoadOp>(superword->getElement(lane).getDefiningOp());
+    if (!loadOp || loadOp.getMemref() != firstLoad.getMemref())
+      return failure();
+    if (loadOp.getIndices().size() != firstLoad.getIndices().size())
+      return failure();
+    if (loadOp->getAttr("affineCoeff") != firstCoeff ||
+        loadOp->getAttr("affineOffset") != firstOffset ||
+        loadOp->getAttr("map") != firstMap) {
+      return failure();
+    }
+  }
+  return success();
 }
 
 // === CreateConsecutiveStore === //
@@ -560,7 +599,7 @@ Value CreateConsecutiveStore::rewrite(Superword *superword, Value vector,
   // break;
   // }
 
-  auto storeop = rewriter.create<vector::TransferWriteOp>(
+  rewriter.create<vector::TransferWriteOp>(
       superword->getLoc(),
       //  superword->getVectorType(),
       vector, allStoreOps[0].getMemref(), combinedIndices);
@@ -585,52 +624,61 @@ DenseElementsAttr constantPassThrough(VectorType const &vectorType) {
 } // namespace
 
 Value CreateGatherLoad::rewrite(Superword *superword, RewriterBase &rewriter) {
-  Value base = nullptr;
-  Value index = nullptr;
-  SmallVector<uint32_t, 4> samples;
-  SmallVector<bool, 4> maskBits;
-  // for (auto element : *superword) {
-  //   auto batchRead = cast<SPNBatchRead>(element.getDefiningOp());
-  //   if (!base && !index) {
-  //     base = batchRead.batchMem();
-  //     index = batchRead.dynamicIndex();
-  //   }
-  //   samples.emplace_back(batchRead.staticIndex());
-  //   maskBits.emplace_back(true);
-  // }
+  auto firstLoad = cast<memref::LoadOp>(superword->getElement(0).getDefiningOp());
+  Location loc = superword->getLoc();
 
-  // // Access the base memref beginning at [0, 0].
-  // SmallVector<Value, 2> indices{index, index};
+  SmallVector<int64_t, 4> coeffs;
+  if (auto coeffAttr = firstLoad->getAttrOfType<ArrayAttr>("affineCoeff")) {
+    coeffs.reserve(coeffAttr.size());
+    for (Attribute attr : coeffAttr)
+      coeffs.push_back(attr.cast<IntegerAttr>().getInt());
+  } else {
+    coeffs.assign(firstLoad.getIndices().size(), 0);
+    if (!coeffs.empty())
+      coeffs.back() = 1;
+  }
 
-  // auto loc = superword->getLoc();
-  // auto vectorType = superword->getVectorType();
+  SmallVector<Value, 4> offsets;
+  auto baseIndices = firstLoad.getIndices();
+  for (size_t lane = 0; lane < superword->numLanes(); ++lane) {
+    if (lane == 0) {
+      offsets.push_back(rewriter.create<arith::ConstantIndexOp>(loc, 0));
+      continue;
+    }
 
-  // auto indexType = VectorType::get(vectorType.getShape(),
-  // rewriter.getI32Type()); auto indexElements =
-  // DenseElementsAttr::get(indexType,
-  // static_cast<ArrayRef<uint32_t>>(samples)); auto indexVector =
-  // conversionManager.getOrCreateConstant(loc, indexElements);
+    auto laneLoad =
+        cast<memref::LoadOp>(superword->getElement(lane).getDefiningOp());
+    Value totalOffset = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    for (auto [dim, baseIndex] : llvm::enumerate(baseIndices)) {
+      int64_t coeff = dim < coeffs.size() ? coeffs[dim] : 0;
+      Value offset = createIndexOffset(baseIndex,
+                                       laneLoad.getIndices()[dim],
+                                       coeff, loc, rewriter);
+      totalOffset = rewriter.create<arith::AddIOp>(loc, totalOffset, offset);
+    }
+    offsets.push_back(totalOffset);
+  }
 
-  // auto maskType = VectorType::get(vectorType.getShape(),
-  // rewriter.getI1Type()); auto maskElements = DenseElementsAttr::get(maskType,
-  // static_cast<ArrayRef<bool>>(maskBits)); auto mask =
-  // conversionManager.getOrCreateConstant(loc, maskElements);
+  Value indexVector = packIndexVector(loc, offsets, rewriter);
+  auto maskType = VectorType::get(superword->getVectorType().getShape(),
+                                  rewriter.getI1Type());
+  auto maskAttr = DenseElementsAttr::get(maskType, rewriter.getBoolAttr(true));
+  Value mask =
+      conversionManager.getOrCreateConstant(loc, maskAttr);
 
-  // DenseElementsAttr passThroughElements;
-  // if (superword->getElementType().isIntOrIndex()) {
-  //   passThroughElements = constantPassThrough<int>(vectorType);
-  // } else if (superword->getElementType().isF32()) {
-  //   passThroughElements = constantPassThrough<float>(vectorType);
-  // } else if (superword->getElementType().isF64()) {
-  //   passThroughElements = constantPassThrough<double>(vectorType);
-  // } else {
-  //   llvm_unreachable("unsupported vector element type for gather op");
-  // }
-  // auto passThrough = conversionManager.getOrCreateConstant(loc,
-  // passThroughElements);
+  auto passThruAttr = DenseElementsAttr::get(
+      superword->getVectorType(),
+      getZeroAttrForType(superword->getElementType(), rewriter));
+  Value passThru =
+      conversionManager.getOrCreateConstant(loc, passThruAttr);
 
-  // return rewriter.create<vector::GatherOp>(loc, vectorType, base, indices,
-  // indexVector, mask, passThrough);
+  SmallVector<Value, 4> gatherIndices(baseIndices.begin(), baseIndices.end());
+  if (!gatherIndices.empty())
+    gatherIndices.back() = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+
+  return rewriter.create<vector::GatherOp>(
+      loc, superword->getVectorType(), firstLoad.getMemref(), gatherIndices,
+      indexVector, mask, passThru);
 }
 
 void CreateGatherLoad::accept(PatternVisitor &visitor,

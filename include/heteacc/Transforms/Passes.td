@@ -72,7 +72,7 @@ def AffineLoopPerfection :
 // Vector-related Passes
 //===----------------------------------------------------------------------===//
 
-def AutoVectorization : Pass<"auto-vectorization", "func::FuncOp"> {
+def AutoVectorization : Pass<"auto-vectorization", "ModuleOp"> {
   let summary = "Apply vectorization strategies to optimize code generation.";
   let constructor = "mlir::heteacc::createAutoVectorizationPass()";
   let dependentDialects = ["arith::ArithDialect", "dataflow::DataFlowDialect"];

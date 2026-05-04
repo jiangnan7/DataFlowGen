@@ -127,100 +127,16 @@ ValuePosition ConversionState::getSuperwordContainingValue(Value value) const {
 
 // Helper functions in anonymous namespace.
 namespace {
-/// There is no isBeforeInBlock() for values in MLIR (only for Operation*), so
-/// we just define our own one.
-bool isBeforeInBlock(Value lhs, Value rhs) {
-  if (auto *lhsOp = lhs.getDefiningOp()) {
-    if (auto *rhsOp = rhs.getDefiningOp()) {
-      return lhsOp->isBeforeInBlock(rhsOp);
-    }
-    return false;
-  } else if (rhs.getDefiningOp()) {
-    return true;
-  } else if (auto lhsBlockArg = lhs.dyn_cast<BlockArgument>()) {
-    if (auto rhsBlockArg = rhs.dyn_cast<BlockArgument>()) {
-      return lhsBlockArg.getArgNumber() < rhsBlockArg.getArgNumber();
-    }
-  }
-  return false;
-}
-
 /// Returns the superwords of an SLP graph in post order (operands before
 /// operands' users).
 SmallVector<Superword *> graphPostOrder(Superword *root,
                                         ConversionState const &state) {
   SmallVector<Superword *> order;
-
-  order.emplace_back(root);
-  return order;
-  // Compute depths from the graph root to determine the order. The further
-  // away, the earlier they need to be converted.
-  DenseMap<Superword *, unsigned> depths;
-  depths[root] = 0;
-  SmallVector<Superword *> worklist{root};
-
-  llvm::outs() << "SmallVector<Superword*> graphPostOrder\n";
-  for (auto it = root->begin(); it != root->end(); ++it) {
-    llvm::outs() << "Value: ";
-    if (auto *defOp = it->getDefiningOp()) {
-      llvm::outs() << "Defining Operation: " << defOp->getName() << "\n";
-      defOp->dump();
-      ;
-    } else {
-      llvm::outs() << "No defining operation\n";
+  graph::walk(root, [&](Superword *superword) {
+    if (!state.alreadyComputed(superword)) {
+      order.emplace_back(superword);
     }
-  }
-
-  while (!worklist.empty()) {
-    auto *superword = worklist.pop_back_val();
-    if (state.alreadyComputed(superword)) {
-      continue;
-    }
-    for (auto *operand : superword->getOperands()) {
-      auto operandDepth = depths[superword] + 1;
-      if (depths[operand] < operandDepth) {
-        depths[operand] = operandDepth;
-        worklist.emplace_back(operand);
-      }
-    }
-  }
-  for (auto const &entry : depths) {
-    order.emplace_back(entry.first);
-  }
-  // Sort all superwords by depth. The general idea is that non-leaf superwords
-  // should be converted before leaf superwords to maximize extraction potential
-  // and to avoid scalar leaf element computations.
-  llvm::sort(
-      std::begin(order), std::end(order), [&](Superword *lhs, Superword *rhs) {
-        if (depths[lhs] == depths[rhs]) {
-          // If both are leaves or neither is a leaf: sort them by their
-          // earliest element.
-          if (lhs->isLeaf() == rhs->isLeaf()) {
-            for (size_t lane = 0; lane < lhs->numLanes(); ++lane) {
-              if (lhs->getElement(lane) == rhs->getElement(lane)) {
-                continue;
-              }
-              llvm::outs() << lhs->getElement(lane) << " "
-                           << rhs->getElement(lane) << "\n";
-
-              auto lhsBlock = lhs->getElement(lane).getDefiningOp()->getBlock();
-              auto rhsBlock = rhs->getElement(lane).getDefiningOp()->getBlock();
-
-              if (lhsBlock != rhsBlock) {
-                return false;
-              }
-
-              return isBeforeInBlock(lhs->getElement(lane),
-                                     rhs->getElement(lane));
-            }
-            return false;
-          }
-          // This maximizes the re-use potential of non-leaf elements in leaf
-          // nodes through extractions.
-          return rhs->isLeaf();
-        }
-        return depths[lhs] > depths[rhs];
-      });
+  });
   return order;
 }
 } // namespace
