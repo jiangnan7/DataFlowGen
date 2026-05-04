@@ -57,6 +57,20 @@ static bool needsExplicitLoopExitState(dataflow::ForOp forop) {
   return static_cast<bool>(forop->getParentOfType<dataflow::ForOp>());
 }
 
+static bool isNestedLoop(dataflow::ForOp forop) {
+  auto loopLevel = forop->getAttrOfType<IntegerAttr>("Loop_Level");
+  return loopLevel && loopLevel.getInt() > 0;
+}
+
+static bool hasMergeForIterArg(dataflow::ForOp forop, Value iterArg) {
+  bool found = false;
+  forop.getLoopBody().walk([&](dataflow::MergeOp merge) {
+    if (merge.getFalseValue() == iterArg)
+      found = true;
+  });
+  return found;
+}
+
 namespace {
 struct RefineFunc : public OpRewritePattern<func::FuncOp> {
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
@@ -170,6 +184,42 @@ struct EnhancedCDFG : public EnhancedCDFGBase<EnhancedCDFG> {
       }
       forop.getRegion().front().getTerminator()->replaceUsesOfWith(
           forop.getInductionVar(), ivnew);
+      return WalkResult::advance();
+    });
+
+    func.walk([&](dataflow::ForOp forop) {
+      if (!isNestedLoop(forop) || forop.getNumRegionIterArgs() == 0)
+        return WalkResult::advance();
+
+      dataflow::ExecutionBlockOp exeop;
+      for (auto &op : forop.getLoopBody().front()) {
+        if (auto candidate = dyn_cast<dataflow::ExecutionBlockOp>(op)) {
+          exeop = candidate;
+          break;
+        }
+      }
+      if (!exeop)
+        return WalkResult::advance();
+
+      OpBuilder builder(exeop);
+      builder.setInsertionPointToStart(&exeop.getBody().front());
+
+      auto iterOperands = forop.getIterOperands();
+      auto regionIterArgs = forop.getRegionIterArgs();
+      for (auto indexedIterArg : llvm::enumerate(regionIterArgs)) {
+        Value iterArg = indexedIterArg.value();
+        if (hasMergeForIterArg(forop, iterArg))
+          continue;
+
+        Value initValue = iterOperands[indexedIterArg.index()];
+        auto merge = builder.create<dataflow::MergeOp>(
+            builder.getUnknownLoc(), iterArg.getType(), initValue, iterArg);
+
+        iterArg.replaceUsesWithIf(merge.getResult(), [&](OpOperand &use) {
+          return use.getOwner() != merge.getOperation();
+        });
+      }
+
       return WalkResult::advance();
     });
     // mlir::RewritePatternSet patterns(context);

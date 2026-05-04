@@ -37,9 +37,12 @@ void GraphGen::buildMemoryGraph(func::FuncOp func) {
     MemAccessesMap accessesMap;
     getMemAccessesMap(*block, accessesMap);
 
+    SmallVector<std::pair<SmallVector<Operation *, 16>, int64_t>, 16>
+        readWriteGroups;
+    SmallVector<std::pair<Operation *, int64_t>, 16> readOnlyLoads;
+
     for (auto [memref, loadStores] : accessesMap) {
       auto memrefType = memref.getType().cast<MemRefType>();
-      Type elementType = memrefType.getElementType();
       ArrayRef<int64_t> shape = memrefType.getShape();
       int64_t totalElements = std::accumulate(shape.begin(), shape.end(), 1,
                                               std::multiplies<int64_t>());
@@ -57,6 +60,21 @@ void GraphGen::buildMemoryGraph(func::FuncOp func) {
           stores.push_back(op);
         }
       }
+
+      if (!loads.empty() && !stores.empty()) {
+        SmallVector<Operation *, 16> group;
+        group.append(loads.begin(), loads.end());
+        group.append(stores.begin(), stores.end());
+        readWriteGroups.push_back({group, totalElements});
+        continue;
+      }
+
+      if (stores.empty()) {
+        for (auto *loadOp : loads)
+          readOnlyLoads.push_back({loadOp, totalElements});
+        continue;
+      }
+
       SmallVector<std::pair<Operation *, Operation *>, 16> accessPairs;
       while (!loads.empty() && !stores.empty()) {
         Operation *loadOp = loads.pop_back_val();
@@ -91,6 +109,24 @@ void GraphGen::buildMemoryGraph(func::FuncOp func) {
         memID++;
       }
     }
+
+    for (size_t i = 0; i < readOnlyLoads.size();) {
+      int64_t memorySize = 0;
+      for (size_t ports = 0; ports < 2 && i < readOnlyLoads.size();
+           ++ports, ++i) {
+        this->memop2id[readOnlyLoads[i].first] = memID;
+        memorySize += readOnlyLoads[i].second;
+      }
+      this->id2size[memID] = memorySize;
+      memID++;
+    }
+
+    for (auto &group : readWriteGroups) {
+      for (auto *op : group.first)
+        this->memop2id[op] = memID;
+      this->id2size[memID] = group.second;
+      memID++;
+    }
   }
 
   if (memop2id.empty()) {
@@ -109,6 +145,10 @@ void GraphGen::buildMemoryGraph(func::FuncOp func) {
       }
     });
 
+    SmallVector<std::pair<SmallVector<Operation *, 16>, int64_t>, 16>
+        readWriteGroups;
+    SmallVector<std::pair<Operation *, int64_t>, 16> readOnlyLoads;
+
     for (auto [memref, loadStores] : accessesMap) {
       auto memrefType = memref.getType().cast<MemRefType>();
       ArrayRef<int64_t> shape = memrefType.getShape();
@@ -123,6 +163,20 @@ void GraphGen::buildMemoryGraph(func::FuncOp func) {
         } else if (isa<dataflow::StoreOp>(op)) {
           stores.push_back(op);
         }
+      }
+
+      if (!loads.empty() && !stores.empty()) {
+        SmallVector<Operation *, 16> group;
+        group.append(loads.begin(), loads.end());
+        group.append(stores.begin(), stores.end());
+        readWriteGroups.push_back({group, totalElements});
+        continue;
+      }
+
+      if (stores.empty()) {
+        for (auto *loadOp : loads)
+          readOnlyLoads.push_back({loadOp, totalElements});
+        continue;
       }
 
       while (!loads.empty() && !stores.empty()) {
@@ -154,6 +208,24 @@ void GraphGen::buildMemoryGraph(func::FuncOp func) {
         this->id2size[memID] = totalElements;
         memID++;
       }
+    }
+
+    for (size_t i = 0; i < readOnlyLoads.size();) {
+      int64_t memorySize = 0;
+      for (size_t ports = 0; ports < 2 && i < readOnlyLoads.size();
+           ++ports, ++i) {
+        this->memop2id[readOnlyLoads[i].first] = memID;
+        memorySize += readOnlyLoads[i].second;
+      }
+      this->id2size[memID] = memorySize;
+      memID++;
+    }
+
+    for (auto &group : readWriteGroups) {
+      for (auto *op : group.first)
+        this->memop2id[op] = memID;
+      this->id2size[memID] = group.second;
+      memID++;
     }
   }
 
@@ -286,7 +358,6 @@ SmallVector<int64_t> createPermutationMap(ArrayRef<Value> vec1,
 struct MemoryScheduling : public MemorySchedulingBase<MemoryScheduling> {
   void runOnOperation() override {
     auto func = getOperation();
-    auto context = func.getContext();
 
     // Collect target basic blocks to be considered.
     SmallVector<Block *, 4> targetBlocks;

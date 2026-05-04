@@ -407,7 +407,14 @@ LoopNode *Graph::insertLoopNode(dataflow::ForOp op) {
   uint32_t id = this->getLoopNodeNums();
   auto new_loop =
       std::make_unique<LoopNode>(NodeInfo(id, "loop_" + std::to_string(id)));
-  if (auto lower = op.getLowerBound().getDefiningOp<arith::ConstantIndexOp>()) {
+  auto loopLevel = op->getAttrOfType<IntegerAttr>("Loop_Level");
+  bool containsNestedLoop = false;
+  op.getBody()->walk([&](dataflow::ForOp) { containsNestedLoop = true; });
+  bool isOuterNestedLoop =
+      loopLevel && loopLevel.getInt() == 0 && containsNestedLoop;
+  if (!isOuterNestedLoop &&
+      (op.getLowerBound().getDefiningOp<arith::ConstantIndexOp>())) {
+    auto lower = op.getLowerBound().getDefiningOp<arith::ConstantIndexOp>();
     if (auto upper =
             op.getUpperBound().getDefiningOp<arith::ConstantIndexOp>()) {
       int64_t lowerValue = lower.value();

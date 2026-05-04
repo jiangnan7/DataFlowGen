@@ -108,7 +108,8 @@ static bool isStaticIterArgLoopAddress(AddressGenNode *node) {
   return forOp->getNumResults() > 0;
 }
 
-static AddressGenNode *findStaticLoopAddress(Graph &graph, dataflow::ForOp forOp) {
+static AddressGenNode *findStaticLoopAddress(Graph &graph,
+                                             dataflow::ForOp forOp) {
   for (auto &opNode : graph.getOperationNodes()) {
     auto *address = dyn_cast<AddressGenNode>(opNode.get());
     if (!address)
@@ -2594,8 +2595,8 @@ void Graph::printConnection(PrintType _pt) {
               if (auto *incNode = findStaticLoopIncrement(*this, forOp)) {
                 this->outputHardware
                     << "  " << address->printInputData(PrintType::Scala, 1)
-                    << " <> "
-                    << incNode->printOutputData(PrintType::Scala, 0) << "\n\n";
+                    << " <> " << incNode->printOutputData(PrintType::Scala, 0)
+                    << "\n\n";
               }
             }
           }
@@ -2931,27 +2932,26 @@ void Graph::printLoopConnection(PrintType _pt) {
         }
         // }
 
-	        for (auto iter = carry_value->get()->outputDataport_begin();
-	             iter != carry_value->get()->outputDataport_end(); iter++) {
-	          if (isa<ArgumentNode>(iter->first))
-	            continue;
-	          if (loop_node->hasLoopCounterBounds()) {
-	            auto carryArg = carry_value->get()->getArgumentValue();
-	            if (auto blockArg = dyn_cast<BlockArgument>(carryArg)) {
-	              if (auto forOp =
-	                      dyn_cast<dataflow::ForOp>(blockArg.getOwner()->getParentOp())) {
-	                if (blockArg == forOp.getInductionVar() &&
-	                    forOp.getNumRegionIterArgs() > 0)
-	                  continue;
-	              }
-	            }
-	          }
-	          if (loop_node->hasLoopCounterBounds()) {
-	            if (iter->first->getType() == Node::NodeType::ComputeNodeTy) {
-	              auto *compute =
-	                  static_cast<ComputeOperationNode *>(iter->first);
-              if (auto add =
-                      dyn_cast_or_null<arith::AddIOp>(compute->getOperation())) {
+        for (auto iter = carry_value->get()->outputDataport_begin();
+             iter != carry_value->get()->outputDataport_end(); iter++) {
+          if (isa<ArgumentNode>(iter->first))
+            continue;
+          if (loop_node->hasLoopCounterBounds()) {
+            auto carryArg = carry_value->get()->getArgumentValue();
+            if (auto blockArg = dyn_cast<BlockArgument>(carryArg)) {
+              if (auto forOp = dyn_cast<dataflow::ForOp>(
+                      blockArg.getOwner()->getParentOp())) {
+                if (blockArg == forOp.getInductionVar() &&
+                    forOp.getNumRegionIterArgs() > 0)
+                  continue;
+              }
+            }
+          }
+          if (loop_node->hasLoopCounterBounds()) {
+            if (iter->first->getType() == Node::NodeType::ComputeNodeTy) {
+              auto *compute = static_cast<ComputeOperationNode *>(iter->first);
+              if (auto add = dyn_cast_or_null<arith::AddIOp>(
+                      compute->getOperation())) {
                 auto parentLoop = add->getParentOfType<dataflow::ForOp>();
                 if (parentLoop && parentLoop.getNumRegionIterArgs() > 0 &&
                     (!add->hasAttr("Exe") ||
@@ -2995,8 +2995,8 @@ void Graph::printLoopConnection(PrintType _pt) {
             << "  "
             << (loopAddress ? loopAddress->printInputData(PrintType::Scala, 1)
                             : address->printInputData(PrintType::Scala, 1))
-            << " <> "
-            << incNode->printOutputData(PrintType::Scala, 0) << "\n\n";
+            << " <> " << incNode->printOutputData(PrintType::Scala, 0)
+            << "\n\n";
       }
     }
     break;
