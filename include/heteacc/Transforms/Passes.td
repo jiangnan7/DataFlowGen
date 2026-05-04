@@ -99,7 +99,15 @@ def AutoVectorization : Pass<"auto-vectorization", "ModuleOp"> {
 
     Option<"allowDuplicateElements", "slp-allow-duplicate-elements", "bool",
            /*default=*/"false",
-           "Indicates whether duplicate elements are allowed in vectors during SLP graph construction" >
+           "Indicates whether duplicate elements are allowed in vectors during SLP graph construction" >,
+
+    Option<"factor", "factor", "unsigned",
+           /*default=*/"4",
+           "Affine loop unroll factor before SLP vectorization" >,
+
+    Option<"skipUnroll", "skip-unroll", "bool",
+           /*default=*/"false",
+           "Skip affine loop unroll before SLP vectorization" >
   ];
 }
 

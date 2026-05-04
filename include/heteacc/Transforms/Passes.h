@@ -30,7 +30,8 @@ std::unique_ptr<Pass> createHybridAnalysisPass(std::string output = "");
 std::unique_ptr<Pass> createAutoVectorizationPass(
     unsigned maxAttempts = 5, unsigned maxSuccessfulIterations = 5,
     unsigned maxNodeSize = 32, unsigned maxLookAhead = 3,
-    bool reorderInstructionsDFS = true, bool allowDuplicateElements = false);
+    bool reorderInstructionsDFS = true, bool allowDuplicateElements = false,
+    unsigned factor = 4, bool skipUnroll = false);
 
 std::unique_ptr<Pass> createGenerateGEPPass();
 std::unique_ptr<Pass> createAnalyzeMemrefAddressPass();

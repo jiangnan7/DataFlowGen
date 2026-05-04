@@ -1,3 +1,5 @@
+#include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -29,17 +31,39 @@ public:
   unsigned maxLookAhead;
   bool reorderInstructionsDFS;
   bool allowDuplicateElements;
+  Option<unsigned> factor{
+      *this, "factor",
+      llvm::cl::desc("Affine loop unroll factor before SLP vectorization"),
+      llvm::cl::init(4)};
+  Option<bool> skipUnroll{
+      *this, "skip-unroll",
+      llvm::cl::desc("Skip affine loop unroll before SLP vectorization"),
+      llvm::cl::init(false)};
 
   AutoVectorization() = default;
 
+  AutoVectorization(const AutoVectorization &other)
+      : PassWrapper(other), maxAttempts(other.maxAttempts),
+        maxSuccessfulIterations(other.maxSuccessfulIterations),
+        maxNodeSize(other.maxNodeSize), maxLookAhead(other.maxLookAhead),
+        reorderInstructionsDFS(other.reorderInstructionsDFS),
+        allowDuplicateElements(other.allowDuplicateElements) {
+    factor = other.factor;
+    skipUnroll = other.skipUnroll;
+  }
+
   AutoVectorization(unsigned maxAttempts, unsigned maxSuccessfulIterations,
                     unsigned maxNodeSize, unsigned maxLookAhead,
-                    bool reorderInstructionsDFS, bool allowDuplicateElements)
+                    bool reorderInstructionsDFS, bool allowDuplicateElements,
+                    unsigned factor, bool skipUnroll)
       : maxAttempts(maxAttempts),
         maxSuccessfulIterations(maxSuccessfulIterations),
         maxNodeSize(maxNodeSize), maxLookAhead(maxLookAhead),
         reorderInstructionsDFS(reorderInstructionsDFS),
-        allowDuplicateElements(allowDuplicateElements) {}
+        allowDuplicateElements(allowDuplicateElements) {
+    this->factor = factor;
+    this->skipUnroll = skipUnroll;
+  }
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<mlir::arith::ArithDialect>();
@@ -53,11 +77,28 @@ public:
   StringRef getArgument() const final { return "auto-vectorization"; }
   StringRef getDescription() const final { return ""; }
   void runOnOperation() override {
-    auto func = getOperation();
-    auto context = func.getContext();
+    auto module = getOperation();
+    auto context = module.getContext();
     ConversionTarget target(getContext());
 
-    func.walk([&](dataflow::TaskOp task) {
+    if (!skipUnroll) {
+      mlir::PassManager unrollPM(&getContext());
+      unrollPM.nest<func::FuncOp>().addPass(
+          mlir::createLoopUnrollPass(static_cast<int>(factor)));
+      if (failed(unrollPM.run(module))) {
+        signalPassFailure();
+        return;
+      }
+
+      LLVM_DEBUG({
+        llvm::dbgs() << "\n=== IR after affine loop unroll (factor=" << factor
+                     << ") ===\n";
+        module.print(llvm::dbgs());
+        llvm::dbgs() << "\n=== end IR after affine loop unroll ===\n";
+      });
+    }
+
+    module.walk([&](dataflow::TaskOp task) {
       llvm::DenseMap<mlir::Operation *, mlir::Block *> op2block;
       for (auto &op : llvm::make_early_inc_range(task.getBody().front())) {
         if (op.getNumRegions() > 0) {
@@ -226,7 +267,7 @@ public:
     mlir::PassManager pm(&getContext());
     pm.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCSEPass());
-    if (failed(pm.run(func))) {
+    if (failed(pm.run(module))) {
       signalPassFailure();
       return;
     }
@@ -238,8 +279,8 @@ public:
 std::unique_ptr<Pass> heteacc::createAutoVectorizationPass(
     unsigned maxAttempts, unsigned maxSuccessfulIterations,
     unsigned maxNodeSize, unsigned maxLookAhead, bool reorderInstructionsDFS,
-    bool allowDuplicateElements) {
+    bool allowDuplicateElements, unsigned factor, bool skipUnroll) {
   return std::make_unique<AutoVectorization>(
       maxAttempts, maxSuccessfulIterations, maxNodeSize, maxLookAhead,
-      reorderInstructionsDFS, allowDuplicateElements);
+      reorderInstructionsDFS, allowDuplicateElements, factor, skipUnroll);
 }
