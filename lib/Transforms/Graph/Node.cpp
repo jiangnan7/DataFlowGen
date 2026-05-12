@@ -191,9 +191,8 @@ ContainerNode::insertLiveInArgument(Value val,
       unsupportedNodeType(val.getType());
     }
   }
-  default:
-    fatalNodeLookupError("Unknown container type");
   }
+  fatalNodeLookupError("Unknown container type");
 }
 
 ArgumentNode *

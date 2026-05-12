@@ -137,7 +137,11 @@ struct OperatorChainFusion
         continue;
 
       rewriter.setInsertionPointAfter(lastOp);
-      auto opcodeAttr = rewriter.getStrArrayAttr(candidate.opcodes);
+      SmallVector<StringRef, 8> opcodeRefs;
+      opcodeRefs.reserve(candidate.opcodes.size());
+      for (const std::string &opcode : candidate.opcodes)
+        opcodeRefs.push_back(opcode);
+      auto opcodeAttr = rewriter.getStrArrayAttr(opcodeRefs);
       auto chainOp = rewriter.create<dataflow::ChainOp>(
           lastOp->getLoc(), lastOp->getResult(0).getType(), candidate.inputs,
           opcodeAttr);

@@ -937,7 +937,6 @@ public:
 
 private:
   std::list<std::pair<Node *, PortType>> port_type;
-  LoopNode *parent_loop;
   std::list<OperationNode *> instruction_list;
   int64_t loopCounterMax = 0;
   int64_t loopCounterStep = 1;
@@ -957,19 +956,13 @@ private:
   PortEntry activate_loop_back;
   std::vector<PortEntry> loop_exits;
 
-  bool outer_loop;
   bool setStart = false;
   // // Restrict the access to these two functions
   // using Node::addControlInputPort;
   // using Node::addControlOutputPort;
 
 public:
-  explicit LoopNode(NodeInfo _nf)
-      : ContainerNode(_nf, ContainerNode::LoopNodeTy), parent_loop(nullptr),
-        // head_node(nullptr),
-        // latch_node(nullptr),
-        // exit_node(std::list<SuperNode*>()),
-        outer_loop(false) {
+  explicit LoopNode(NodeInfo _nf) : ContainerNode(_nf, ContainerNode::LoopNodeTy) {
     // Set the size of control input prot to at least two
     // resizeControlInputPort(LOOPCONTROL);
     // resizeControlOutputPort(LOOPCONTROL);
@@ -1044,15 +1037,12 @@ public:
 private:
   MemoryNode *mem_node;
   uint32_t route_id;
-  bool ground;
-  opmemType op_type;
 
 public:
   explicit LSNode(NodeInfo _ni, OperationType optype, opmemType memtype,
                   mlir::Operation *operation, MemoryNode *_node = nullptr,
                   uint32_t _id = 0)
-      : OperationNode(_ni, optype, operation), mem_node(_node), route_id(_id),
-        ground(false), op_type(memtype) {
+      : OperationNode(_ni, optype, operation), mem_node(_node), route_id(_id) {
     if (memtype == opmemType::store) {
       isStore = true;
     }
@@ -1062,7 +1052,7 @@ public:
                   opmemType memtype, mlir::Operation *operation,
                   MemoryNode *_node = nullptr, uint32_t _id = 0)
       : OperationNode(_ni, optype, _type, operation), mem_node(_node),
-        route_id(_id), ground(false), op_type(memtype) {
+        route_id(_id) {
     if (memtype == opmemType::store) {
       isStore = true;
     }

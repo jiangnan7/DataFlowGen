@@ -57,7 +57,7 @@ option(HETEACC_ENABLE_BINDINGS_PYTHON "Enables Heteacc Python bindings." OFF)
 
 if(HETEACC_ENABLE_BINDINGS_PYTHON)
   message(STATUS "Heteacc Python bindings are enabled.")
-  
+
   include(MLIRDetectPythonEnv)
   find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
   message(STATUS "Found Python include dirs: ${Python3_INCLUDE_DIRS}")

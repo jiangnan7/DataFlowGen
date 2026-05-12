@@ -143,12 +143,12 @@ static AddressGenNode *findStaticLoopAddress(Graph &graph,
   std::abort();
 }
 
-[[noreturn]] void unsupportedArgumentNodeType() {
+[[noreturn, maybe_unused]] void unsupportedArgumentNodeType() {
   llvm::errs() << "Unrecognized argument node type\n";
   std::abort();
 }
 
-[[noreturn]] void unsupportedNodeType() {
+[[noreturn, maybe_unused]] void unsupportedNodeType() {
   llvm::errs() << "Unrecognized type of node\n";
   std::abort();
 }
@@ -2438,7 +2438,8 @@ void Graph::printControlEdge(PrintType _pt) {
       for (auto iter_input_control = exe->inputControl_begin();
            iter_input_control != exe->inputControl_end();
            iter_input_control++) {
-        if (static_cast<LoopNode *>(iter_input_control->first)->getType() ==
+        if (static_cast<LoopNode *>(iter_input_control->first)
+                ->getContainerType() ==
             ContainerNode::ContainType::LoopNodeTy) {
           unique_loop_nodes.insert(
               static_cast<LoopNode *>(iter_input_control->first));
