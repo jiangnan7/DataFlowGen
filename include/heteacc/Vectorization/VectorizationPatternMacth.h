@@ -58,19 +58,10 @@ public:
     for (auto value : *superword) {
       if (auto op =
               compatibleOperationOrNull<SourceOp, CompatibleOps...>(value)) {
-        op->dump();
-        llvm::outs() << superword->numOperands()
-                     << "   op->getNumOperands(): " << op->getNumOperands()
-                     << "\n";
-
         if (superword->numOperands() == op->getNumOperands()) {
           continue;
         }
       }
-      // else if (value.isa<BlockArgument>()){
-      //   llvm::outs() << "Value is  an BlockArgument \n";
-      //   continue;
-      // }
       return failure();
     }
     return success();
@@ -210,6 +201,106 @@ struct VectorizeMulF : public NormalSpaceVectorizationPattern<arith::MulFOp> {
   using NormalSpaceVectorizationPattern<
       arith::MulFOp>::NormalSpaceVectorizationPattern;
   Value rewrite(Superword *superword, RewriterBase &rewriter) override;
+  void accept(PatternVisitor &visitor,
+              Superword const *superword) const override;
+};
+
+/// Vectorization pattern for vector comparisons.
+struct VectorizeCmpI : public OpSpecificVectorizationPattern<arith::CmpIOp> {
+  using OpSpecificVectorizationPattern<
+      arith::CmpIOp>::OpSpecificVectorizationPattern;
+  Value rewrite(Superword *superword, RewriterBase &rewriter) override;
+  void accept(PatternVisitor &visitor,
+              Superword const *superword) const override;
+};
+
+/// Vectorization pattern for integer subtraction.
+struct VectorizeSubI : public NormalSpaceVectorizationPattern<arith::SubIOp> {
+  using NormalSpaceVectorizationPattern<
+      arith::SubIOp>::NormalSpaceVectorizationPattern;
+  Value rewrite(Superword *superword, RewriterBase &rewriter) override;
+  void accept(PatternVisitor &visitor,
+              Superword const *superword) const override;
+};
+
+/// Vectorization pattern for float subtraction.
+struct VectorizeSubF : public NormalSpaceVectorizationPattern<arith::SubFOp> {
+  using NormalSpaceVectorizationPattern<
+      arith::SubFOp>::NormalSpaceVectorizationPattern;
+  Value rewrite(Superword *superword, RewriterBase &rewriter) override;
+  void accept(PatternVisitor &visitor,
+              Superword const *superword) const override;
+};
+
+/// Vectorization pattern for float comparisons.
+struct VectorizeCmpF : public OpSpecificVectorizationPattern<arith::CmpFOp> {
+  using OpSpecificVectorizationPattern<
+      arith::CmpFOp>::OpSpecificVectorizationPattern;
+  Value rewrite(Superword *superword, RewriterBase &rewriter) override;
+  void accept(PatternVisitor &visitor,
+              Superword const *superword) const override;
+};
+
+/// Vectorization pattern for bitwise AND.
+struct VectorizeAndI : public NormalSpaceVectorizationPattern<arith::AndIOp> {
+  using NormalSpaceVectorizationPattern<
+      arith::AndIOp>::NormalSpaceVectorizationPattern;
+  Value rewrite(Superword *superword, RewriterBase &rewriter) override;
+  void accept(PatternVisitor &visitor,
+              Superword const *superword) const override;
+};
+
+/// Vectorization pattern for bitwise OR.
+struct VectorizeOrI : public NormalSpaceVectorizationPattern<arith::OrIOp> {
+  using NormalSpaceVectorizationPattern<
+      arith::OrIOp>::NormalSpaceVectorizationPattern;
+  Value rewrite(Superword *superword, RewriterBase &rewriter) override;
+  void accept(PatternVisitor &visitor,
+              Superword const *superword) const override;
+};
+
+/// Vectorization pattern for bitwise XOR.
+struct VectorizeXOrI : public NormalSpaceVectorizationPattern<arith::XOrIOp> {
+  using NormalSpaceVectorizationPattern<
+      arith::XOrIOp>::NormalSpaceVectorizationPattern;
+  Value rewrite(Superword *superword, RewriterBase &rewriter) override;
+  void accept(PatternVisitor &visitor,
+              Superword const *superword) const override;
+};
+
+/// Vectorization pattern for index_cast operations.
+struct VectorizeIndexCast
+    : public OpSpecificVectorizationPattern<arith::IndexCastOp> {
+  using OpSpecificVectorizationPattern<
+      arith::IndexCastOp>::OpSpecificVectorizationPattern;
+  Value rewrite(Superword *superword, RewriterBase &rewriter) override;
+  void accept(PatternVisitor &visitor,
+              Superword const *superword) const override;
+};
+
+/// Vectorization pattern for indirect (non-linear) loads via
+/// dataflow.vector.load.
+struct VectorizeIndirectLoad
+    : public OpSpecificVectorizationPattern<memref::LoadOp> {
+  using OpSpecificVectorizationPattern<
+      memref::LoadOp>::OpSpecificVectorizationPattern;
+  LogicalResult match(Superword *superword) override;
+  Value rewrite(Superword *superword, RewriterBase &rewriter) override;
+  void accept(PatternVisitor &visitor,
+              Superword const *superword) const override;
+};
+
+/// Vectorization pattern for indirect (non-linear) stores via
+/// dataflow.vector.store.
+struct VectorizeIndirectStore
+    : public OpSpecificVectorizationPattern<memref::StoreOp> {
+  using OpSpecificVectorizationPattern<
+      memref::StoreOp>::OpSpecificVectorizationPattern;
+  LogicalResult match(Superword *superword) override;
+  Value rewrite(Superword *superword, Value vector, RewriterBase &rewriter);
+  Value rewrite(Superword *superword, RewriterBase &rewriter) override {
+    return Value{};
+  }
   void accept(PatternVisitor &visitor,
               Superword const *superword) const override;
 };

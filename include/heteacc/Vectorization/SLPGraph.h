@@ -210,7 +210,7 @@ template <typename Node, typename Function> void walk(Node *root, Function f) {
 /// Construct a post-order version of the graph rooted at the provided node.
 template <typename Node> SmallVector<Node *> postOrder(Node *root) {
   SmallVector<Node *> order;
-  walk(root, [&](Node *node) { order.template emplace_back(node); });
+  walk(root, [&](Node *node) { order.emplace_back(node); });
   return order;
 }
 

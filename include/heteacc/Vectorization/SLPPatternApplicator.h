@@ -50,11 +50,8 @@ public:
     double bestCost = 0;
 
     for (auto const &pattern : patterns) {
-      llvm::outs() << "pattern: \n";
       if (succeeded(pattern->match(superword))) {
-        llvm::outs() << "Pattern matched.\n";
         auto cost = costModel->getSuperwordCost(superword, pattern.get());
-        llvm::outs() << "curr: " << cost << "\n";
         if (!bestPattern || cost < bestCost) {
           bestPattern = pattern.get();
           bestCost = cost;

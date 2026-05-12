@@ -29,6 +29,7 @@ add_mlir_dialect_library(MLIRHLSTransforms
   Vectorization/BlockCostModel.cpp
   Vectorization/GraphConversion.cpp
   Vectorization/OperationFusion.cpp
+  Vectorization/ReductionVectorization.cpp
   Vectorization/ScoreModel.cpp
   Vectorization/Seeding.cpp
   Vectorization/SLPGraph.cpp

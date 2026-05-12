@@ -44,6 +44,29 @@ public:
   /// Visit a superword under the VectorizeMul pattern.
   virtual void visit(VectorizeMulI const *pattern, Superword const *superword);
   virtual void visit(VectorizeMulF const *pattern, Superword const *superword);
+  /// Visit a superword under the VectorizeIndexCast pattern.
+  virtual void visit(VectorizeIndexCast const *pattern,
+                     Superword const *superword);
+  /// Visit a superword under the VectorizeIndirectLoad pattern.
+  virtual void visit(VectorizeIndirectLoad const *pattern,
+                     Superword const *superword);
+  /// Visit a superword under the VectorizeIndirectStore pattern.
+  virtual void visit(VectorizeIndirectStore const *pattern,
+                     Superword const *superword);
+  /// Visit a superword under the VectorizeCmpI pattern.
+  virtual void visit(VectorizeCmpI const *pattern, Superword const *superword);
+  /// Visit a superword under the VectorizeSubI pattern.
+  virtual void visit(VectorizeSubI const *pattern, Superword const *superword);
+  /// Visit a superword under the VectorizeSubF pattern.
+  virtual void visit(VectorizeSubF const *pattern, Superword const *superword);
+  /// Visit a superword under the VectorizeCmpF pattern.
+  virtual void visit(VectorizeCmpF const *pattern, Superword const *superword);
+  /// Visit a superword under the VectorizeAndI pattern.
+  virtual void visit(VectorizeAndI const *pattern, Superword const *superword);
+  /// Visit a superword under the VectorizeOrI pattern.
+  virtual void visit(VectorizeOrI const *pattern, Superword const *superword);
+  /// Visit a superword under the VectorizeXOrI pattern.
+  virtual void visit(VectorizeXOrI const *pattern, Superword const *superword);
 
 protected:
   virtual ~PatternVisitor() = default;
