@@ -3,11 +3,11 @@
 //------------------------------------------------------------------------
 #include<iostream>
 
-int if_loop_1(int a[200]) {
+int if_loop_1(int a[100]) {
     int i;
     int tmp;
     int sum = 0;
-    for (i = 0; i < 200; i++) {
+    for (i = 0; i < 100; i++) {
         tmp = a[i] * 2;
         if (tmp > 10) {
             sum = tmp + sum;
@@ -17,8 +17,8 @@ int if_loop_1(int a[200]) {
 }
 
 int main(){
-    int a[200];
-    for(int i=0; i <200; i++){
+    int a[100];
+    for(int i=0; i <100; i++){
         a[i] = i;
         std::cout << a[i] << ", ";
     }

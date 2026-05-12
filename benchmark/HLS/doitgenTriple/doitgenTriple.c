@@ -2,7 +2,7 @@
 
 #define N 16
 
-void doitgenTriple(int A[N], 
+void doitgenTriple(int A[N],
                    int sum[N],int w[N*N]) {
   int p = 0;
 
@@ -24,4 +24,3 @@ loop_0:
     sum[i] = s;
   }
 }
-

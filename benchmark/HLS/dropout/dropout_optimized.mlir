@@ -1,3 +1,4 @@
+#map = affine_map<(d0) -> (d0)>
 module {
   func.func @dropout(%arg0: memref<1024xi32>, %arg1: memref<128xi32>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
     %true = arith.constant true
@@ -24,19 +25,17 @@ module {
             %10 = arith.shrui %4, %c3_i32 : i32
             %11 = arith.index_cast %10 : i32 to index
             %12 = dataflow.addr %arg1[%11] {memShape = [128]} : memref<128xi32>[index] -> i32
-            %13 = dataflow.load %12 : i32 -> i32
+            %13 = dataflow.load %12 {ID = 0 : i32} : i32 -> i32
             %14 = dataflow.select %9, %13, %arg4 : i32
             %15 = arith.andi %14, %c1_i32 : i32
             %16 = arith.cmpi ne, %15, %c0_i32 : i32
             %17 = dataflow.addr %arg0[%arg2] {memShape = [1024]} : memref<1024xi32>[index] -> i32
-            %18 = dataflow.load %17 : i32 -> i32
+            %18 = dataflow.load %17 {ID = 0 : i32, map = #map} : i32 -> i32
             %19 = arith.muli %18, %c2_i32 : i32
             %20 = dataflow.select %16, %19, %c0_i32 : i32
             %21 = arith.addi %arg3, %20 : i32
             %22 = arith.shrsi %14, %c1_i32 : i32
             %23 = arith.addi %arg2, %c1 {Exe = "Loop"} : index
-            %24 = arith.cmpi eq, %23, %c1024 {Exe = "Loop"} : index
-            dataflow.state %24, "loop_exit" or "loop_back" {Exe = "Loop"} : i1
             dataflow.yield {execution_block = 1 : i32} %21, %22 : i32, i32
           }
           dataflow.yield %3#0, %3#1 : i32, i32

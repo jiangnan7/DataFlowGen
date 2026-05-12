@@ -1,0 +1,350 @@
+---------analyzing the loop levels of the kernel--------
+---------each affineFor--------
+
+=== memop2id ===
+Op: %5 = vector.transfer_read %arg0[%arg1], %c0_i32 {ID = 0 : i32} : memref<100xi32>, vector<4xi32> --> ID: 0memID2Node[id]: memory_0
+====================
+
+Visit all op. 
+ 
+Analyze Loop Node 
+ Loop_Level: 0
+dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
+<block argument> of type 'memref<100xi32>' at index: 0
+Find the live-in value.
+ <block argument> of type 'index' at index: 0
+%5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+%6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+%cst_0 = arith.constant dense<2> : vector<4xi32>
+%7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+<block argument> of type 'vector<4xi32>' at index: 1
+%7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+%cst = arith.constant dense<10> : vector<4xi32>
+%9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+%8 = arith.addi %7, %arg2 : vector<4xi32>
+<block argument> of type 'vector<4xi32>' at index: 1
+<block argument> of type 'index' at index: 0
+%c4 = arith.constant 4 : index
+%10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+%4 = dataflow.execution : vector<4xi32> {
+  %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+  %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+  %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+  %8 = arith.addi %7, %arg2 : vector<4xi32>
+  %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+  %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+  %true_2 = arith.constant true
+  %11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+  dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+}
+outermostValue: %0 = dataflow.launch : i32 {
+  %1 = dataflow.task : i32 {
+    %true = arith.constant true
+    dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
+    %2 = dataflow.for %arg1 = %c0 to %c100 step %c4 iter_args(%arg2 = %cst_1) -> (vector<4xi32>) {
+      %4 = dataflow.execution : vector<4xi32> {
+        %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+        %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+        %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+        %8 = arith.addi %7, %arg2 : vector<4xi32>
+        %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+        %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+        %true_2 = arith.constant true
+        %11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+        dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+      }
+      dataflow.yield %4 : vector<4xi32>
+    } {Loop_Band = 0 : i32, Loop_Level = 0 : i32}
+    %3 = vector.reduction <add>, %2 : vector<4xi32> into i32
+    dataflow.yield %3 : i32
+  }
+  dataflow.yield %1 : i32
+}
+
+Build Loop Graph 
+ Conneting live-in values. 
+in: <block argument> of type 'memref<100xi32>' at index: 0
+%5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+Conneting live-out values. 
+_new_live_out_node is live_in_0
+Conneting live-out values. Edge type 2 
+Conneting live-out values. Edge type 3 
+currLoopInfo.live_out_out_ins.size: 1
+_new_live_out_node live_in_1
+Edge type 3 1
+value: <block argument> of type 'memref<100xi32>' at index: 0
+loop: loop_0
+from: arg_mem0
+live_out value: %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+
+Dependency Analyze. 
+ 
+Branch->Exe Block 
+%5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+operand: <block argument> of type 'memref<100xi32>' at index: 0
+live_in check!
+<block argument> of type 'memref<100xi32>' at index: 0%5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+live_in_0 address_1
+operand: <block argument> of type 'index' at index: 0
+%6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+operand: %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+live_in check!
+live_out check!
+carry check!
+%7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+operand: %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+live_in check!
+live_out check!
+carry check!
+operand: %cst_0 = arith.constant dense<2> : vector<4xi32>
+%8 = arith.addi %7, %arg2 : vector<4xi32>
+operand: %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+live_in check!
+live_out check!
+carry check!
+operand: <block argument> of type 'vector<4xi32>' at index: 1
+live_in check!
+live_out check!
+carry check!
+%10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+%8 = arith.addi %7, %arg2 : vector<4xi32>
+%9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+operand: %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+live_in check!
+live_out check!
+carry check!
+operand: %cst = arith.constant dense<10> : vector<4xi32>
+%10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+operand: %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+live_in check!
+live_out check!
+carry check!
+operand: %8 = arith.addi %7, %arg2 : vector<4xi32>
+live_in check!
+live_out check!
+carry check!
+operand: <block argument> of type 'vector<4xi32>' at index: 1
+live_in check!
+live_out check!
+carry check!
+%10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+%10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+carry_0 carry_0 select_6
+%11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+operand: <block argument> of type 'index' at index: 0
+dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+operand: %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+%4 = dataflow.execution : vector<4xi32> {
+  %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+  %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+  %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+  %8 = arith.addi %7, %arg2 : vector<4xi32>
+  %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+  %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+  %true_2 = arith.constant true
+  %11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+  dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+}
+dataflow.yield %4 : vector<4xi32>
+operand: %4 = dataflow.execution : vector<4xi32> {
+  %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+  %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+  %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+  %8 = arith.addi %7, %arg2 : vector<4xi32>
+  %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+  %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+  %true_2 = arith.constant true
+  %11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+  dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+}
+%3 = vector.reduction <add>, %2 : vector<4xi32> into i32
+operand: %2 = dataflow.for %arg1 = %c0 to %c100 step %c4 iter_args(%arg2 = %cst_1) -> (vector<4xi32>) {
+  %4 = dataflow.execution : vector<4xi32> {
+    %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+    %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+    %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+    %8 = arith.addi %7, %arg2 : vector<4xi32>
+    %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+    %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+    %true_2 = arith.constant true
+    %11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+    dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+  }
+  dataflow.yield %4 : vector<4xi32>
+} {Loop_Band = 0 : i32, Loop_Level = 0 : i32}
+dataflow.yield %3 : i32
+operand: %3 = vector.reduction <add>, %2 : vector<4xi32> into i32
+%1 = dataflow.task : i32 {
+  %true = arith.constant true
+  dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
+  %2 = dataflow.for %arg1 = %c0 to %c100 step %c4 iter_args(%arg2 = %cst_1) -> (vector<4xi32>) {
+    %4 = dataflow.execution : vector<4xi32> {
+      %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+      %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+      %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+      %8 = arith.addi %7, %arg2 : vector<4xi32>
+      %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+      %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+      %true_2 = arith.constant true
+      %11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+      dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+    }
+    dataflow.yield %4 : vector<4xi32>
+  } {Loop_Band = 0 : i32, Loop_Level = 0 : i32}
+  %3 = vector.reduction <add>, %2 : vector<4xi32> into i32
+  dataflow.yield %3 : i32
+}
+dataflow.yield %1 : i32
+operand: %1 = dataflow.task : i32 {
+  %true = arith.constant true
+  dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
+  %2 = dataflow.for %arg1 = %c0 to %c100 step %c4 iter_args(%arg2 = %cst_1) -> (vector<4xi32>) {
+    %4 = dataflow.execution : vector<4xi32> {
+      %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+      %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+      %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+      %8 = arith.addi %7, %arg2 : vector<4xi32>
+      %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+      %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+      %true_2 = arith.constant true
+      %11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+      dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+    }
+    dataflow.yield %4 : vector<4xi32>
+  } {Loop_Band = 0 : i32, Loop_Level = 0 : i32}
+  %3 = vector.reduction <add>, %2 : vector<4xi32> into i32
+  dataflow.yield %3 : i32
+}
+%0 = dataflow.launch : i32 {
+  %1 = dataflow.task : i32 {
+    %true = arith.constant true
+    dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
+    %2 = dataflow.for %arg1 = %c0 to %c100 step %c4 iter_args(%arg2 = %cst_1) -> (vector<4xi32>) {
+      %4 = dataflow.execution : vector<4xi32> {
+        %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+        %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+        %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+        %8 = arith.addi %7, %arg2 : vector<4xi32>
+        %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+        %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+        %true_2 = arith.constant true
+        %11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+        dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+      }
+      dataflow.yield %4 : vector<4xi32>
+    } {Loop_Band = 0 : i32, Loop_Level = 0 : i32}
+    %3 = vector.reduction <add>, %2 : vector<4xi32> into i32
+    dataflow.yield %3 : i32
+  }
+  dataflow.yield %1 : i32
+}
+func.return %0 : i32
+operand: %0 = dataflow.launch : i32 {
+  %1 = dataflow.task : i32 {
+    %true = arith.constant true
+    dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
+    %2 = dataflow.for %arg1 = %c0 to %c100 step %c4 iter_args(%arg2 = %cst_1) -> (vector<4xi32>) {
+      %4 = dataflow.execution : vector<4xi32> {
+        %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+        %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+        %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+        %8 = arith.addi %7, %arg2 : vector<4xi32>
+        %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+        %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+        %true_2 = arith.constant true
+        %11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+        dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+      }
+      dataflow.yield %4 : vector<4xi32>
+    } {Loop_Band = 0 : i32, Loop_Level = 0 : i32}
+    %3 = vector.reduction <add>, %2 : vector<4xi32> into i32
+    dataflow.yield %3 : i32
+  }
+  dataflow.yield %1 : i32
+}
+live_in check!
+live_out check!
+func.return %0 : i32
+0x7ba5f80find_live_out!
+ 1  
+live_out!
+func.return %0 : i32
+live_in_1 return_9
+func.func @if_loop_1(%arg0: memref<100xi32>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+  %cst = arith.constant dense<10> : vector<4xi32>
+  %cst_0 = arith.constant dense<2> : vector<4xi32>
+  %cst_1 = arith.constant dense<0> : vector<4xi32>
+  %c4 = arith.constant 4 : index
+  %c100 = arith.constant 100 : index
+  %c0 = arith.constant 0 : index
+  %c0_i32 = arith.constant 0 : i32
+  %0 = dataflow.launch : i32 {
+    %1 = dataflow.task : i32 {
+      %true = arith.constant true
+      dataflow.state %true, "loop_start" or "null" {Enable = "Loop_Start"} : i1
+      %2 = dataflow.for %arg1 = %c0 to %c100 step %c4 iter_args(%arg2 = %cst_1) -> (vector<4xi32>) {
+        %4 = dataflow.execution : vector<4xi32> {
+          %5 = dataflow.addr %arg0[%arg1] {laneNums = 4 : i32, memShape = [100]} : memref<100xi32>[index] -> i32
+          %6 = dataflow.load %5 {ID = 0 : i32, laneNums = 4 : i32, operand_segment_sizes = array<i32: 1, 1, 1, 0>, permutation_map = affine_map<(d0) -> (d0)>} : i32 -> vector<4xi32>
+          %7 = arith.muli %6, %cst_0 {slp.group = 1 : i64, slp.lane = 3 : i64} : vector<4xi32>
+          %8 = arith.addi %7, %arg2 : vector<4xi32>
+          %9 = arith.cmpi ugt, %7, %cst : vector<4xi32>
+          %10 = dataflow.select %9, %8, %arg2 : vector<4xi1>, vector<4xi32>
+          %true_2 = arith.constant true
+          %11 = arith.addi %arg1, %c4 {Exe = "Loop"} : index
+          dataflow.yield {execution_block = 1 : i32} %10 : vector<4xi32>
+        }
+        dataflow.yield %4 : vector<4xi32>
+      } {Loop_Band = 0 : i32, Loop_Level = 0 : i32}
+      %3 = vector.reduction <add>, %2 : vector<4xi32> into i32
+      dataflow.yield %3 : i32
+    }
+    dataflow.yield %1 : i32
+  }
+  return %0 : i32
+}
+Connecting Branch.
+ Connecting Graph.
+ dumpGraph
+heteacc-opt: /data/jannli/work/DataFlowGen/thirdparty/llvm-project/llvm/lib/Support/raw_ostream.cpp:843: virtual size_t llvm::raw_fd_ostream::preferred_buffer_size() const: Assertion `FD >= 0 && "File not yet open!"' failed.
+PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace.
+Stack dump:
+0.	Program arguments: /data/jannli/work/DataFlowGen/build/bin/heteacc-opt benchmark/HLS/if_loop_1/if_loop_1_vectorized.mlir --analyze-memref-address --cse --enhanced-cdfg --memory-scheduling --graph-init=top-func=if_loop_1 --debug-only=graph
+ #0 0x0000000005c6bd4d llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/llvm/lib/Support/Unix/Signals.inc:602:11
+ #1 0x0000000005c6c1ab PrintStackTraceSignalHandler(void*) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/llvm/lib/Support/Unix/Signals.inc:676:1
+ #2 0x0000000005c6a59f llvm::sys::RunSignalHandlers() /data/jannli/work/DataFlowGen/thirdparty/llvm-project/llvm/lib/Support/Signals.cpp:104:5
+ #3 0x0000000005c6c87e SignalHandler(int) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/llvm/lib/Support/Unix/Signals.inc:413:1
+ #4 0x00007f269a3d3990 __restore_rt (/lib64/libpthread.so.0+0x12990)
+ #5 0x00007f2698c345af raise (/lib64/libc.so.6+0x4e5af)
+ #6 0x00007f2698c07ee5 abort (/lib64/libc.so.6+0x21ee5)
+ #7 0x00007f2698c07db9 _nl_load_domain.cold.0 (/lib64/libc.so.6+0x21db9)
+ #8 0x00007f2698c2cf06 (/lib64/libc.so.6+0x46f06)
+ #9 0x0000000005c4ce8f llvm::raw_fd_ostream::preferred_buffer_size() const /data/jannli/work/DataFlowGen/thirdparty/llvm-project/llvm/lib/Support/raw_ostream.cpp:0:3
+#10 0x0000000005c4ac9a llvm::raw_ostream::SetBuffered() /data/jannli/work/DataFlowGen/thirdparty/llvm-project/llvm/lib/Support/raw_ostream.cpp:93:14
+#11 0x0000000005c4b6b6 llvm::raw_ostream::write(char const*, unsigned long) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/llvm/lib/Support/raw_ostream.cpp:248:7
+#12 0x000000000408c742 mlir::heteacc::Graph::printScalaHeader() (/data/jannli/work/DataFlowGen/build/bin/heteacc-opt+0x408c742)
+#13 0x000000000408c3e9 mlir::heteacc::Graph::dumpGraph(mlir::heteacc::PrintType, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>) (/data/jannli/work/DataFlowGen/build/bin/heteacc-opt+0x408c3e9)
+#14 0x000000000404e437 mlir::heteacc::GraphGen::applyGraphInit(mlir::func::FuncOp, bool) (/data/jannli/work/DataFlowGen/build/bin/heteacc-opt+0x404e437)
+#15 0x000000000405af9b (anonymous namespace)::GraphInit::runOnOperation() GraphGen.cpp:0:0
+#16 0x0000000004eebd07 mlir::detail::OpToOpPassAdaptor::run(mlir::Pass*, mlir::Operation*, mlir::AnalysisManager, bool, unsigned int) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Pass/Pass.cpp:471:21
+#17 0x0000000004eec277 mlir::detail::OpToOpPassAdaptor::runPipeline(mlir::OpPassManager&, mlir::Operation*, mlir::AnalysisManager, bool, unsigned int, mlir::PassInstrumentor*, mlir::PassInstrumentation::PipelineParentInfo const*) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Pass/Pass.cpp:534:16
+#18 0x0000000004ef12c5 mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::$_0::operator()(mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo&) const /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Pass/Pass.cpp:754:36
+#19 0x0000000004ef0fe8 mlir::LogicalResult mlir::failableParallelForEach<__gnu_cxx::__normal_iterator<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo*, std::vector<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo, std::allocator<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo>>>, mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::$_0&>(mlir::MLIRContext*, __gnu_cxx::__normal_iterator<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo*, std::vector<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo, std::allocator<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo>>>, __gnu_cxx::__normal_iterator<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo*, std::vector<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo, std::allocator<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo>>>, mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::$_0&) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/include/mlir/IR/Threading.h:46:18
+#20 0x0000000004eed4cb mlir::LogicalResult mlir::failableParallelForEach<std::vector<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo, std::allocator<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo>>&, mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::$_0&>(mlir::MLIRContext*, std::vector<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo, std::allocator<mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::OpPMInfo>>&, mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool)::$_0&) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/include/mlir/IR/Threading.h:92:10
+#21 0x0000000004eecdcc mlir::detail::OpToOpPassAdaptor::runOnOperationAsyncImpl(bool) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Pass/Pass.cpp:764:14
+#22 0x0000000004eebf70 mlir::detail::OpToOpPassAdaptor::runOnOperation(bool) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Pass/Pass.cpp:655:5
+#23 0x0000000004eebcfb mlir::detail::OpToOpPassAdaptor::run(mlir::Pass*, mlir::Operation*, mlir::AnalysisManager, bool, unsigned int) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Pass/Pass.cpp:468:5
+#24 0x0000000004eec277 mlir::detail::OpToOpPassAdaptor::runPipeline(mlir::OpPassManager&, mlir::Operation*, mlir::AnalysisManager, bool, unsigned int, mlir::PassInstrumentor*, mlir::PassInstrumentation::PipelineParentInfo const*) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Pass/Pass.cpp:534:16
+#25 0x0000000004eedc18 mlir::PassManager::runPasses(mlir::Operation*, mlir::AnalysisManager) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Pass/Pass.cpp:843:10
+#26 0x0000000004eedb47 mlir::PassManager::run(mlir::Operation*) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Pass/Pass.cpp:823:60
+#27 0x0000000004fb94a2 performActions(llvm::raw_ostream&, std::shared_ptr<llvm::SourceMgr> const&, mlir::MLIRContext*, mlir::MlirOptMainConfig const&) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Tools/mlir-opt/MlirOptMain.cpp:176:17
+#28 0x0000000004fb91df processBuffer(llvm::raw_ostream&, std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, mlir::MlirOptMainConfig const&, mlir::DialectRegistry&, llvm::ThreadPool*) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Tools/mlir-opt/MlirOptMain.cpp:222:12
+#29 0x0000000004fb900c mlir::MlirOptMain(llvm::raw_ostream&, std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, mlir::DialectRegistry&, mlir::MlirOptMainConfig const&)::$_0::operator()(std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::raw_ostream&) const /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Tools/mlir-opt/MlirOptMain.cpp:263:12
+#30 0x0000000004fb8fa6 mlir::LogicalResult llvm::function_ref<mlir::LogicalResult (std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::raw_ostream&)>::callback_fn<mlir::MlirOptMain(llvm::raw_ostream&, std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, mlir::DialectRegistry&, mlir::MlirOptMainConfig const&)::$_0>(long, std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::raw_ostream&) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/llvm/include/llvm/ADT/STLFunctionalExtras.h:45:12
+#31 0x0000000004fbec62 llvm::function_ref<mlir::LogicalResult (std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::raw_ostream&)>::operator()(std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::raw_ostream&) const /data/jannli/work/DataFlowGen/thirdparty/llvm-project/llvm/include/llvm/ADT/STLFunctionalExtras.h:68:12
+#32 0x0000000004fbe2a9 mlir::splitAndProcessBuffer(std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::function_ref<mlir::LogicalResult (std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, llvm::raw_ostream&)>, llvm::raw_ostream&, bool, bool) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Support/ToolUtilities.cpp:28:12
+#33 0x0000000004fb78fd mlir::MlirOptMain(llvm::raw_ostream&, std::unique_ptr<llvm::MemoryBuffer, std::default_delete<llvm::MemoryBuffer>>, mlir::DialectRegistry&, mlir::MlirOptMainConfig const&) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Tools/mlir-opt/MlirOptMain.cpp:266:10
+#34 0x0000000004fb8104 mlir::MlirOptMain(int, char**, llvm::StringRef, mlir::DialectRegistry&, bool) /data/jannli/work/DataFlowGen/thirdparty/llvm-project/mlir/lib/Tools/mlir-opt/MlirOptMain.cpp:363:14
+#35 0x0000000002174b71 main (/data/jannli/work/DataFlowGen/build/bin/heteacc-opt+0x2174b71)
+#36 0x00007f2698c20865 __libc_start_main (/lib64/libc.so.6+0x3a865)
+#37 0x0000000002174a1e _start (/data/jannli/work/DataFlowGen/build/bin/heteacc-opt+0x2174a1e)
