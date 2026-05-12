@@ -23,30 +23,37 @@ SLPVectorizationPattern::SLPVectorizationPattern(
 
 void SLPVectorizationPattern::rewriteSuperword(Superword *superword,
                                                RewriterBase &rewriter) {
-  llvm::outs() << "setupConversionFor\n";
+  LLVM_DEBUG(llvm::dbgs() << "setupConversionFor\n");
   conversionManager.setupConversionFor(superword, this);
-  llvm::outs() << "rewrite\n";
+  LLVM_DEBUG(llvm::dbgs() << "rewrite\n");
 
-  for (auto it = superword->begin(); it != superword->end(); ++it) {
-    llvm::outs() << "Value: ";
-    if (auto *defOp = it->getDefiningOp()) {
-      llvm::outs() << "Defining Operation: " << defOp->getName() << "\n";
-      defOp->dump();
-      ;
-    } else {
-      llvm::outs() << "No defining operation\n";
+  LLVM_DEBUG({
+    for (auto it = superword->begin(); it != superword->end(); ++it) {
+      llvm::dbgs() << "Value: ";
+      if (auto *defOp = it->getDefiningOp()) {
+        llvm::dbgs() << "Defining Operation: " << defOp->getName() << "\n";
+        defOp->dump();
+      } else {
+        llvm::dbgs() << "No defining operation\n";
+      }
     }
-  }
+  });
 
   auto vectorOp = this->rewrite(superword, rewriter);
 
-  auto pattern =
+  auto consecutiveStorePattern =
       std::make_unique<CreateConsecutiveStore>(this->conversionManager);
-  if (succeeded(pattern->match(superword))) {
-    pattern->rewrite(superword, vectorOp, rewriter);
+  if (succeeded(consecutiveStorePattern->match(superword))) {
+    consecutiveStorePattern->rewrite(superword, vectorOp, rewriter);
+  } else {
+    auto indirectStorePattern =
+        std::make_unique<VectorizeIndirectStore>(this->conversionManager);
+    if (succeeded(indirectStorePattern->match(superword))) {
+      indirectStorePattern->rewrite(superword, vectorOp, rewriter);
+    }
   }
 
-  llvm::outs() << "update\n";
+  LLVM_DEBUG(llvm::dbgs() << "update\n");
   conversionManager.update(superword, vectorOp, this);
 }
 
@@ -91,43 +98,8 @@ static Value getSupportedReduction(dataflow::ForOp forOp, unsigned pos,
   return reducedVal;
 }
 
-/// Strip the log space property off an operation if present, otherwise do
-/// nothing.
-Value stripLogOrValue(Value value, RewriterBase &rewriter) {
-  // if (auto logType = value.getType().dyn_cast<LogType>()) {
-  //   return rewriter.create<SPNStripLog>(value.getLoc(), value,
-  //   logType.getBaseType());
-  // }
-  return value;
-}
-
-/// Might be useful in the future.
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
-[[maybe_unused]] Value castToFloatOrValue(Value value, FloatType targetType,
-                                          RewriterBase &rewriter) {
-  if (auto floatType = value.getType().dyn_cast<FloatType>()) {
-    if (floatType.getWidth() < targetType.getWidth()) {
-      return rewriter.create<arith::ExtFOp>(value.getLoc(), targetType, value);
-    } else if (floatType.getWidth() > targetType.getWidth()) {
-      return rewriter.create<arith::TruncFOp>(value.getLoc(), targetType,
-                                              value);
-    } else {
-      return value;
-    }
-  } else if (auto intType = value.getType().dyn_cast<IntegerType>()) {
-    if (intType.isSigned()) {
-      return rewriter.create<arith::SIToFPOp>(value.getLoc(), targetType,
-                                              value);
-    }
-    return rewriter.create<arith::UIToFPOp>(value.getLoc(), targetType, value);
-  } else if (value.getType().isa<IndexType>()) {
-    auto valueAsInt = rewriter.create<arith::IndexCastOp>(
-        value.getLoc(), rewriter.getI64Type(), value);
-    return rewriter.create<arith::UIToFPOp>(value.getLoc(), targetType,
-                                            valueAsInt);
-  }
-  llvm_unreachable("value cannot be cast to float");
-}
+/// Identity function (log-space stripping removed, kept for interface compat).
+Value stripLogOrValue(Value value, RewriterBase &rewriter) { return value; }
 
 static Attribute getZeroAttrForType(Type type, Builder &builder) {
   if (auto floatType = type.dyn_cast<FloatType>())
@@ -168,6 +140,18 @@ static Value packIndexVector(Location loc, ArrayRef<Value> offsets,
   }
   return packed;
 }
+
+/// Helper: find supported reductions for a dataflow::ForOp.
+static SmallVector<heteacc::LoopReduction, 2>
+findSupportedReductions(dataflow::ForOp forOp) {
+  SmallVector<heteacc::LoopReduction, 2> reductions;
+  for (unsigned i = 0; i < forOp.getNumRegionIterArgs(); ++i) {
+    arith::AtomicRMWKind kind;
+    if (Value value = getSupportedReduction(forOp, i, kind))
+      reductions.emplace_back(heteacc::LoopReduction{kind, i, value});
+  }
+  return reductions;
+}
 } // namespace
 
 // === Broadcast === //
@@ -186,11 +170,11 @@ LogicalResult BroadcastSuperword::match(Superword *superword) {
         continue;
       }
       if (definingOp == nullptr)
-        exit(0);
-      definingOp->dump();
+        return failure();
+      LLVM_DEBUG(definingOp->dump());
       if (firstOp == nullptr)
         return failure();
-      firstOp->dump();
+      LLVM_DEBUG(firstOp->dump());
 
       if (!OperationEquivalence::isEquivalentTo(
               definingOp, firstOp, OperationEquivalence::Flags::None)) {
@@ -219,44 +203,43 @@ void BroadcastSuperword::accept(PatternVisitor &visitor,
 // === VectorizeReduction === //
 
 LogicalResult VectorizeReduction::match(Superword *superword) {
-  llvm::outs() << "VectorizeReduction\n";
-  Operation *parentOp;
+  LLVM_DEBUG(llvm::dbgs() << "VectorizeReduction\n");
+  Operation *parentOp = nullptr;
   for (auto it = superword->begin(); it != superword->end(); ++it) {
     if (auto *defOp = it->getDefiningOp()) {
       parentOp = defOp->getParentOp();
     } else {
-      llvm::outs() << "No defining operation\n";
+      LLVM_DEBUG(llvm::dbgs() << "No defining operation\n");
     }
   }
-  // Operation *parentOp =
-  // superword->getElement(0).getDefiningOp()->getParentOp();
-  parentOp->dump();
+  if (!parentOp)
+    return failure();
+  LLVM_DEBUG(parentOp->dump());
   auto forOp = dyn_cast<dataflow::ForOp>(parentOp);
   if (!forOp || (forOp.getNumRegionIterArgs() == 0))
     return failure();
 
-  if (true) {
-    Operation *terminatorOp = *superword->getElement(superword->numLanes() - 1)
-                                   .getDefiningOp()
-                                   ->getUsers()
-                                   .begin();
-    if (terminatorOp == nullptr ||
-        !terminatorOp->mightHaveTrait<OpTrait::IsTerminator>()) {
-      return failure();
-    }
-  }
-  SmallVector<LoopReduction, 2> supportedReductions;
-  for (unsigned i = 0; i < forOp.getNumRegionIterArgs(); ++i) {
-    arith::AtomicRMWKind kind;
-    if (Value value = getSupportedReduction(forOp, i, kind))
-      supportedReductions.emplace_back(LoopReduction{kind, i, value});
-  }
-  llvm::outs() << "supportedReductionsempty\n";
-  if (supportedReductions.empty())
+  auto *lastDefOp = superword->getElement(superword->numLanes() - 1)
+                        .getDefiningOp();
+  if (!lastDefOp || lastDefOp->getUsers().empty())
     return failure();
+  Operation *terminatorOp = *lastDefOp->getUsers().begin();
+  if (terminatorOp == nullptr ||
+      !terminatorOp->mightHaveTrait<OpTrait::IsTerminator>()) {
+    return failure();
+  }
 
-  superword->getElement(0).getDefiningOp()->dump();
-  superword->getElement(3).getDefiningOp()->dump();
+  auto supportedReductions = findSupportedReductions(forOp);
+  if (supportedReductions.empty()) {
+    LLVM_DEBUG(llvm::dbgs() << "supportedReductions empty\n");
+    return failure();
+  }
+
+  LLVM_DEBUG({
+    superword->getElement(0).getDefiningOp()->dump();
+    if (superword->numLanes() > 1)
+      superword->getElement(superword->numLanes() - 1).getDefiningOp()->dump();
+  });
   return success();
 }
 
@@ -275,15 +258,13 @@ static bool isNeutralElementConst(arith::AtomicRMWKind reductionKind,
 Value VectorizeReduction::rewrite(Superword *superword,
                                   RewriterBase &rewriter) {
 
-  Operation *parentOp = superword->getElement(0).getDefiningOp()->getParentOp();
+  auto *defOp = superword->getElement(0).getDefiningOp();
+  if (!defOp)
+    return Value{};
+  Operation *parentOp = defOp->getParentOp();
   auto forOp = dyn_cast<dataflow::ForOp>(parentOp);
 
-  SmallVector<LoopReduction, 2> supportedReductions;
-  for (unsigned i = 0; i < forOp.getNumRegionIterArgs(); ++i) {
-    arith::AtomicRMWKind kind;
-    if (Value value = getSupportedReduction(forOp, i, kind))
-      supportedReductions.emplace_back(LoopReduction{kind, i, value});
-  }
+  auto supportedReductions = findSupportedReductions(forOp);
   OpBuilder builder(forOp);
   auto createInitialVector = [&](arith::AtomicRMWKind reductionKind,
                                  Value oldOperand) -> arith::ConstantOp {
@@ -318,7 +299,7 @@ Value VectorizeReduction::rewrite(Superword *superword,
         // the proper terminator will be added during vectorization.
       });
 
-  vecForOp->getParentOp()->dump();
+  LLVM_DEBUG(vecForOp->getParentOp()->dump());
   // Replace all operations in the forOp body with corresponding operations in
   // vecForOp body.
   Block &forOpBody = forOp.getRegion().front();
@@ -340,7 +321,7 @@ Value VectorizeReduction::rewrite(Superword *superword,
     replacedResult.replaceAllUsesWith(replacementResult);
   }
 
-  vecForOp->dump();
+  LLVM_DEBUG(vecForOp->dump());
 
   OpBuilder vecbuilder(vecForOp);
   for (unsigned i = 0; i < vecForOp.getNumRegionIterArgs(); ++i) {
@@ -364,7 +345,7 @@ Value VectorizeReduction::rewrite(Superword *superword,
     // state.registerLoopResultScalarReplacement(forOp.getResult(i), finalRes);
     forOp.getResult(i).replaceAllUsesWith(finalRes);
   }
-  vecForOp->getParentOp()->dump();
+  LLVM_DEBUG(vecForOp->getParentOp()->dump());
   return vecForOp->getNumResults() ? vecForOp.getResult(0) : Value{};
 }
 
@@ -430,13 +411,6 @@ DenseElementsAttr denseElements(AttributeIterator begin, AttributeIterator end,
   } else if (auto intType =
                  vectorType.getElementType().template dyn_cast<IntegerType>()) {
     if (intType.isSignlessIntOrIndex()) {
-      // SmallVector<int32_t, 4> array;
-      // while (begin != end) {
-      //   array.push_back(begin->template cast<IntegerAttr>().getInt());
-      //   ++begin;
-      // }
-      // return DenseElementsAttr::get(vectorType,
-      // static_cast<llvm::ArrayRef<int32_t>>(array));
       if (intType.getWidth() == 32) {
         SmallVector<int32_t, 4> array;
         while (begin != end) {
@@ -487,7 +461,7 @@ Value VectorizeConstant::rewrite(Superword *superword, RewriterBase &rewriter) {
     }
   }
   for (auto attr : constants) {
-    llvm::outs() << "  " << attr << "\n";
+    LLVM_DEBUG(llvm::dbgs() << "  " << attr << "\n");
   }
   auto const &elements = denseElements(
       std::begin(constants), std::end(constants), superword->getVectorType());
@@ -506,7 +480,7 @@ void VectorizeConstant::accept(PatternVisitor &visitor,
 
 LogicalResult CreateConsecutiveLoad::match(Superword *superword) {
   // Pattern only applicable to consecutive loads.
-  llvm::outs() << "CreateConsecutiveLoad\n";
+  LLVM_DEBUG(llvm::dbgs() << "CreateConsecutiveLoad\n");
   return success(consecutiveLoads(superword->begin(), superword->end()));
 }
 
@@ -515,19 +489,11 @@ Value CreateConsecutiveLoad::rewrite(Superword *superword,
 
   SmallVector<Value, 8> combinedIndices;
 
-  // for(int i=0; i < superword->numLanes(); i++){
   auto element = superword->getElement(0);
   if (auto loadOp = dyn_cast<memref::LoadOp>(element.getDefiningOp())) {
     auto indices = loadOp.getIndices();
     combinedIndices.append(indices.begin(), indices.end());
   }
-  // break;
-  // }
-  // ValueRange indices{
-  //     combinedIndices,
-  //     conversionManager.getOrCreateConstant(superword->getLoc(),
-  //     rewriter.getIndexAttr(combinedIndices.size()))
-  // };
   return rewriter.create<vector::TransferReadOp>(
       superword->getLoc(), superword->getVectorType(),
       dyn_cast<memref::LoadOp>(superword->getElement(0).getDefiningOp())
@@ -578,7 +544,7 @@ LogicalResult CreateGatherLoad::match(Superword *superword) {
 
 LogicalResult CreateConsecutiveStore::match(Superword *superword) {
   // Pattern only applicable to consecutive loads.
-  llvm::outs() << "CreateConsecutiveStore\n";
+  LLVM_DEBUG(llvm::dbgs() << "CreateConsecutiveStore\n");
   return success(consecutiveStores(superword->begin(), superword->end()));
 }
 
@@ -587,22 +553,15 @@ Value CreateConsecutiveStore::rewrite(Superword *superword, Value vector,
 
   SmallVector<Value, 8> combinedIndices;
 
-  // for(int i=superword->numLanes(); i > 0; ){
-  //   auto element = superword->getElement(--i);
-  // }
   auto element = superword->getElement(0);
   SmallVector<memref::StoreOp, 8> allStoreOps = getAllStoreUsers(element);
   if (isa<memref::StoreOp>(allStoreOps[0])) {
     auto indices = allStoreOps[0].getIndices();
     combinedIndices.append(indices.begin(), indices.end());
   }
-  // break;
-  // }
 
   rewriter.create<vector::TransferWriteOp>(
-      superword->getLoc(),
-      //  superword->getVectorType(),
-      vector, allStoreOps[0].getMemref(), combinedIndices);
+      superword->getLoc(), vector, allStoreOps[0].getMemref(), combinedIndices);
   return element;
 }
 
@@ -617,7 +576,7 @@ template <typename T>
 DenseElementsAttr constantPassThrough(VectorType const &vectorType) {
   SmallVector<T, 4> elements;
   for (auto i = 0; i < vectorType.getNumElements(); ++i) {
-    elements.template emplace_back(T());
+    elements.emplace_back(T());
   }
   return DenseElementsAttr::get(vectorType, static_cast<ArrayRef<T>>(elements));
 }
@@ -720,11 +679,13 @@ void VectorizeAddF::accept(PatternVisitor &visitor,
 
 Value VectorizeMulI::rewrite(Superword *superword, RewriterBase &rewriter) {
   SmallVector<Value, 2> operands;
-  llvm::outs() << "\nVectorizeMulI::rewrite\n";
+  LLVM_DEBUG(llvm::dbgs() << "\nVectorizeMulI::rewrite\n");
   for (unsigned i = 0; i < superword->numOperands(); ++i) {
 
-    llvm::outs() << superword->getOperand(i)->getElement(0) << "\n";
-    llvm::outs() << superword->getOperand(i)->getElement(1) << "\n";
+    LLVM_DEBUG({
+      llvm::dbgs() << superword->getOperand(i)->getElement(0) << "\n";
+      llvm::dbgs() << superword->getOperand(i)->getElement(1) << "\n";
+    });
     operands.emplace_back(conversionManager.getValue(superword->getOperand(i)));
   }
 
@@ -751,50 +712,312 @@ void VectorizeMulF::accept(PatternVisitor &visitor,
   visitor.visit(this, superword);
 }
 
+// === VectorizeIndexCast === //
+
+Value VectorizeIndexCast::rewrite(Superword *superword, RewriterBase &rewriter) {
+  SmallVector<Value, 2> operands;
+  for (unsigned i = 0; i < superword->numOperands(); ++i) {
+    operands.emplace_back(conversionManager.getValue(superword->getOperand(i)));
+  }
+
+  auto numLanes = static_cast<int64_t>(superword->numLanes());
+  auto resultType = VectorType::get({numLanes}, rewriter.getIndexType());
+
+  return rewriter.create<arith::IndexCastOp>(superword->getLoc(), resultType,
+                                             operands[0]);
+}
+
+void VectorizeIndexCast::accept(PatternVisitor &visitor,
+                                Superword const *superword) const {
+  visitor.visit(this, superword);
+}
+
+// === VectorizeIndirectLoad === //
+
+LogicalResult VectorizeIndirectLoad::match(Superword *superword) {
+  for (auto value : *superword) {
+    auto loadOp = value.getDefiningOp<memref::LoadOp>();
+    if (!loadOp)
+      return failure();
+
+    auto indices = loadOp.getIndices();
+    if (indices.size() != 1)
+      return failure();
+
+    auto *indexDef = indices[0].getDefiningOp();
+    if (!indexDef || !isa<arith::IndexCastOp>(indexDef))
+      return failure();
+  }
+
+  auto firstLoad =
+      dyn_cast<memref::LoadOp>(superword->getElement(0).getDefiningOp());
+  for (size_t lane = 1; lane < superword->numLanes(); ++lane) {
+    auto loadOp =
+        dyn_cast<memref::LoadOp>(superword->getElement(lane).getDefiningOp());
+    if (loadOp.getMemref() != firstLoad.getMemref())
+      return failure();
+  }
+
+  if (consecutiveLoads(superword->begin(), superword->end()))
+    return failure();
+
+  return success();
+}
+
+Value VectorizeIndirectLoad::rewrite(Superword *superword,
+                                     RewriterBase &rewriter) {
+  auto firstLoad =
+      cast<memref::LoadOp>(superword->getElement(0).getDefiningOp());
+  Location loc = superword->getLoc();
+
+  Value indexVector;
+  if (superword->numOperands() > 0) {
+    for (unsigned i = 0; i < superword->numOperands(); ++i) {
+      auto *operandWord = superword->getOperand(i);
+      if (operandWord->getElement(0).getType().isa<IndexType>()) {
+        indexVector = conversionManager.getValue(operandWord);
+        break;
+      }
+    }
+  }
+
+  if (!indexVector) {
+    SmallVector<Value, 4> indices;
+    for (size_t lane = 0; lane < superword->numLanes(); ++lane) {
+      auto loadOp =
+          cast<memref::LoadOp>(superword->getElement(lane).getDefiningOp());
+      indices.push_back(loadOp.getIndices()[0]);
+    }
+    auto indexVecType = VectorType::get(
+        {static_cast<int64_t>(superword->numLanes())}, rewriter.getIndexType());
+    Value packed = rewriter.create<arith::ConstantOp>(
+        loc, indexVecType,
+        DenseElementsAttr::get(indexVecType, rewriter.getIndexAttr(0)));
+    for (auto [lane, idx] : llvm::enumerate(indices)) {
+      Value lanePos = rewriter.create<arith::ConstantIntOp>(loc, lane, 32);
+      packed =
+          rewriter.create<vector::InsertElementOp>(loc, idx, packed, lanePos);
+    }
+    indexVector = packed;
+  }
+
+  return rewriter.create<dataflow::VectorIndexLoadOp>(
+      loc, superword->getVectorType(), firstLoad.getMemref(), indexVector);
+}
+
+void VectorizeIndirectLoad::accept(PatternVisitor &visitor,
+                                   Superword const *superword) const {
+  visitor.visit(this, superword);
+}
+
+// === VectorizeIndirectStore === //
+
+LogicalResult VectorizeIndirectStore::match(Superword *superword) {
+  for (auto value : *superword) {
+    auto storeOps = getAllStoreUsers(value);
+    if (storeOps.empty())
+      return failure();
+
+    auto storeOp = storeOps.front();
+    auto indices = storeOp.getIndices();
+    if (indices.size() != 1)
+      return failure();
+
+    auto *indexDef = indices[0].getDefiningOp();
+    if (!indexDef || !isa<arith::IndexCastOp>(indexDef))
+      return failure();
+  }
+
+  auto firstStore = getAllStoreUsers(superword->getElement(0)).front();
+  for (size_t lane = 1; lane < superword->numLanes(); ++lane) {
+    auto storeOp = getAllStoreUsers(superword->getElement(lane)).front();
+    if (storeOp.getMemref() != firstStore.getMemref())
+      return failure();
+  }
+
+  if (consecutiveStores(superword->begin(), superword->end()))
+    return failure();
+
+  return success();
+}
+
+Value VectorizeIndirectStore::rewrite(Superword *superword, Value vector,
+                                      RewriterBase &rewriter) {
+  Location loc = superword->getLoc();
+  auto firstStore = getAllStoreUsers(superword->getElement(0)).front();
+
+  SmallVector<Value, 4> indices;
+  for (size_t lane = 0; lane < superword->numLanes(); ++lane) {
+    auto storeOp = getAllStoreUsers(superword->getElement(lane)).front();
+    indices.push_back(storeOp.getIndices()[0]);
+  }
+
+  auto indexVecType = VectorType::get(
+      {static_cast<int64_t>(superword->numLanes())}, rewriter.getIndexType());
+  Value packed = rewriter.create<arith::ConstantOp>(
+      loc, indexVecType,
+      DenseElementsAttr::get(indexVecType, rewriter.getIndexAttr(0)));
+  for (auto [lane, idx] : llvm::enumerate(indices)) {
+    Value lanePos = rewriter.create<arith::ConstantIntOp>(loc, lane, 32);
+    packed =
+        rewriter.create<vector::InsertElementOp>(loc, idx, packed, lanePos);
+  }
+
+  rewriter.create<dataflow::VectorIndexStoreOp>(loc, vector,
+                                                firstStore.getMemref(), packed);
+  return superword->getElement(0);
+}
+
+void VectorizeIndirectStore::accept(PatternVisitor &visitor,
+                                    Superword const *superword) const {
+  visitor.visit(this, superword);
+}
+
+// === VectorizeCmpI === //
+
+Value VectorizeCmpI::rewrite(Superword *superword, RewriterBase &rewriter) {
+  auto firstCmp = cast<arith::CmpIOp>(superword->getElement(0).getDefiningOp());
+  auto predicate = firstCmp.getPredicate();
+
+  SmallVector<Value, 2> operands;
+  for (unsigned i = 0; i < superword->numOperands(); ++i) {
+    operands.emplace_back(conversionManager.getValue(superword->getOperand(i)));
+  }
+
+  auto resultType = VectorType::get(
+      {static_cast<int64_t>(superword->numLanes())}, rewriter.getI1Type());
+
+  return rewriter.create<arith::CmpIOp>(superword->getLoc(), resultType,
+                                        predicate, operands[0], operands[1]);
+}
+
+void VectorizeCmpI::accept(PatternVisitor &visitor,
+                           Superword const *superword) const {
+  visitor.visit(this, superword);
+}
+
+// === VectorizeSubI === //
+
+Value VectorizeSubI::rewrite(Superword *superword, RewriterBase &rewriter) {
+  SmallVector<Value, 2> operands;
+  for (unsigned i = 0; i < superword->numOperands(); ++i) {
+    operands.emplace_back(conversionManager.getValue(superword->getOperand(i)));
+  }
+  return rewriter.create<arith::SubIOp>(superword->getLoc(),
+                                        superword->getVectorType(), operands);
+}
+
+void VectorizeSubI::accept(PatternVisitor &visitor,
+                           Superword const *superword) const {
+  visitor.visit(this, superword);
+}
+
+// === VectorizeSubF === //
+
+Value VectorizeSubF::rewrite(Superword *superword, RewriterBase &rewriter) {
+  SmallVector<Value, 2> operands;
+  for (unsigned i = 0; i < superword->numOperands(); ++i) {
+    operands.emplace_back(conversionManager.getValue(superword->getOperand(i)));
+  }
+  return rewriter.create<arith::SubFOp>(superword->getLoc(),
+                                        superword->getVectorType(), operands);
+}
+
+void VectorizeSubF::accept(PatternVisitor &visitor,
+                           Superword const *superword) const {
+  visitor.visit(this, superword);
+}
+
+// === VectorizeCmpF === //
+
+Value VectorizeCmpF::rewrite(Superword *superword, RewriterBase &rewriter) {
+  auto firstCmp = cast<arith::CmpFOp>(superword->getElement(0).getDefiningOp());
+  auto predicate = firstCmp.getPredicate();
+  SmallVector<Value, 2> operands;
+  for (unsigned i = 0; i < superword->numOperands(); ++i)
+    operands.emplace_back(conversionManager.getValue(superword->getOperand(i)));
+  auto resultType = VectorType::get(
+      {static_cast<int64_t>(superword->numLanes())}, rewriter.getI1Type());
+  return rewriter.create<arith::CmpFOp>(superword->getLoc(), resultType,
+                                        predicate, operands[0], operands[1]);
+}
+
+void VectorizeCmpF::accept(PatternVisitor &visitor,
+                           Superword const *superword) const {
+  visitor.visit(this, superword);
+}
+
+// === VectorizeAndI === //
+
+Value VectorizeAndI::rewrite(Superword *superword, RewriterBase &rewriter) {
+  SmallVector<Value, 2> operands;
+  for (unsigned i = 0; i < superword->numOperands(); ++i)
+    operands.emplace_back(conversionManager.getValue(superword->getOperand(i)));
+  return rewriter.create<arith::AndIOp>(superword->getLoc(),
+                                        superword->getVectorType(), operands);
+}
+
+void VectorizeAndI::accept(PatternVisitor &visitor,
+                           Superword const *superword) const {
+  visitor.visit(this, superword);
+}
+
+// === VectorizeOrI === //
+
+Value VectorizeOrI::rewrite(Superword *superword, RewriterBase &rewriter) {
+  SmallVector<Value, 2> operands;
+  for (unsigned i = 0; i < superword->numOperands(); ++i)
+    operands.emplace_back(conversionManager.getValue(superword->getOperand(i)));
+  return rewriter.create<arith::OrIOp>(superword->getLoc(),
+                                       superword->getVectorType(), operands);
+}
+
+void VectorizeOrI::accept(PatternVisitor &visitor,
+                          Superword const *superword) const {
+  visitor.visit(this, superword);
+}
+
+// === VectorizeXOrI === //
+
+Value VectorizeXOrI::rewrite(Superword *superword, RewriterBase &rewriter) {
+  SmallVector<Value, 2> operands;
+  for (unsigned i = 0; i < superword->numOperands(); ++i)
+    operands.emplace_back(conversionManager.getValue(superword->getOperand(i)));
+  return rewriter.create<arith::XOrIOp>(superword->getLoc(),
+                                        superword->getVectorType(), operands);
+}
+
+void VectorizeXOrI::accept(PatternVisitor &visitor,
+                           Superword const *superword) const {
+  visitor.visit(this, superword);
+}
+
 // === SLPPatternApplicator === //
 
 void SLPPatternApplicator::matchAndRewrite(Superword *superword,
                                            RewriterBase &rewriter) const {
-  llvm::outs() << "bestMatch\n";
+  LLVM_DEBUG(llvm::dbgs() << "Finding best pattern match...\n");
   auto *pattern = bestMatch(superword);
-  llvm::outs() << "rewriteSuperword\n";
   if (!pattern) {
-    llvm_unreachable("could not apply any pattern to superword");
+    LLVM_DEBUG({
+      llvm::dbgs() << "WARNING: could not apply any pattern to superword:\n";
+      for (auto it = superword->begin(); it != superword->end(); ++it) {
+        if (auto *defOp = it->getDefiningOp())
+          llvm::dbgs() << "  " << defOp->getName() << "\n";
+        else
+          llvm::dbgs() << "  <block argument>\n";
+      }
+    });
+    return;
   }
   pattern->rewriteSuperword(superword, rewriter);
 }
 
 void SLPPatternApplicator::rewriteStore(Superword *superword,
                                         RewriterBase &rewriter) const {
-  llvm::outs() << "rewriteStore\n";
   auto *pattern = bestMatch(superword);
-  llvm::outs() << "rewriteSuperword\n";
-
-  // if (succeeded(pattern->match(superword))) {
-
-  // }
-  // SLPVectorizationPattern* bestMatch(Superword* superword) const override {
-  //   SLPVectorizationPattern* bestPattern = nullptr;
-  //   double bestCost = 0;
-
-  //   for (auto const& pattern : patterns) {
-  //     llvm::outs() << "pattern: \n";
-  //     if (succeeded(pattern->match(superword))) {
-  //       llvm::outs() << "Pattern matched.\n";
-  //       auto cost = costModel->getSuperwordCost(superword, pattern.get());
-  //       llvm::outs() << "curr: " << cost << "\n";
-  //       if (!bestPattern || cost < bestCost) {
-  //         bestPattern = pattern.get();
-  //         bestCost = cost;
-  //       }
-  //     }
-  //   }
-  //   return bestPattern;
-  // }
-
-  // if (!pattern) {
-  //   llvm_unreachable("could not apply any pattern to superword");
-  // }
+  if (!pattern)
+    return;
   pattern->rewriteSuperword(superword, rewriter);
 }
 
