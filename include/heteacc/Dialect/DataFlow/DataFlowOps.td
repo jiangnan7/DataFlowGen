@@ -499,5 +499,41 @@ def OutputOp : DataFlowOp<"output", []> {
 
 }
 
+//===----------------------------------------------------------------------===//
+// Chain Operation (Fused linear arithmetic chain)
+//===----------------------------------------------------------------------===//
+
+def ChainOp : DataFlowOp<"chain", [Pure]> {
+  let summary = "Fused chain of arithmetic operations";
+  let description = [{
+    Represents a linear chain of binary arithmetic operations fused into
+    a single hardware pipeline (Chain module in Chisel).
+
+    The inputs are ordered as:
+    - inputs[0], inputs[1]: operands for the first operation
+    - inputs[i+1] (i>=1): external operand for the i-th operation
+      (the other operand comes from the previous operation's result)
+
+    The result is the output of the last operation in the chain.
+
+    Example:
+    ```mlir
+    %result = dataflow.chain ["Mul", "Add", "Mul"]
+        ins(%a, %b, %c, %d : i32, i32, i32, i32) -> i32
+    ```
+    This represents: tmp0 = a * b; tmp1 = tmp0 + c; result = tmp1 * d
+  }];
+
+  let arguments = (ins
+    Variadic<AnyType>:$inputs,
+    StrArrayAttr:$opcodes
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat = [{
+    $opcodes `ins` `(` $inputs `:` type($inputs) `)` attr-dict `->` type($result)
+  }];
+}
+
 
 #endif // OP_DataFlow_TD

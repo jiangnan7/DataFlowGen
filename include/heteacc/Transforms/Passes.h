@@ -24,6 +24,7 @@ std::unique_ptr<Pass> createEnhancedCDFGPass();
 std::unique_ptr<Pass> createHybridBranchPredictionPass();
 // Vector
 std::unique_ptr<Pass> createOperationFusionPass();
+std::unique_ptr<Pass> createOperatorChainFusionPass(unsigned minChainLength = 2);
 std::unique_ptr<Pass> createSimplifyVectorMemrefAccessPass();
 std::unique_ptr<Pass> createMemorySchedulingPass();
 std::unique_ptr<Pass> createHybridAnalysisPass(std::string output = "");

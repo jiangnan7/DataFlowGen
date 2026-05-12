@@ -24,6 +24,7 @@ add_mlir_dialect_library(MLIRHLSTransforms
   Misc/HybridAnalysis.cpp
   Misc/EvaluationModel.cpp
   Misc/VecUtils.cpp
+  Misc/OperatorChainFusion.cpp
 
   Vectorization/AutoVectorization.cpp
   Vectorization/BlockCostModel.cpp

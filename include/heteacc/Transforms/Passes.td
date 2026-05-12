@@ -132,6 +132,16 @@ def OperationFusion : Pass<"operation-fusion", "func::FuncOp"> {
 
 }
 
+def OperatorChainFusion : Pass<"chain-fusion", "ModuleOp"> {
+  let summary = "Fuse linear arithmetic chains into dataflow.chain ops";
+  let description = [{
+    Detects linear chains of binary arithmetic operations (muli, addi, etc.)
+    and fuses them into a single dataflow.chain op for efficient hardware
+    generation (Chain module in Chisel).
+  }];
+  let constructor = "mlir::heteacc::createOperatorChainFusionPass()";
+}
+
 def SimplifyVectorMemrefAccess :
       Pass<"simplify-vector-memref-access", "func::FuncOp"> {
   let summary = "Simplify load and store operations";
