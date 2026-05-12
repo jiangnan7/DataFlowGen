@@ -2,6 +2,8 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+#include "llvm/Support/Debug.h"
+
 #include "heteacc/Misc/Utils.h"
 #include "heteacc/Misc/VecUtils.h"
 #include "heteacc/Transforms/Passes.h"
@@ -9,6 +11,8 @@
 
 using namespace mlir;
 using namespace heteacc;
+
+#define DEBUG_TYPE "auto-vectorization"
 
 // === PatternVisitor === //
 
@@ -58,6 +62,56 @@ void PatternVisitor::visit(VectorizeMulI const *pattern,
 }
 
 void PatternVisitor::visit(VectorizeMulF const *pattern,
+                           Superword const *superword) {
+  visitDefault(pattern, superword);
+}
+
+void PatternVisitor::visit(VectorizeIndexCast const *pattern,
+                           Superword const *superword) {
+  visitDefault(pattern, superword);
+}
+
+void PatternVisitor::visit(VectorizeIndirectLoad const *pattern,
+                           Superword const *superword) {
+  visitDefault(pattern, superword);
+}
+
+void PatternVisitor::visit(VectorizeIndirectStore const *pattern,
+                           Superword const *superword) {
+  visitDefault(pattern, superword);
+}
+
+void PatternVisitor::visit(VectorizeCmpI const *pattern,
+                           Superword const *superword) {
+  visitDefault(pattern, superword);
+}
+
+void PatternVisitor::visit(VectorizeSubI const *pattern,
+                           Superword const *superword) {
+  visitDefault(pattern, superword);
+}
+
+void PatternVisitor::visit(VectorizeSubF const *pattern,
+                           Superword const *superword) {
+  visitDefault(pattern, superword);
+}
+
+void PatternVisitor::visit(VectorizeCmpF const *pattern,
+                           Superword const *superword) {
+  visitDefault(pattern, superword);
+}
+
+void PatternVisitor::visit(VectorizeAndI const *pattern,
+                           Superword const *superword) {
+  visitDefault(pattern, superword);
+}
+
+void PatternVisitor::visit(VectorizeOrI const *pattern,
+                           Superword const *superword) {
+  visitDefault(pattern, superword);
+}
+
+void PatternVisitor::visit(VectorizeXOrI const *pattern,
                            Superword const *superword) {
   visitDefault(pattern, superword);
 }
@@ -113,14 +167,15 @@ double CostModel::getSuperwordCost(Superword *superword,
       // auto* operandPattern = patternApplicator.bestMatch(operand);
 
       for (auto it = operand->begin(); it != operand->end(); ++it) {
-        llvm::outs() << "Value: ";
-        if (auto *defOp = it->getDefiningOp()) {
-          llvm::outs() << "Defining Operation: " << defOp->getName() << "\n";
-          defOp->dump();
-          ;
-        } else {
-          llvm::outs() << "No defining operation\n";
-        }
+        LLVM_DEBUG({
+          llvm::dbgs() << "Value: ";
+          if (auto *defOp = it->getDefiningOp()) {
+            llvm::dbgs() << "Defining Operation: " << defOp->getName() << "\n";
+            defOp->dump();
+          } else {
+            llvm::dbgs() << "No defining operation\n";
+          }
+        });
       }
       // operandPattern->accept(*this, operand);
       vectorCost += cost;
@@ -155,8 +210,10 @@ CostModel::getBlockCost(Block *block,
   double blockCost = 0;
   block->walk([&](Operation *op) {
     if (deadOps.contains(op)) {
-      llvm::outs() << "don't need\n";
-      op->dump();
+      LLVM_DEBUG({
+        llvm::dbgs() << "don't need\n";
+        op->dump();
+      });
       return WalkResult::skip();
     }
     for (auto const &result : op->getResults()) {

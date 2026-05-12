@@ -9,8 +9,12 @@
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Transforms/Passes.h"
 
+#include "llvm/Support/Debug.h"
+
 #include "heteacc/Misc/VecUtils.h"
 using namespace mlir;
+
+#define DEBUG_TYPE "auto-vectorization"
 
 bool heteacc::ofVectorizableType(Value value) {
   return VectorType::isValidElementType(value.getType());
@@ -38,25 +42,48 @@ bool heteacc::vectorizable(Operation *op) {
   if (!ofVectorizableType(op->getResult(0)))
     return false;
 
-  // Support linear access memory.
-  if (op->hasTrait<mlir::OpTrait::ConstantLike>() || op->hasAttr("slp.group")) {
-    if (dyn_cast<memref::LoadOp>(op) || dyn_cast<memref::StoreOp>(op)) {
-      if (op->hasAttr("affineCoeff"))
-        return true;
-      return false;
+  // Constants are always vectorizable.
+  if (op->hasTrait<mlir::OpTrait::ConstantLike>())
+    return true;
+
+  // IndexCastOp is vectorizable (used in indirect access patterns).
+  if (isa<arith::IndexCastOp>(op))
+    return true;
+
+  // Arithmetic operations are vectorizable if their result type is valid.
+  if (isa<arith::AddIOp, arith::AddFOp, arith::MulIOp, arith::MulFOp,
+          arith::SubIOp, arith::SubFOp, arith::DivSIOp, arith::DivUIOp,
+          arith::DivFOp, arith::RemSIOp, arith::RemUIOp, arith::AndIOp,
+          arith::OrIOp, arith::XOrIOp, arith::ShLIOp, arith::ShRSIOp,
+          arith::ShRUIOp, arith::MinSIOp, arith::MaxSIOp, arith::MinUIOp,
+          arith::MaxUIOp, arith::MinFOp, arith::MaxFOp>(op)) {
+    // Exclude index-typed operations (used for address computation).
+    for (auto operand : op->getOperands()) {
+      if (operand.getType().isa<mlir::IndexType>())
+        return false;
     }
     return true;
   }
 
-  // if (isa<arith::AddIOp, arith::AddFOp,
-  //               arith::MulIOp, arith::MulFOp>(op)) {
-  //   for (auto operand : op->getOperands()) {
-  //     if (operand.getType().isa<mlir::IndexType>()) {
-  //       return false;
-  //     }
-  //   }
-  //   return true;
-  // }
+  // Memory operations: require affine metadata or slp.group for stride info.
+  if (isa<memref::LoadOp, memref::StoreOp>(op)) {
+    if (op->hasAttr("affineCoeff") || op->hasAttr("slp.group"))
+      return true;
+    // Allow loads/stores with simple index patterns (single linear index).
+    if (auto loadOp = dyn_cast<memref::LoadOp>(op)) {
+      if (loadOp.getIndices().size() == 1)
+        return true;
+    }
+    if (auto storeOp = dyn_cast<memref::StoreOp>(op)) {
+      if (storeOp.getIndices().size() == 1)
+        return true;
+    }
+    return false;
+  }
+
+  // Ops explicitly marked with slp.group are vectorizable.
+  if (op->hasAttr("slp.group"))
+    return true;
 
   return false;
 }
@@ -75,8 +102,9 @@ bool heteacc::consecutiveLoads(Value lhs, Value rhs) {
   }
   auto lhsIndices = lhsLoad.getIndices();
   auto rhsIndices = rhsLoad.getIndices();
-  llvm::outs() << "lhsIndices.size() = " << lhsIndices.size()
-               << ", rhsIndices.size() = " << rhsIndices.size() << "\n";
+  LLVM_DEBUG(llvm::dbgs() << "lhsIndices.size() = " << lhsIndices.size()
+                          << ", rhsIndices.size() = " << rhsIndices.size()
+                          << "\n");
 
   if (lhsIndices.size() != rhsIndices.size()) {
     return false;
@@ -90,30 +118,19 @@ bool heteacc::consecutiveLoads(Value lhs, Value rhs) {
   Attribute rhsaffineOffset = rhsLoad->getAttr("affineOffset");
   Attribute rhsaffineMap = rhsLoad->getAttr("map");
 
+  // Both must have affine metadata to be considered consecutive.
+  if (!lhsaffineCoeff || !rhsaffineCoeff)
+    return false;
+
   if ((lhsaffineCoeff == rhsaffineCoeff) &&
       (lhsaffineOffset == rhsaffineOffset)) {
     return true;
   }
 
   // identity mapping
-  if (lhsaffineMap == rhsaffineMap) {
+  if (lhsaffineMap && rhsaffineMap && lhsaffineMap == rhsaffineMap) {
     return true;
   }
-  // TODO: Support multi-dimensional memory
-  // if (auto lhsConstIndex =
-  // dyn_cast<arith::ConstantIndexOp>(lhsIndices[0].getDefiningOp())) {
-  //   if (auto rhsConstIndex =
-  //   dyn_cast<arith::ConstantIndexOp>(rhsIndices[0].getDefiningOp())) {
-  //       llvm::outs() << "lhsIndices[0] = " << lhsIndices[0] << ",
-  //       rhsIndices[0] = " << rhsIndices[0] << "\n"; int lhsValue =
-  //       lhsConstIndex.value(); int rhsValue = rhsConstIndex.value();
-
-  //       llvm::outs() << "lhsConstIndex = " << lhsValue << ", rhsConstIndex =
-  //       " << rhsValue << "\n";
-
-  //     return (lhsValue + 1 == rhsValue) || (rhsValue + 1 == lhsValue);
-  //   }
-  // }
 
   return false;
 }
@@ -122,8 +139,7 @@ bool heteacc::consecutiveStores(Value lhs, Value rhs) {
   if (getAllStoreUsers(lhs).empty() || getAllStoreUsers(rhs).empty()) {
     return false;
   }
-  llvm::outs() << "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-               << "\n";
+  LLVM_DEBUG(llvm::dbgs() << "consecutiveStores: checking stores\n");
   auto lhsStore = getAllStoreUsers(lhs).front();
   auto rhsStore = getAllStoreUsers(rhs).front();
   if (!lhsStore || !rhsStore) {
@@ -134,8 +150,9 @@ bool heteacc::consecutiveStores(Value lhs, Value rhs) {
   }
   auto lhsIndices = lhsStore.getIndices();
   auto rhsIndices = rhsStore.getIndices();
-  llvm::outs() << "lhsIndices.size() = " << lhsIndices.size()
-               << ", rhsIndices.size() = " << rhsIndices.size() << "\n";
+  LLVM_DEBUG(llvm::dbgs() << "lhsIndices.size() = " << lhsIndices.size()
+                          << ", rhsIndices.size() = " << rhsIndices.size()
+                          << "\n");
 
   if (lhsIndices.size() != rhsIndices.size()) {
     return false;
@@ -148,6 +165,10 @@ bool heteacc::consecutiveStores(Value lhs, Value rhs) {
   Attribute rhsaffineCoeff = rhsStore->getAttr("affineCoeff");
   Attribute rhsaffineOffset = rhsStore->getAttr("affineOffset");
   Attribute rhsaffineMap = rhsStore->getAttr("map");
+
+  // Both must have affine metadata to be considered consecutive.
+  if (!lhsaffineCoeff || !rhsaffineCoeff)
+    return false;
 
   if ((lhsaffineCoeff == rhsaffineCoeff) &&
       (lhsaffineOffset == rhsaffineOffset)) {
@@ -168,13 +189,15 @@ SmallVector<memref::StoreOp, 8> heteacc::getAllStoreUsers(Value value) {
   SmallVector<memref::StoreOp> storeUsers;
   for (auto *user : value.getUsers()) {
     if (auto storeOp = dyn_cast<memref::StoreOp>(user)) {
-      llvm::outs() << "Found store operation user for value.\n";
-      storeOp.dump(); // Print details of the store operation
+      LLVM_DEBUG({
+        llvm::dbgs() << "Found store operation user for value.\n";
+        storeOp.dump();
+      });
       storeUsers.push_back(storeOp);
     }
   }
   if (storeUsers.empty()) {
-    llvm::outs() << "No store operation users found for value.\n";
+    LLVM_DEBUG(llvm::dbgs() << "No store operation users found for value.\n");
   }
   return storeUsers;
 }
@@ -191,12 +214,12 @@ SmallVector<Value, 2> heteacc::getOperands(Value value) {
 }
 
 SmallPtrSet<Operation *, 32> heteacc::computeDeadOps(Block *block) {
-  llvm::outs() << "computeDeadOps\n";
+  LLVM_DEBUG(llvm::dbgs() << "computeDeadOps\n");
   SmallPtrSet<Operation *, 32> deadOps;
   llvm::SmallSetVector<Operation *, 32> worklist;
   block->walk<WalkOrder::PreOrder>([&](Operation *op) {
     if (isOpTriviallyDead(op)) {
-      op->dump();
+      LLVM_DEBUG(op->dump());
       worklist.insert(op);
       deadOps.insert(op);
     }
@@ -218,7 +241,7 @@ SmallPtrSet<Operation *, 32> heteacc::computeDeadOps(Block *block) {
   return deadOps;
 }
 
-/// Compute depths ot all operations 'above' the seed. The seed is assumed to
+/// Compute depths of all operations 'above' the seed. The seed is assumed to
 /// have depth zero.
 void heteacc::computeDepths(ArrayRef<Value> seed,
                             DenseMap<Value, unsigned> &depths) {

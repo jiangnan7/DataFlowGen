@@ -63,22 +63,15 @@ bool vectorizable(ValueIterator begin, ValueIterator end) {
     return false;
   }
   const auto &name = begin->getDefiningOp()->getName();
-  begin->getDefiningOp()->dump();
   ++begin;
-  llvm::outs() << name << "   <-name :\n";
   if (begin->getDefiningOp() == nullptr)
     return false;
-  // if(begin->getDefiningOp() != nullptr) begin->getDefiningOp()->dump();
   while (begin != end) {
-    // if (begin->template isa<BlockArgument>() ){
-    //   return false;
-    // }
     if (!vectorizable(*begin) || (begin->getDefiningOp()->getName() != name)) {
       return false;
     }
     ++begin;
   }
-  llvm::outs() << "  return true\n";
   return true;
 }
 
@@ -114,16 +107,11 @@ bool consecutiveLoads(ValueIterator begin, ValueIterator end) {
   Value previous = *begin;
   if (++begin == end || previous.isa<BlockArgument>() ||
       !dyn_cast<memref::LoadOp>(previous.getDefiningOp())) {
-
-    llvm::outs() << " ???\n";
     return false;
   }
   while (begin != end) {
     Value current = *begin;
-    previous.getDefiningOp()->dump();
-    current.getDefiningOp()->dump();
     if (!consecutiveLoads(previous, current)) {
-      llvm::outs() << "!consecutiveLoadsnpattern:\n";
       return false;
     }
     previous = current;
@@ -132,18 +120,10 @@ bool consecutiveLoads(ValueIterator begin, ValueIterator end) {
   return true;
 }
 
-/// Returns true if all values in [begin, end) are loads and consecutive to
+/// Returns true if all values in [begin, end) are stores and consecutive to
 /// their predecessor.
 template <typename ValueIterator>
 bool consecutiveStores(ValueIterator begin, ValueIterator end) {
-  // Value previous = *begin;
-  // if (++begin == end || previous.isa<BlockArgument>() ||
-  // !dyn_cast<memref::LoadOp>(previous.getDefiningOp())) {
-
-  //   llvm::outs() << " ???\n";
-  //   return false;
-  // }
-
   Value previous = *begin;
   if (++begin == end || previous.isa<BlockArgument>()) {
     return false;
@@ -151,60 +131,20 @@ bool consecutiveStores(ValueIterator begin, ValueIterator end) {
 
   while (begin != end) {
     Value current = *begin;
-
     if (!consecutiveStores(previous, current)) {
-      llvm::outs() << "!consecutiveStoresnpattern:\n";
       return false;
     }
     previous = current;
     ++begin;
   }
   return true;
-
-  // Value previous = *begin;
-
-  // // Check if the first value has a store operation as one of its users
-  // if (getAllStoreUsers(previous).empty()) {
-  //   llvm::outs() << "First value does not have a store operation as user.\n";
-  //   return false;
-  // }
-
-  // ++begin;
-  // while (begin != end) {
-  //   Value current = *begin;
-
-  //   // Check if the current value has a store operation as one of its users
-  //   if (getAllStoreUsers(previous).empty()) {
-  //     llvm::outs() << "Current value does not have a store operation as
-  //     user.\n"; return false;
-  //   }
-
-  //   // Verify the stores are consecutive
-  //   if (!consecutiveStores(previous, current)) {
-  //     llvm::outs() << "Stores are not consecutive.\n";
-  //     return false;
-  //   }
-
-  //   previous = current;
-  //   ++begin;
-  // }
-  // return true;
 }
 
-/// Returns true if all values in [begin, end) implement the leaf node interface
-/// of the LoSPN dialect.
+/// Returns true if all values in [begin, end) are leaf nodes.
+/// Note: The original dialect-specific check (LeafNodeInterface) was removed.
+/// This function now always returns true as all values are treated as leaves.
 template <typename ValueIterator>
 bool allLeaf(ValueIterator begin, ValueIterator end) {
-  while (begin != end) {
-    if (auto *definingOp = begin->getDefiningOp()) {
-      // if (!dyn_cast<LeafNodeInterface>(definingOp)) { //FIX
-      return true;
-      // }
-      ++begin;
-    } else {
-      return false;
-    }
-  }
   return true;
 }
 
