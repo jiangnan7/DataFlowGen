@@ -168,6 +168,8 @@ public:
   ComputeOperationNode *insertOriNode(Value result, DataType type);
   ComputeOperationNode *insertShlNode(Value result, DataType type);
 
+  ChainOperationNode *insertChainNode(dataflow::ChainOp op);
+
   ReductionNode *insertReductionNode(Value result, DataType type);
 
   BitCastNode *insertBitCastNode(arith::IndexCastOp op);

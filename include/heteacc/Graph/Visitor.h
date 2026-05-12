@@ -21,6 +21,7 @@ public:
             dataflow::LaunchOp, dataflow::YieldOp, dataflow::TaskOp,
             dataflow::AddressOp, dataflow::LoadOp, dataflow::InputOp,
             dataflow::StoreOp, dataflow::OutputOp, dataflow::MergeOp,
+            dataflow::ChainOp,
             dataflow::VectorIndexLoadOp, dataflow::VectorIndexStoreOp,
             // Function operations.
             func::CallOp, func::ReturnOp,

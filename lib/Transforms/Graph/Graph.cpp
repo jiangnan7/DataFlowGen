@@ -343,6 +343,29 @@ ReductionNode *Graph::insertReductionNode(Value result, DataType type) {
   return static_cast<ReductionNode *>(ff->get());
 }
 
+ChainOperationNode *Graph::insertChainNode(dataflow::ChainOp op) {
+  llvm::SmallVector<std::string, 8> opcodes;
+  for (auto attr : op.getOpcodes()) {
+    opcodes.push_back(attr.cast<StringAttr>().getValue().str());
+  }
+
+  std::string name = "chain_" + std::to_string(this->op_list.size());
+  auto resultType = op.getResult().getType();
+  DataType dtype = DataType::IntegerType;
+  if (resultType.isa<mlir::FloatType>())
+    dtype = DataType::FloatType;
+
+  this->op_list.push_back(std::make_unique<ChainOperationNode>(
+      NodeInfo(op_list.size(), name), dtype, op.getOperation(), opcodes));
+
+  auto ff = std::find_if(op_list.begin(), op_list.end(),
+                         [&op](auto &arg) -> bool {
+                           return arg.get()->getOperation() == op.getOperation();
+                         });
+
+  return static_cast<ChainOperationNode *>(ff->get());
+}
+
 BitCastNode *Graph::insertBitCastNode(arith::IndexCastOp op) {
 
   // std::string data = type == DataType::IntegerType ? "int" : "float";

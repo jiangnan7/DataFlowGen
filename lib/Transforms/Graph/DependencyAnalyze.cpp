@@ -1209,17 +1209,34 @@ void Graph::connectingGraph(mlir::func::FuncOp func) {
   }
 
   for (auto &op_node : this->op_list) {
+    DenseMap<Node *, unsigned> edgeCountToTarget;
+
     for (auto iter = op_node->outputDataport_begin();
          iter != op_node->outputDataport_end(); iter++) {
       if (isa<ArgumentNode>(&*iter->first))
         continue;
+
+      auto *tar_node = &(*iter->first);
+      unsigned occurrence = edgeCountToTarget[tar_node]++;
+
+      PortID tar_port(0);
+      unsigned count = 0;
+      for (auto in_iter = tar_node->inputDataport_begin();
+           in_iter != tar_node->inputDataport_end(); in_iter++) {
+        if (in_iter->first == &*op_node) {
+          if (count == occurrence) {
+            tar_port = in_iter->second;
+            break;
+          }
+          ++count;
+        }
+      }
+
       this->addEdge(
           Edge::EdgeType::DataTypeEdge,
           std::make_pair(&*op_node,
                          op_node->returnDataOutputPortIndex(&(*iter->first))),
-
-          std::make_pair(&(*iter->first),
-                         iter->first->returnDataInputPortIndex(&*op_node)));
+          std::make_pair(tar_node, tar_port));
     }
   }
 

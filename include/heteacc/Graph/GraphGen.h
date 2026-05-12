@@ -467,6 +467,12 @@ public:
     this->map_value_node[op.getResult()] = merge_node;
   }
 
+  void visitOp(dataflow::ChainOp op) {
+    auto chain_node = this->dependency_graph->insertChainNode(op);
+    this->map_op_node[op.getOperation()] = chain_node;
+    this->map_value_node[op.getResult()] = chain_node;
+  }
+
   void visitOp(memref::AllocaOp op) {
     MemRefType memRefType = op.getResult().getType().dyn_cast<MemRefType>();
     Type elementType = memRefType.getElementType();

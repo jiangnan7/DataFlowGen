@@ -367,7 +367,8 @@ public:
     CmpType,
     AddressGenType,
     InductionVarType,
-    ReductionType
+    ReductionType,
+    ChainType
 
   };
 
@@ -744,6 +745,33 @@ public:
   virtual std::string printInputEnable(PrintType) override;
   virtual std::string printOutputData(PrintType, uint32_t) override;
   virtual std::string printInputData(PrintType, uint32_t) override;
+};
+
+class ChainOperationNode : public OperationNode {
+
+public:
+  explicit ChainOperationNode(NodeInfo _ni, DataType datatype,
+                              mlir::Operation *operation,
+                              llvm::SmallVector<std::string, 8> opcodes)
+      : OperationNode(_ni, OperationType::ChainType, datatype, operation,
+                      OpCode::other),
+        opcodes(std::move(opcodes)) {}
+
+  // Overloading isa<>, dyn_cast from llvm
+  static bool classof(const OperationNode *I) {
+    return I->getOperationType() == OperationType::ChainType;
+  }
+
+  llvm::ArrayRef<std::string> getOpCodes() const { return opcodes; }
+  uint32_t getNumOps() const { return opcodes.size(); }
+
+  virtual std::string printDefinition(PrintType) override;
+  virtual std::string printInputEnable(PrintType) override;
+  virtual std::string printOutputData(PrintType, uint32_t) override;
+  virtual std::string printInputData(PrintType, uint32_t) override;
+
+private:
+  llvm::SmallVector<std::string, 8> opcodes;
 };
 
 class CmpNode : public OperationNode {

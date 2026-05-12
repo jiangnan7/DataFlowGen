@@ -82,6 +82,23 @@ static bool isStaticLoopIncrement(OperationNode *node) {
          add->getAttrOfType<StringAttr>("Exe").getValue() == "Loop";
 }
 
+static bool isLoopCarryAddOperation(Operation *op) {
+  auto add = dyn_cast_or_null<arith::AddIOp>(op);
+  if (!add || add->getNumResults() == 0 ||
+      !add.getResult().getType().isIntOrIndex())
+    return false;
+  if (!add->hasAttr("Exe") ||
+      add->getAttrOfType<StringAttr>("Exe").getValue() != "Loop")
+    return false;
+  auto parentLoop = add->getParentOfType<dataflow::ForOp>();
+  if (!parentLoop)
+    return false;
+  return llvm::any_of(add->getOperands(), [&parentLoop](Value operand) {
+    auto blockArg = dyn_cast<BlockArgument>(operand);
+    return blockArg && blockArg == parentLoop.getInductionVar();
+  });
+}
+
 static bool isStaticLoopAddress(AddressGenNode *node) {
   auto addrOp = node->getRelatedOp();
   auto forOp = addrOp->getParentOfType<dataflow::ForOp>();
@@ -334,16 +351,6 @@ std::string BitCastNode::printInputData(PrintType _pt, uint32_t _idx) {
 std::string ComputeOperationNode::printDefinition(PrintType _pt) {
   std::string _text;
   std::string _name(this->getName());
-  auto isLoopCarryAdd = [this]() {
-    auto add = dyn_cast_or_null<arith::AddIOp>(this->getOperation());
-    if (!add || !this->isIntegerType())
-      return false;
-    return llvm::any_of(add->getOperands(), [](Value operand) {
-      auto blockArg = dyn_cast<BlockArgument>(operand);
-      return blockArg &&
-             isa<dataflow::ForOp>(blockArg.getOwner()->getParentOp());
-    });
-  };
   switch (_pt) {
   case PrintType::Scala: {
     if (this->getLaneNums() == 0) {
@@ -360,8 +367,9 @@ std::string ComputeOperationNode::printDefinition(PrintType _pt) {
       strReplace(_text, "$num_out", std::to_string(numOut));
       if (this->isIntegerType()) {
         strReplace(_text, "$type",
-                   isLoopCarryAdd() ? "ComputeNodeWithoutStateSupportCarry"
-                                    : "ComputeNodeWithoutState");
+                   isLoopCarryAddOperation(this->getOperation())
+                       ? "ComputeNodeWithoutStateSupportCarry"
+                       : "ComputeNodeWithoutState");
       } else if (this->isFloatType()) {
         strReplace(_text,
                    "(sign = false, Debug "
@@ -434,19 +442,9 @@ std::string ComputeOperationNode::printOutputData(PrintType _pt,
 std::string ComputeOperationNode::printInputData(PrintType _pt, uint32_t _idx) {
   std::string _text;
   std::string _name(this->getName());
-  auto isLoopCarryAdd = [this]() {
-    auto add = dyn_cast_or_null<arith::AddIOp>(this->getOperation());
-    if (!add || !this->isIntegerType())
-      return false;
-    return llvm::any_of(add->getOperands(), [](Value operand) {
-      auto blockArg = dyn_cast<BlockArgument>(operand);
-      return blockArg &&
-             isa<dataflow::ForOp>(blockArg.getOwner()->getParentOp());
-    });
-  };
   switch (_pt) {
   case PrintType::Scala:
-    if (isLoopCarryAdd()) {
+    if (isLoopCarryAddOperation(this->getOperation())) {
       _text = "$name.io.RightIO";
       strReplace(_text, "$name", _name.c_str());
       break;
@@ -464,6 +462,82 @@ std::string ComputeOperationNode::printInputData(PrintType _pt, uint32_t _idx) {
     unsupportedPrintType();
   }
   this->conflict_input_index.push_back(_idx);
+  return _text;
+}
+
+//===----------------------------------------------------------------------===//
+//                         ChainOperationNode Class
+//===----------------------------------------------------------------------===//
+
+std::string ChainOperationNode::printDefinition(PrintType _pt) {
+  std::string _text;
+  std::string _name(this->getName());
+  switch (_pt) {
+  case PrintType::Scala: {
+    std::string opcodesStr = "Array(";
+    auto opcodes = this->getOpCodes();
+    for (size_t i = 0; i < opcodes.size(); ++i) {
+      opcodesStr += "\"" + opcodes[i] + "\"";
+      if (i + 1 < opcodes.size())
+        opcodesStr += ", ";
+    }
+    opcodesStr += ")";
+
+    _text = "  val $name = Module(new Chain(NumOps = $numops, ID = $id, "
+            "OpCodes = $opcodes)(sign = false)(p))\n\n";
+    strReplace(_text, "$name", _name.c_str());
+    strReplace(_text, "$id", this->getID());
+    strReplace(_text, "$numops", std::to_string(this->getNumOps()));
+    strReplace(_text, "$opcodes", opcodesStr);
+    break;
+  }
+  default:
+    unsupportedPrintType();
+  }
+  return _text;
+}
+
+std::string ChainOperationNode::printInputEnable(PrintType _pt) {
+  std::string _text;
+  std::string _name(this->getName());
+  switch (_pt) {
+  case PrintType::Scala:
+    _text = "$name.io.enable";
+    strReplace(_text, "$name", _name.c_str());
+    break;
+  default:
+    unsupportedPrintType();
+  }
+  return _text;
+}
+
+std::string ChainOperationNode::printOutputData(PrintType _pt, uint32_t _id) {
+  std::string _text;
+  std::string _name(this->getName());
+  switch (_pt) {
+  case PrintType::Scala:
+    _text = "$name.io.Out($id)";
+    strReplace(_text, "$name", _name.c_str());
+    strReplace(_text, "$id", std::to_string(this->getNumOps()));
+    break;
+  default:
+    unsupportedPrintType();
+  }
+  return _text;
+}
+
+std::string ChainOperationNode::printInputData(PrintType _pt, uint32_t _idx) {
+  std::string _text;
+  std::string _name(this->getName());
+  switch (_pt) {
+  case PrintType::Scala:
+    _text = "$name.io.In($id)";
+    strReplace(_text, "$name", _name.c_str());
+    strReplace(_text, "$id", std::to_string(_idx));
+    break;
+  default:
+    unsupportedPrintType();
+  }
   return _text;
 }
 
@@ -2496,15 +2570,11 @@ void Graph::printConnection(PrintType _pt) {
             src_node->printOutputData(PrintType::Scala, src_port);
 
         if (tar_node->getType() == Node::NodeType::ComputeNodeTy) {
-          if (auto add = dyn_cast_or_null<arith::AddIOp>(
-                  static_cast<OperationNode *>(tar_node)->getOperation())) {
-            bool isLoopCarryAdd =
-                llvm::any_of(add->getOperands(), [](Value operand) {
-                  auto blockArg = dyn_cast<BlockArgument>(operand);
-                  return blockArg && isa<dataflow::ForOp>(
-                                         blockArg.getOwner()->getParentOp());
-                });
-            if (isLoopCarryAdd && tar_port < add->getNumOperands()) {
+          Operation *targetOp =
+              static_cast<OperationNode *>(tar_node)->getOperation();
+          if (auto add = dyn_cast_or_null<arith::AddIOp>(targetOp)) {
+            if (isLoopCarryAddOperation(targetOp) &&
+                tar_port < add->getNumOperands()) {
               auto blockArg =
                   dyn_cast<BlockArgument>(add->getOperand(tar_port));
               if (blockArg &&
@@ -2606,6 +2676,16 @@ void Graph::printConnection(PrintType _pt) {
     for (auto &loop : this->loop_nodes) {
       auto carrySets = loop->getCarryDepenSets();
       if (!loop->hasLoopCounterBounds() || carrySets.empty())
+        continue;
+      bool carryOut0HasConsumer = false;
+      for (auto iter = carrySets.front()->outputDataport_begin();
+           iter != carrySets.front()->outputDataport_end(); ++iter) {
+        if (!isa<ArgumentNode>(iter->first) && iter->second.getID() == 0) {
+          carryOut0HasConsumer = true;
+          break;
+        }
+      }
+      if (carryOut0HasConsumer)
         continue;
       this->outputHardware << "  "
                            << carrySets.front()->printOutputData(
@@ -2954,9 +3034,7 @@ void Graph::printLoopConnection(PrintType _pt) {
                       compute->getOperation())) {
                 auto parentLoop = add->getParentOfType<dataflow::ForOp>();
                 if (parentLoop && parentLoop.getNumRegionIterArgs() > 0 &&
-                    (!add->hasAttr("Exe") ||
-                     add->getAttrOfType<StringAttr>("Exe").getValue() !=
-                         "Loop"))
+                    isLoopCarryAddOperation(add.getOperation()))
                   continue;
                 if (add->hasAttr("Exe") &&
                     add->getAttrOfType<StringAttr>("Exe").getValue() == "Loop")
