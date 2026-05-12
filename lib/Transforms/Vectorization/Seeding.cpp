@@ -1,3 +1,4 @@
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -22,14 +23,12 @@ SmallVector<Value, 4> SeedAnalysis::next() {
     }
   }
 
-  llvm::outs() << this->availableOps.size() << " dd\n";
-  this->rootOp->dump();
+  LLVM_DEBUG(llvm::dbgs() << "Available ops for seeding: "
+                          << this->availableOps.size() << "\n");
+
   auto seed = nextSeed();
-  llvm::outs() << "\nnextSeed(): " << seed.size() << " \n";
-  for (const auto op : seed) {
-    llvm::outs() << op;
-  }
-  llvm::outs() << "cccccddddddd\n";
+  LLVM_DEBUG(llvm::dbgs() << "Next seed size: " << seed.size() << "\n");
+
   for (auto value : seed) {
     if (auto *definingOp = value.getDefiningOp()) {
       this->availableOps.remove(definingOp);
@@ -64,18 +63,16 @@ TopDownAnalysis::TopDownAnalysis(Operation *rootOp, unsigned width)
 void TopDownAnalysis::computeAvailableOps() {
   this->rootOp->walk([&](Operation *op) {
     if (!vectorizable(op) || op->hasTrait<OpTrait::ConstantLike>()) {
-      LLVM_DEBUG({
-        llvm::dbgs() << "Not vectorizable.\n";
-        op->dump();
-      });
       return;
     }
     this->availableOps.insert(op);
   });
+  LLVM_DEBUG(llvm::dbgs() << "Computed " << this->availableOps.size()
+                          << " available ops for vectorization\n");
 }
 
 SmallVector<Value, 4> TopDownAnalysis::nextSeed() const {
-
+  // Strategy 1: Use slp.group attributes if available.
   DenseMap<int64_t, SmallVector<Operation *, 4>> groupMap;
   for (auto *op : this->availableOps) {
     if (op->hasAttr("slp.group")) {
@@ -84,41 +81,32 @@ SmallVector<Value, 4> TopDownAnalysis::nextSeed() const {
     }
   }
 
-  SmallVector<SmallVector<Value, 4>> seeds;
+  if (!groupMap.empty()) {
+    // Find the first group (by group ID) that has enough elements.
+    SmallVector<std::pair<int64_t, SmallVector<Operation *, 4>>> sortedGroups(
+        groupMap.begin(), groupMap.end());
+    llvm::sort(sortedGroups, [](const auto &lhs, const auto &rhs) {
+      return lhs.first < rhs.first;
+    });
 
-  for (auto [groupId, operations] : groupMap) {
-
-    SmallVector<Value, 4> groupSeed;
-    for (auto *op : operations) {
-      if (!availableOps.contains(op) || !vectorizable(op)) {
-        continue;
+    for (auto &[groupId, operations] : sortedGroups) {
+      SmallVector<Value, 4> groupSeed;
+      for (auto *op : operations) {
+        if (!availableOps.contains(op) || !vectorizable(op))
+          continue;
+        for (auto result : op->getResults()) {
+          groupSeed.push_back(result);
+        }
       }
-      for (auto result : op->getResults()) {
-        groupSeed.push_back(result);
+      if (groupSeed.size() >= 2) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "Found seed from slp.group=" << groupId << " with "
+                   << groupSeed.size() << " elements\n");
+        return groupSeed;
       }
     }
-
-    seeds.push_back(groupSeed);
-  }
-  llvm::sort(std::begin(seeds), std::end(seeds), [&](auto &lhs, auto &rhs) {
-    auto lhsGroup = lhs.front()
-                        .getDefiningOp()
-                        ->getAttr("slp.group")
-                        .template cast<IntegerAttr>()
-                        .getInt();
-    auto rhsGroup = rhs.front()
-                        .getDefiningOp()
-                        ->getAttr("slp.group")
-                        .template cast<IntegerAttr>()
-                        .getInt();
-    return lhsGroup < rhsGroup;
-  });
-
-  if (seeds.empty()) {
-    return {};
   }
 
-  auto &seed = seeds.front();
-  assert(&seed);
-  return seed;
+  // No slp.group found - no vectorization opportunities.
+  return {};
 }

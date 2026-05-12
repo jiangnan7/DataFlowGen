@@ -1,11 +1,15 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/IntegerSet.h"
 
+#include "llvm/Support/Debug.h"
+
 #include "heteacc/Vectorization/GraphConversion.h"
 #include "heteacc/Vectorization/SLPPatternApplicator.h"
 
 using namespace mlir;
 using namespace heteacc;
+
+#define DEBUG_TYPE "auto-vectorization"
 
 // === ConversionManager === //
 
@@ -201,26 +205,25 @@ ConversionManager::startConversion(SLPGraph const &graph) {
           escapingUsers[element].assign(std::begin(element.getUsers()),
                                         std::end(element.getUsers()));
         }
-        // Elements that appear in non-leaf vectors aren't escaping users as
-        // they aren't computed outside the SLP graph. if (!superword->isLeaf())
-        // {
-        //   for (size_t i = 0; i < superword->numOperands(); ++i) {
-        //     auto operand = superword->getOperand(i)->getElement(lane);
-        //     auto& users = escapingUsers[operand];
-        //     users.erase(std::remove(std::begin(users), std::end(users),
-        //     elementOp), std::end(users));
-        //   }
-        // }
       }
     }
   }
   // Sort escaping users so that we can create the extraction operation right in
   // front of the first one.
+  // Filter out users from different blocks to avoid isBeforeInBlock assertion.
   for (auto &entry : escapingUsers) {
-    llvm::sort(std::begin(entry.second), std::end(entry.second),
-               [&](Operation *lhs, Operation *rhs) {
-                 return lhs->isBeforeInBlock(rhs);
-               });
+    auto &users = entry.second;
+    users.erase(std::remove_if(std::begin(users), std::end(users),
+                               [&](Operation *op) {
+                                 return !op || op->getBlock() != block;
+                               }),
+                std::end(users));
+    if (!users.empty()) {
+      llvm::sort(std::begin(users), std::end(users),
+                 [&](Operation *lhs, Operation *rhs) {
+                   return lhs->isBeforeInBlock(rhs);
+                 });
+    }
   }
   return order;
 }
@@ -271,8 +274,8 @@ void ConversionManager::setupConversionFor(
   rewriter.setInsertionPoint(block->getTerminator());
   // Create extractions for any required scalar values if profitable.
   auto scalarInputs = leafVisitor.getRequiredScalarValues(pattern, superword);
-  llvm::outs() << "\nscalarInputs: " << scalarInputs.size() << "  "
-               << superword->numLanes() << "\n";
+  LLVM_DEBUG(llvm::dbgs() << "\nscalarInputs: " << scalarInputs.size() << "  "
+                          << superword->numLanes() << "\n");
 
   for (size_t lane = 0; lane < superword->numLanes(); ++lane) {
     auto element = superword->getElement(lane);
@@ -289,7 +292,7 @@ void ConversionManager::update(Superword *superword, Value operation,
   auto scalarInputs =
       this->leafVisitor.getRequiredScalarValues(appliedPattern, superword);
   for (auto scalarInput : *superword) {
-    llvm::outs() << "\nscalarInput: " << scalarInput << "\n";
+    LLVM_DEBUG(llvm::dbgs() << "\nscalarInput: " << scalarInput << "\n");
     if (!conversionState->alreadyComputed(scalarInput)) {
       conversionState->markComputed(scalarInput);
     }
@@ -305,22 +308,12 @@ void ConversionManager::update(Superword *superword, Value operation,
       // Nothing to do if it's being computed in scalar form somewhere else or
       // an extraction was not deemed profitable.
       if (extractOp != element) {
-        Value logExtractOp = nullptr;
         for (auto *escapingUser : escapingUsers.lookup(element)) {
           // Replace operands of escaping users with the extracted version.
           for (size_t i = 0; i < escapingUser->getNumOperands(); ++i) {
             if (escapingUser->getOperand(i) != element) {
               continue;
             }
-            // if (escapingUser->getOperand(i).getType().isa<LogType>()) {
-            //   if (!logExtractOp) {
-            //     logExtractOp =
-            //     rewriter.create<SPNConvertLog>(element.getLoc(), extractOp);
-            //   }
-            //   escapingUser->setOperand(i, logExtractOp);
-            // } else {
-            //   escapingUser->setOperand(i, extractOp);
-            // }
             escapingUser->setOperand(i, extractOp);
           }
         }

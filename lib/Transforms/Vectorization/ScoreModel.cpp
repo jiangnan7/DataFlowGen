@@ -51,25 +51,6 @@ unsigned PorpodasModel::getLookAheadScore(Value last, Value candidate,
   if (lastOp->getName() != candidateOp->getName()) {
     return 0;
   }
-  //   if (auto lhsLoad = dyn_cast<SPNBatchRead>(lastOp)) {
-  //     // We know both operations share the same opcode.
-  //     auto rhsLoad = cast<SPNBatchRead>(candidateOp);
-  //     if (lhsLoad.batchMem() == rhsLoad.batchMem() && lhsLoad.dynamicIndex()
-  //     == rhsLoad.dynamicIndex()) {
-  //       if (lhsLoad.staticIndex() + 1 == rhsLoad.staticIndex()) {
-  //         // Returning 3 prefers consecutive loads to gather loads and
-  //         broadcast loads. return 3;
-  //       }
-  //       // Returning 2 prefers gather loads to broadcast loads.
-  //       if (lhsLoad.staticIndex() != rhsLoad.staticIndex()) {
-  //         return 2;
-  //       }
-  //       // Broadcast load.
-  //       return 1;
-  //     } else {
-  //       return 0;
-  //     }
-  //   }
   if (maxLevel == 0) {
     return 1;
   }

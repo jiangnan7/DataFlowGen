@@ -1,11 +1,15 @@
 #include "mlir/IR/IntegerSet.h"
 
+#include "llvm/Support/Debug.h"
+
 #include "heteacc/Misc/VecUtils.h"
 #include "heteacc/Vectorization/SLPGraphBuilder.h"
 #include "heteacc/Vectorization/Seeding.h"
 
 using namespace mlir;
 using namespace heteacc;
+
+#define DEBUG_TYPE "auto-vectorization"
 
 SLPGraphBuilder::SLPGraphBuilder(SLPGraph &graph, unsigned maxNodeSize,
                                  unsigned maxLookAhead,
@@ -18,25 +22,25 @@ void SLPGraphBuilder::build(ArrayRef<Value> seed) {
   graph.nodeRoot = std::make_shared<SLPNode>(graph.superwordRoot);
   nodeBySuperword[graph.superwordRoot.get()] = graph.nodeRoot;
 
-  llvm::outs() << "graph.superwordRoot->getElement(0): "
-               << graph.superwordRoot->getElement(0) << "\n";
+  LLVM_DEBUG(llvm::dbgs() << "graph.superwordRoot->getElement(0): "
+                          << graph.superwordRoot->getElement(0) << "\n");
   superwordsByValue[graph.superwordRoot->getElement(0)].emplace_back(
       graph.superwordRoot);
   // If topological mixing is allowed anyways, we do not need to compute any
   // depths.
-  if (!false) {
-    computeDepths(seed, valueDepths);
-  }
-  llvm::outs() << "Printing ArrayRef<Value> seed:\n";
-  for (const auto &value : seed) {
-    llvm::outs() << "Value: ";
-    if (auto *defOp = value.getDefiningOp()) {
-      llvm::outs() << "Defining Operation: " << defOp->getName() << "\n";
-      defOp->dump(); // 打印操作的详细信息
-    } else {
-      llvm::outs() << "No defining operation\n";
+  computeDepths(seed, valueDepths);
+  LLVM_DEBUG({
+    llvm::dbgs() << "Printing ArrayRef<Value> seed:\n";
+    for (const auto &value : seed) {
+      llvm::dbgs() << "Value: ";
+      if (auto *defOp = value.getDefiningOp()) {
+        llvm::dbgs() << "Defining Operation: " << defOp->getName() << "\n";
+        defOp->dump();
+      } else {
+        llvm::dbgs() << "No defining operation\n";
+      }
     }
-  }
+  });
 
   buildWorklist.insert(graph.nodeRoot.get());
   buildGraph(graph.superwordRoot);
@@ -49,7 +53,7 @@ bool continueBuilding(Superword const &superword,
                       DenseMap<Value, unsigned> const &valueDepths,
                       bool allowDuplicateElements) {
   if (!vectorizable(superword.begin(), superword.end())) {
-    llvm::outs() << "!vectorizable\n";
+    LLVM_DEBUG(llvm::dbgs() << "!vectorizable\n");
     return false;
   }
   if (!allowDuplicateElements && !allLeaf(superword.begin(), superword.end())) {
@@ -184,7 +188,7 @@ struct SuperwordSemantics {
 void SLPGraphBuilder::buildGraph(std::shared_ptr<Superword> const &superword) {
   // Stop growing graph
   if (!continueBuilding(*superword, valueDepths, allowDuplicateElements)) {
-    llvm::outs() << " !continueBuilding \n";
+    LLVM_DEBUG(llvm::dbgs() << " !continueBuilding \n");
     return;
   }
   auto currentNode = nodeBySuperword[superword.get()];
@@ -193,12 +197,11 @@ void SLPGraphBuilder::buildGraph(std::shared_ptr<Superword> const &superword) {
   // Recursion call to grow graph further
   // 1. Commutative
   if (commutative(superword->begin(), superword->end())) {
-    llvm::outs() << "commutative \n";
+    LLVM_DEBUG(llvm::dbgs() << "commutative \n");
   } else {
-    llvm::outs() << "no commutative \n";
+    LLVM_DEBUG(llvm::dbgs() << "no commutative \n");
   }
   if (commutative(superword->begin(), superword->end())) {
-    // if(false){
     // A. Coarsening Mode
     auto allOperands = getAllOperandsSorted(*superword, currentOpCode);
     for (unsigned i = 0; i < arity; ++i) {
@@ -206,23 +209,24 @@ void SLPGraphBuilder::buildGraph(std::shared_ptr<Superword> const &superword) {
       for (size_t lane = 0; lane < superword->numLanes(); ++lane) {
         superwordValues.emplace_back(allOperands[lane][i]);
       }
-      llvm::outs() << " superwordValues \n";
-      for (auto it = superwordValues.begin(); it != superwordValues.end();
-           ++it) {
-        llvm::outs() << "Value: ";
-        if (auto *defOp = it->getDefiningOp()) {
-          llvm::outs() << "Defining Operation: " << defOp->getName() << "\n";
-          defOp->dump();
-          ;
-        } else {
-          llvm::outs() << "No defining operation\n";
+      LLVM_DEBUG({
+        llvm::dbgs() << " superwordValues \n";
+        for (auto it = superwordValues.begin(); it != superwordValues.end();
+             ++it) {
+          llvm::dbgs() << "Value: ";
+          if (auto *defOp = it->getDefiningOp()) {
+            llvm::dbgs() << "Defining Operation: " << defOp->getName() << "\n";
+            defOp->dump();
+          } else {
+            llvm::dbgs() << "No defining operation\n";
+          }
         }
-      }
+      });
 
       if (ofVectorizableType(std::begin(superwordValues),
                              std::end(superwordValues))) {
         //不断添加和它相关的操作。mul -> 常数 -> load操作。
-        llvm::outs() << "ofVectorizableType\n";
+        LLVM_DEBUG(llvm::dbgs() << "ofVectorizableType\n");
         auto operandNode =
             addOperandToNode(superwordValues, currentNode, superword);
         buildWorklist.insert(operandNode.get());
@@ -230,13 +234,12 @@ void SLPGraphBuilder::buildGraph(std::shared_ptr<Superword> const &superword) {
     }
     // B. Normal Mode: Finished building multi-node
     if (currentNode->isSuperwordRoot(*superword)) {
-      llvm::outs() << "\ncurrentNode->isSuperwordRoot(*superword)\n";
-      // reorderOperands(currentNode.get());
-      // We might want to shuffle superwords later on. We can not shuffle them
-      // if their operands have been reordered by more than just a simple
-      // commutative swap, since otherwise their semantics would be different.
-      // Note: the semantics of the node's root cannot be changed as it
-      // accumulates everything, no matter the order.
+      LLVM_DEBUG(llvm::dbgs()
+                 << "\ncurrentNode->isSuperwordRoot(*superword)\n");
+      // NOTE: reorderOperands disabled - shuffling superwords is unsafe when
+      // operands have been reordered by more than a simple commutative swap.
+      // The semantics of the node's root cannot be changed as it accumulates
+      // everything regardless of order.
       if (currentNode->numSuperwords() > 1) {
         DenseMap<Superword *, SuperwordSemantics> semantics;
         for (unsigned i = currentNode->numSuperwords(); i-- > 0;) {
@@ -253,7 +256,7 @@ void SLPGraphBuilder::buildGraph(std::shared_ptr<Superword> const &superword) {
         }
       }
       for (auto const &operandNode : currentNode->getOperands()) {
-        llvm::outs() << "buildWorklist\n";
+        LLVM_DEBUG(llvm::dbgs() << "buildWorklist\n");
         if (buildWorklist.erase(operandNode.get())) {
           buildGraph(
               operandNode->getSuperword(operandNode->numSuperwords() - 1));
@@ -265,12 +268,12 @@ void SLPGraphBuilder::buildGraph(std::shared_ptr<Superword> const &superword) {
   else {
 
     for (size_t i = 0; i < arity; ++i) {
-      llvm::outs() << "Non-Commutative size\n";
+      LLVM_DEBUG(llvm::dbgs() << "Non-Commutative size\n");
       SmallVector<Value, 4> operandValues;
       for (size_t lane = 0; lane < currentNode->numLanes(); ++lane) {
         auto operand =
             currentNode->getValue(lane, 0).getDefiningOp()->getOperand(i);
-        llvm::outs() << "operand: " << operand << "\n";
+        LLVM_DEBUG(llvm::dbgs() << "operand: " << operand << "\n");
         operandValues.emplace_back(operand);
       }
       if (ofVectorizableType(std::begin(operandValues),
